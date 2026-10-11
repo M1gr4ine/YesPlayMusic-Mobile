@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f5f1">
+  <title>YesPlayMusic</title>
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div class="topbar-copy">
+        <p class="eyebrow" id="top-eyebrow">为你精选</p>
+        <h1 id="top-title">听听</h1>
+      </div>
+      <button class="avatar-button" id="account-open" type="button" aria-label="账号与设置">
+        <span id="avatar-mark" aria-hidden="true"></span>
+      </button>
+    </header>
+
+    <div id="global-message" class="global-message" hidden></div>
+    <main id="tab-content" class="tab-content" tabindex="-1"></main>
+
+    <section id="mini-player" class="mini-player" aria-label="正在播放" hidden>
+      <button class="mini-track" id="mini-open" type="button" aria-label="打开正在播放">
+        <span class="mini-track-viewport" id="mini-track-viewport">
+          <span class="mini-track-content" id="mini-track-content">
+            <span class="mini-art" id="mini-art" aria-hidden="true"></span>
+            <span class="mini-copy">
+              <span class="mini-title" id="mini-title">—</span>
+              <span class="mini-subtitle" id="mini-subtitle" aria-live="off">
+                <span class="mini-subtitle-line"><span class="mini-subtitle-text">—</span></span>
+              </span>
+            </span>
+          </span>
+        </span>
+      </button>
+      <span class="mini-source" id="mini-source" aria-label="播放来源"></span>
+      <button class="icon-button mini-control mini-like" id="mini-like" type="button" aria-label="收藏歌曲" aria-pressed="false"></button>
+      <button class="icon-button mini-control" id="mini-toggle" type="button" aria-label="播放或暂停"></button>
+      <button class="icon-button mini-control mini-queue" id="mini-queue" type="button" aria-label="打开播放列表"></button>
+    </section>
+
+    <nav class="tab-bar" aria-label="主导航">
+      <button class="tab-item is-active" data-tab="listen" type="button" aria-current="page"><span class="tab-icon" data-icon="listen"></span><span>听听</span></button>
+      <button class="tab-item" data-tab="library" type="button"><span class="tab-icon" data-icon="library"></span><span>我的</span></button>
+      <button class="tab-item" data-tab="search" type="button"><span class="tab-icon" data-icon="search"></span><span>搜索</span></button>
+    </nav>
+  </div>
+
+  <div id="player-overlay" class="player-overlay" aria-hidden="true">
+    <button class="overlay-scrim" id="player-scrim" type="button" tabindex="-1" aria-label="关闭播放器"></button>
+    <section id="player-sheet" class="player-sheet" role="dialog" aria-modal="true" aria-label="正在播放">
+      <div class="sheet-grab-area" id="player-grab-area">
+        <span class="sheet-grabber"></span>
+        <div class="player-topline">
+          <button class="icon-button close-player" id="player-close" type="button" aria-label="收起播放器"></button>
+          <span class="player-context">正在播放</span>
+          <button class="icon-button player-more" id="player-settings" type="button" aria-label="播放设置"></button>
+        </div>
+      </div>
+      <div class="player-scroll" id="player-scroll">
+        <section id="player-main" class="player-main view-lyrics">
+          <div id="player-overview" class="player-overview">
+          <div class="player-artwork-wrap">
+            <div class="player-artwork" id="player-artwork"></div>
+          </div>
+          <div class="player-heading">
+            <div class="track-heading-copy">
+              <h2 id="player-title">尚未播放</h2>
+              <p id="player-artist">从我的或搜索中选择一首歌</p>
+            </div>
+            <span class="source-pill" id="player-source">—</span>
+          </div>
+          <div class="player-controls">
+            <div class="progress-block">
+              <input id="seek-slider" type="range" min="0" max="1000" value="0" aria-label="播放进度">
+              <div class="time-row"><span id="elapsed-time">0:00</span><span id="remaining-time">−0:00</span></div>
+            </div>
+            <div class="transport-row">
+              <button class="icon-button secondary-transport" id="shuffle-button" type="button" aria-label="随机播放"></button>
+              <button class="icon-button transport-button" id="previous-button" type="button" aria-label="上一首"></button>
+              <button class="play-button" id="player-toggle" type="button" aria-label="播放"></button>
+              <button class="icon-button transport-button" id="next-button" type="button" aria-label="下一首"></button>
+              <button class="icon-button secondary-transport" id="repeat-button" type="button" aria-label="循环模式"></button>
+            </div>
+          </div>
+          </div>
+          <div id="player-view-switch" class="player-view-switch" role="tablist" aria-label="播放内容">
+              <button id="lyrics-tab" class="view-switch is-selected" data-player-view="lyrics" type="button" role="tab" aria-controls="lyrics-panel" aria-selected="true">歌词</button>
+              <button id="queue-tab" class="view-switch" data-player-view="queue" type="button" role="tab" aria-controls="queue-panel" aria-selected="false">播放列表</button>
+          </div>
+          <div id="player-pager" class="player-pager" aria-label="歌词与播放列表">
+            <div id="player-pager-track" class="player-pager-track">
+              <div id="lyrics-panel" class="lyrics-panel" role="tabpanel" aria-labelledby="lyrics-tab">
+                <div id="lyrics-lines" class="lyrics-lines"><p class="lyrics-empty">播放歌曲后显示歌词</p></div>
+              </div>
+              <div id="queue-panel" class="queue-panel" role="tabpanel" aria-labelledby="queue-tab" aria-hidden="true" inert>
+                <div class="queue-heading"><div><p class="eyebrow">UP NEXT</p><h3>接下来播放</h3></div></div>
+                <div id="queue-list" class="queue-list"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <div id="queue-overlay" class="sheet-overlay queue-overlay" aria-hidden="true">
+    <button class="overlay-scrim" id="queue-scrim" type="button" tabindex="-1" aria-label="关闭播放列表"></button>
+    <section id="queue-sheet" class="queue-sheet" role="dialog" aria-modal="true" aria-label="播放列表">
+      <div id="queue-sheet-handle" class="queue-sheet-handle">
+        <span class="sheet-grabber"></span>
+        <div class="queue-sheet-heading">
+          <div><p class="eyebrow">UP NEXT</p><h2>播放列表</h2></div>
+          <button class="icon-button" id="queue-sheet-close" type="button" aria-label="关闭播放列表"></button>
+        </div>
+      </div>
+      <div class="queue-sheet-content" id="queue-sheet-content">
+        <div id="queue-list-sheet" class="queue-list queue-sheet-list"></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="account-overlay" class="sheet-overlay" aria-hidden="true">
+    <button class="overlay-scrim" id="account-scrim" type="button" tabindex="-1" aria-label="关闭账号设置"></button>
+    <section class="settings-sheet" role="dialog" aria-modal="true" aria-label="账号与设置">
+      <div class="sheet-grabber"></div>
+      <div class="settings-heading"><div><p class="eyebrow">YESPLAYMUSIC</p><h2>账号与设置</h2></div><button class="icon-button" id="account-close" type="button" aria-label="关闭"></button></div>
+      <div class="account-card">
+        <div class="account-avatar" id="account-avatar" aria-hidden="true"></div>
+        <div class="account-copy"><strong id="account-name">尚未登录</strong><span id="account-description">登录后同步歌单与收藏</span></div>
+        <button class="small-action" id="netease-login" type="button">登录方式</button>
+      </div>
+      <div id="netease-login-panel" class="netease-login-panel" hidden>
+        <form id="netease-sms-form" class="sms-login-form" novalidate>
+          <label class="form-label" for="netease-phone">手机号</label>
+          <div class="phone-input"><span>+86</span><input id="netease-phone" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="11" placeholder="输入网易云音乐手机号"></div>
+          <label class="form-label" for="netease-captcha">短信验证码</label>
+          <div class="captcha-input"><input id="netease-captcha" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="输入验证码"><button class="small-action secondary-action" id="send-captcha" type="button">发送验证码</button></div>
+          <button class="primary-action sms-submit" id="netease-sms-submit" type="submit">验证码登录</button>
+          <p id="netease-login-feedback" class="login-feedback" role="alert" hidden></p>
+        </form>
+        <button class="official-login-link" id="netease-official-login" type="button">使用官方网页登录</button>
+        <p class="sms-note">使用网易云音乐账号登录，同步你的歌单。</p>
+      </div>
+      <section class="settings-group">
+        <div class="settings-group-title"><h3>播放音源</h3><p>QQ 音源可用于搜索与播放</p></div>
+        <div class="source-options" role="radiogroup" aria-label="播放音源">
+          <button class="source-option" data-source="auto" role="radio" aria-checked="false" type="button"><span><strong>自动</strong><small>优先网易云，必要时使用 QQ</small></span><span class="radio-mark"></span></button>
+          <button class="source-option" data-source="netease" role="radio" aria-checked="false" type="button"><span><strong>网易云音乐</strong><small>使用网易云音源</small></span><span class="radio-mark"></span></button>
+          <button class="source-option" data-source="qq" role="radio" aria-checked="false" type="button"><span><strong>QQ 音源</strong><small id="qq-source-detail">用 QQ 音乐搜索并解析播放</small></span><span class="radio-mark"></span></button>
+        </div>
+        <div class="qq-account-row"><div><strong>QQ 音乐账号</strong><span id="qq-account-status">检查登录状态…</span></div><button class="small-action secondary-action" id="qq-login" type="button">QQ 登录</button></div>
+        <button id="qq-logout" class="logout-button" type="button" hidden>退出 QQ 音乐账号</button>
+      </section>
+      <section class="settings-group theme-group">
+        <div class="settings-group-title"><h3>外观</h3><p>跟随系统或固定明暗模式</p></div>
+        <div class="theme-picker" role="radiogroup" aria-label="外观"><button data-theme-choice="system" type="button">跟随系统</button><button data-theme-choice="light" type="button">浅色</button><button data-theme-choice="dark" type="button">深色</button></div>
+      </section>
+      <button id="netease-logout" class="logout-button" type="button" hidden>退出网易云账号</button>
+      <p class="settings-footnote">账号登录由应用内的官方授权页面完成，登录信息保存在本机。</p>
+    </section>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./lyrics.js"></script>
+  <script src="./mini-lyrics.js"></script>
+  <script src="./settings-motion.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
