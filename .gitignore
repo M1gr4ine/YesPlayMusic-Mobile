@@ -1,0 +1,24 @@
+# Local build products and signing material
+/build/
+/dist/
+*.apk
+*.idsig
+*.keystore
+*.jks
+*.p12
+*.pem
+*.class
+__pycache__/
+*.pyc
+.env*
+local.properties
+# Private runtime and device evidence
+/evidence/
+/backups/
+*.log
+.DS_Store
+Thumbs.db
+
+# Versioned test builds shipped with the source snapshot
+!releases/*.apk
+
