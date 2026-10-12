@@ -103,6 +103,9 @@ public final class MusicApi {
         if ("loginStatus".equals(method)) return loginStatus();
         if ("likeStatus".equals(method)) return likeStatus(input);
         if ("setLiked".equals(method)) return setLiked(input);
+        if ("ownedPlaylists".equals(method)) return ownedPlaylists();
+        if ("playlistAddTrack".equals(method)) return playlistAddTrack(input);
+        if ("matchTrack".equals(method)) return matchTrack(input);
         if ("qrKey".equals(method)) return qrKey();
         if ("qrCheck".equals(method)) return qrCheck(input);
         if ("sendCaptcha".equals(method)) return sendCaptcha(input);
@@ -246,6 +249,17 @@ public final class MusicApi {
         params.put("offset", Math.max(0, args.optInt("offset", 0)));
         params.put("total", true);
         return sanitize(requestWeapi("/api/cloudsearch/pc", params));
+    }
+
+    List<String> findExactNeteaseArtistAliases(String songId, String title, String artist) throws Exception {
+        String id = songId == null ? "" : songId.trim();
+        String cleanTitle = title == null ? "" : title.trim();
+        String cleanArtist = artist == null ? "" : artist.trim();
+        if (!NetEaseAuthState.hasPositiveUserId(id) || cleanTitle.isEmpty() || cleanTitle.length() > 200
+                || cleanArtist.length() > 200) return java.util.Collections.emptyList();
+        JSONObject response = search(new JSONObject().put("keywords", (cleanTitle + " " + cleanArtist).trim())
+                .put("type", 1).put("limit", 10));
+        return ArtistAliases.fromExactNeteaseSong(response, id);
     }
 
     private static final int MAX_PLAYLIST_TRACKS = 500; // Keep in sync with PlaybackService.MAX_QUEUE_SIZE.
@@ -553,6 +567,129 @@ public final class MusicApi {
             }
             return favoriteResult(200, true, liked, null);
         }
+    }
+
+    /** Playlists the signed-in user created, excluding the liked-songs list that 收藏 manages. */
+    private JSONObject ownedPlaylists() throws Exception {
+        LikeAccount account = accountForLikes();
+        if (!account.loggedIn) {
+            return playlistResult(401, false, "请先登录网易云音乐");
+        }
+        JSONObject params = new JSONObject().put("uid", account.userId).put("limit", 1000)
+                .put("offset", 0).put("includeVideo", true);
+        JSONObject response = requestWeapi("/api/user/playlist", params, account.generation);
+        int code = response.optInt("code", -1);
+        if (code == 301 || code == 401) {
+            return playlistResult(401, false, "请先登录网易云音乐");
+        }
+        JSONArray source = response.optJSONArray("playlist");
+        if (code != 200 || source == null) {
+            return playlistResult(502, true, "读取歌单失败，请稍后重试");
+        }
+        JSONArray owned = new JSONArray();
+        for (int i = 0; i < source.length(); i++) {
+            JSONObject item = source.optJSONObject(i);
+            if (item == null || item.optBoolean("subscribed", false) || item.optInt("specialType", 0) == 5) continue;
+            JSONObject creator = item.optJSONObject("creator");
+            String creatorId = creator == null ? item.optString("userId", "") : creator.optString("userId", "");
+            String id = item.optString("id", "");
+            if (!account.userId.equals(creatorId) || !NetEaseAuthState.hasPositiveUserId(id)) continue;
+            owned.put(new JSONObject().put("id", id)
+                    .put("name", item.optString("name", "未命名歌单"))
+                    .put("artwork", item.optString("coverImgUrl", ""))
+                    .put("count", Math.max(0, item.optInt("trackCount", 0))));
+        }
+        return playlistResult(200, true, null).put("playlists", owned);
+    }
+
+    private JSONObject playlistAddTrack(JSONObject args) throws Exception {
+        String pid = requireId(args.optString("pid", ""));
+        String id = requireId(args.optString("id", ""));
+        LikeAccount account = accountForLikes();
+        if (!account.loggedIn) {
+            return playlistResult(401, false, "请先登录网易云音乐");
+        }
+        JSONObject params = new JSONObject().put("op", "add").put("pid", pid)
+                .put("trackIds", new JSONArray().put(id).toString()).put("imme", "true");
+        JSONObject response = requestEapi("/api/playlist/manipulate/tracks", params, account.generation);
+        int code = response.optInt("code", -1);
+        if (code == 512) {
+            // Same retry as the desktop client's API package: the service accepts a repeated id.
+            params.put("trackIds", new JSONArray().put(id).put(id).toString());
+            response = requestEapi("/api/playlist/manipulate/tracks", params, account.generation);
+            code = response.optInt("code", -1);
+        }
+        if (code == 200) return playlistResult(200, true, null).put("added", true);
+        if (code == 502) {
+            return playlistResult(200, true, "这首歌已经在歌单里了")
+                    .put("added", false).put("duplicate", true);
+        }
+        if (code == 301 || code == 401) {
+            return playlistResult(401, false, "请先登录网易云音乐");
+        }
+        String message = response.optString("message", response.optString("msg", ""));
+        if (message.isEmpty() || message.length() > 60) {
+            message = "添加到歌单失败，请稍后重试";
+        }
+        return playlistResult(code > 0 ? code : 502, true, message);
+    }
+
+    /** Finds the NetEase version of a QQ catalog song so it can be added to a NetEase playlist. */
+    private JSONObject matchTrack(JSONObject args) throws Exception {
+        String title = args.optString("title", "").trim();
+        String artist = args.optString("artist", "").trim();
+        long duration = Math.max(0L, args.optLong("duration", 0L));
+        List<String> artistAliases = ArtistAliases.fromAliasArray(args.optJSONArray("artistAliases"), artist);
+        if (title.isEmpty() || title.length() > 200 || artist.length() > 200) {
+            throw new IllegalArgumentException("\u6b4c\u66f2\u4fe1\u606f\u4e0d\u8db3");
+        }
+        JSONObject query = new JSONObject().put("keywords", (title + " " + artist).trim())
+                .put("type", 1).put("limit", 10);
+        JSONObject response = search(query);
+        JSONObject result = response.optJSONObject("result");
+        JSONArray songs = result == null ? null : result.optJSONArray("songs");
+        JSONObject best = null;
+        String bestArtist = "";
+        int bestScore = -1;
+        for (int i = 0; songs != null && i < songs.length(); i++) {
+            JSONObject song = songs.optJSONObject(i);
+            if (song == null || !NetEaseAuthState.hasPositiveUserId(song.optString("id", ""))) continue;
+            String names = artistNames(song.optJSONArray("ar"));
+            int score = ArtistAliases.score(title, artist, artistAliases, duration,
+                    song.optString("name", ""), names, ArtistAliases.fromArtists(song.optJSONArray("ar")),
+                    song.optLong("dt", 0L));
+            if (score > bestScore) {
+                bestScore = score;
+                best = song;
+                bestArtist = names;
+            }
+        }
+        if (best == null || bestScore < 0) return new JSONObject().put("code", 200).put("matched", false);
+        JSONObject album = best.optJSONObject("al");
+        return new JSONObject().put("code", 200).put("matched", true)
+                .put("id", best.optString("id"))
+                .put("title", best.optString("name", title))
+                .put("artist", bestArtist)
+                .put("album", album == null ? "" : album.optString("name", ""))
+                .put("duration", best.optLong("dt", 0L));
+    }
+
+    private static String artistNames(JSONArray artists) {
+        StringBuilder names = new StringBuilder();
+        for (int i = 0; artists != null && i < artists.length(); i++) {
+            JSONObject artist = artists.optJSONObject(i);
+            String name = artist == null ? "" : artist.optString("name", "");
+            if (name.isEmpty()) continue;
+            if (names.length() > 0) names.append(" / ");
+            names.append(name);
+        }
+        return names.toString();
+    }
+
+    private static JSONObject playlistResult(int code, boolean loggedIn, String message) throws JSONException {
+        JSONObject result = new JSONObject().put("code", code).put("loggedIn", loggedIn);
+        if (message != null && !message.isEmpty()) result.put("message", message);
+        return result;
     }
 
     private LikeAccount accountForLikes() throws Exception {

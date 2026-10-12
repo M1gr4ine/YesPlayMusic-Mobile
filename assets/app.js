@@ -19,7 +19,8 @@
     back: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="m15 5-7 7 7 7"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M20.8 8.8c0 5.2-8.8 10.3-8.8 10.3S3.2 14 3.2 8.8a4.4 4.4 0 0 1 8.8-.3 4.4 4.4 0 0 1 8.8.3Z"/></svg>',
     music: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
-    queue: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 6.5h12M4 11.5h12M4 16.5h7"/><path d="m16 15 4 3-4 3z"/></svg>'
+    queue: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 6.5h12M4 11.5h12M4 16.5h7"/><path d="m16 15 4 3-4 3z"/></svg>',
+    listAdd: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 6.5h11M4 11.5h11M4 16.5h7"/><path d="M17.5 13v7M14 16.5h7"/></svg>'
   };
 
   const state = {
@@ -100,6 +101,14 @@
   let pendingMiniHandoff = null;
   let miniHandoffGeneration = 0;
   let tabGesture = null;
+  let trackActions = null;
+  let trackActionsGeneration = 0;
+  let trackActionsSheetGeneration = 0;
+  let pendingPlayerModes = null;
+  let seekDragging = false;
+  let mediaQueueCache = { version: undefined, queue: [] };
+  let queueSignatureSource = null;
+  let queueSignatureValue = '';
   const QUEUE_ROW_HEIGHT = 61;
   const QUEUE_WINDOW_OVERSCAN = 8;
   const MINI_TRACK_DRAG_FACTOR = 0.22;
@@ -208,7 +217,7 @@
     return position;
   }
 
-  function springTo(element, targetX, targetY, velocityX, velocityY, onRest) {
+  function rafSpringTo(element, targetX, targetY, velocityX, velocityY, onRest) {
     const current = cancelSpring(element);
     const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion) {
@@ -238,7 +247,9 @@
     animation.frame = requestAnimationFrame(tick);
   }
 
-  function tabSpringTo(element, targetX, targetY, velocityX, velocityY, onRest) {
+  // Springs are sampled into a Web Animation so the compositor keeps them smooth even while
+  // the main thread is busy; rafSpringTo is the fallback when animate() is unavailable.
+  function springTo(element, targetX, targetY, velocityX, velocityY, onRest) {
     const current = cancelSpring(element);
     const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion) {
@@ -273,14 +284,14 @@
     }
     if (!settled) keyframes[keyframes.length - 1] = { transform: `translate3d(${targetX}px,${targetY}px,0)` };
     if (typeof element.animate !== 'function') {
-      springTo(element, targetX, targetY, velocityX, velocityY, onRest);
+      rafSpringTo(element, targetX, targetY, velocityX, velocityY, onRest);
       return;
     }
     let player;
     try {
       player = element.animate(keyframes, { duration, easing: 'linear', fill: 'forwards' });
     } catch (_) {
-      springTo(element, targetX, targetY, velocityX, velocityY, onRest);
+      rafSpringTo(element, targetX, targetY, velocityX, velocityY, onRest);
       return;
     }
     animation.player = player;
@@ -339,6 +350,12 @@
     if (node && icons[name]) node.innerHTML = icons[name];
   }
 
+  function setToggleIcon(node, name) {
+    if (!node || node.dataset.icon === name) return;
+    setIcon(node, name);
+    node.dataset.icon = name;
+  }
+
   function showToast(message) {
     const toast = $('#toast');
     if (!toast) return;
@@ -348,17 +365,82 @@
     state.toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 2300);
   }
 
-  function setMessage(message, isError) {
+  let globalMessageDismissTimer = 0;
+  let globalMessageFoldTimer = 0;
+  let activeGlobalErrorKey = '';
+
+  function clearErrorMessage() {
+    if (!activeGlobalErrorKey) return;
+    clearTimeout(globalMessageDismissTimer);
+    clearTimeout(globalMessageFoldTimer);
+    globalMessageDismissTimer = 0;
+    globalMessageFoldTimer = 0;
+    activeGlobalErrorKey = '';
     const node = $('#global-message');
+    if (!node) return;
+    node.hidden = true;
+    node.textContent = '';
+    node.style.height = '';
+    node.classList.remove('is-error', 'is-collapsing');
+  }
+
+  function setMessage(message, isError, errorKey) {
+    const node = $('#global-message');
+    if (!node) return;
     if (!message) {
+      clearTimeout(globalMessageDismissTimer);
+      clearTimeout(globalMessageFoldTimer);
+      globalMessageDismissTimer = 0;
+      globalMessageFoldTimer = 0;
+      activeGlobalErrorKey = '';
       node.hidden = true;
       node.textContent = '';
-      node.classList.remove('is-error');
+      node.style.height = '';
+      node.classList.remove('is-error', 'is-collapsing');
       return;
     }
+    if (isError) {
+      const nextKey = String(errorKey || message);
+      if (nextKey === activeGlobalErrorKey) return;
+      clearTimeout(globalMessageDismissTimer);
+      clearTimeout(globalMessageFoldTimer);
+      activeGlobalErrorKey = nextKey;
+    } else {
+      clearTimeout(globalMessageDismissTimer);
+      clearTimeout(globalMessageFoldTimer);
+      globalMessageDismissTimer = 0;
+      globalMessageFoldTimer = 0;
+      activeGlobalErrorKey = '';
+    }
     node.textContent = message;
+    node.style.height = '';
+    node.classList.remove('is-collapsing');
     node.hidden = false;
     node.classList.toggle('is-error', !!isError);
+    if (!isError) return;
+    const scheduledKey = activeGlobalErrorKey;
+    globalMessageDismissTimer = setTimeout(() => {
+      if (activeGlobalErrorKey !== scheduledKey) return;
+      globalMessageDismissTimer = 0;
+      const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduceMotion) {
+        node.hidden = true;
+        node.style.height = '';
+        node.classList.remove('is-collapsing');
+        return;
+      }
+      node.style.height = String(node.scrollHeight) + 'px';
+      void node.offsetHeight;
+      node.classList.add('is-collapsing');
+      node.style.height = '0px';
+      globalMessageFoldTimer = setTimeout(() => {
+        if (activeGlobalErrorKey !== scheduledKey) return;
+        globalMessageFoldTimer = 0;
+        node.hidden = true;
+        node.style.height = '';
+        node.classList.remove('is-collapsing');
+      }, 190);
+    }, 4000);
   }
 
   function nativeReady() {
@@ -437,6 +519,29 @@
     return typeof artists === 'string' ? artists : '';
   }
 
+  function artistAliasNames(track) {
+    const names = [];
+    const seen = new Set();
+    const add = value => {
+      if (typeof value !== 'string' || names.length >= 32) return;
+      const name = value.trim().slice(0, 128);
+      if (!name || /[\u0000-\u001f]/.test(name)) return;
+      const key = name.normalize('NFKC').toLowerCase();
+      if (!seen.has(key)) { seen.add(key); names.push(name); }
+    };
+    if (Array.isArray(track.artistAliases)) track.artistAliases.forEach(add);
+    const artists = track.artists || track.ar || track.singers || track.singer || track.artist;
+    for (const artist of Array.isArray(artists) ? artists : [artists]) {
+      if (!artist || typeof artist !== 'object') continue;
+      for (const key of ['alias', 'alia', 'tns', 'trans']) {
+        const value = artist[key];
+        if (Array.isArray(value)) value.forEach(add);
+        else add(value);
+      }
+    }
+    return names;
+  }
+
   function normalizeTrack(raw, provider) {
     if (!raw || typeof raw !== 'object') return null;
     if (raw.song && typeof raw.song === 'object') raw = raw.song;
@@ -452,6 +557,7 @@
     if (duration > 0 && duration < 10000) duration *= 1000;
     const result = {
       id: normalizedId, title: String(title), artist: artistNames(raw) || '未知艺术家', album: String(albumName || ''),
+      artistAliases: artistAliasNames(raw),
       artwork: safeHttpsUrl(artwork), duration: Number.isFinite(duration) ? duration : 0,
       provider: idProvider || raw.provider || provider || 'netease'
     };
@@ -652,6 +758,7 @@
     if (patch.sourcePreference) state.searchProvider = patch.sourcePreference === 'qq' ? 'qq' : 'netease';
     applyTheme();
     renderSettingsAccount();
+    if (patch.sourcePreference && state.media.track) updateSourceLabels();
     if (window.Native && typeof window.Native.settings === 'function') {
       try { window.Native.settings(JSON.stringify(state.settings)); } catch (_) { showToast('设置未能保存'); }
     }
@@ -674,6 +781,41 @@
     if (showNeteaseLogin) $('#netease-login-panel').hidden = false;
     renderSettingsAccount();
     refreshAuth();
+    refreshCacheSize();
+  }
+
+  function formatBytes(bytes) {
+    const value = Math.max(0, Number(bytes) || 0);
+    if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+    return `${(value / 1048576).toFixed(value < 10 * 1048576 ? 1 : 0)} MB`;
+  }
+
+  function showCacheSize(response) {
+    const label = $('#cache-size');
+    if (!label) return;
+    label.textContent = response && Number.isFinite(Number(response.bytes))
+      ? `封面图片与网络缓存 · ${formatBytes(response.bytes)}` : '暂时无法读取缓存大小';
+  }
+
+  function refreshCacheSize() {
+    if (!nativeReady()) return;
+    request('cacheInfo', {}).then(showCacheSize, () => showCacheSize(null));
+  }
+
+  async function clearCache() {
+    const button = $('#clear-cache');
+    if (!nativeReady() || button.disabled) return;
+    button.disabled = true;
+    button.textContent = '正在清除…';
+    try {
+      showCacheSize(await request('clearCache', {}));
+      showToast('缓存已清除');
+    } catch (_) {
+      showToast('暂时无法清除缓存');
+    } finally {
+      button.disabled = false;
+      button.textContent = '清除缓存';
+    }
   }
 
   function closeAccount() {
@@ -769,16 +911,38 @@
     }
   }
 
-  function makeCover(url, className) {
+  // Request covers near their display size: originals are often over 1000px, and decoding
+  // dozens of them for 50px thumbnails makes lists stutter and inflates memory.
+  function sizedArtwork(url, cssPixels) {
+    const safe = safeHttpsUrl(url);
+    if (!safe || !cssPixels) return safe;
+    const pixels = Math.ceil(cssPixels * Math.min(3, Math.max(1, window.devicePixelRatio || 1)));
+    try {
+      const parsed = new URL(safe);
+      if (parsed.hostname.endsWith('.music.126.net')) {
+        const size = Math.min(1024, Math.ceil(pixels / 20) * 20);
+        parsed.searchParams.set('param', `${size}y${size}`);
+        return parsed.href;
+      }
+      if (parsed.hostname === 'y.gtimg.cn') {
+        const size = [150, 300, 500, 800].find(value => value >= pixels) || 800;
+        return parsed.href.replace(/(T00\dR)\d+x\d+(M000)/, `$1${size}x${size}$2`);
+      }
+    } catch (_) {}
+    return safe;
+  }
+
+  function makeCover(url, className, size) {
     const cover = element('span', `cover ${className || ''}`.trim());
     const fallback = element('span', 'cover-mark');
     setIcon(fallback, 'music');
     cover.append(fallback);
-    const safe = safeHttpsUrl(url);
+    const safe = sizedArtwork(url, size || 64);
     if (safe) {
       const img = document.createElement('img');
       img.alt = '';
       img.loading = 'lazy';
+      img.decoding = 'async';
       img.referrerPolicy = 'no-referrer';
       img.src = safe;
       img.onerror = () => img.remove();
@@ -828,7 +992,7 @@
     const card = element('button', compact ? 'quick-card' : 'playlist-card');
     card.type = 'button';
     card.setAttribute('aria-label', `打开歌单 ${playlist.name}`);
-    card.append(makeCover(playlist.artwork, ''));
+    card.append(makeCover(playlist.artwork, '', compact ? 68 : 176));
     if (compact) card.append(element('span', 'quick-label', playlist.name));
     else {
       card.append(element('strong', '', playlist.name));
@@ -855,6 +1019,14 @@
     });
     row.append(main);
     if (options && options.duration) row.append(element('span', 'song-duration', formatTime(track.duration)));
+    if (options && options.actions) {
+      const more = element('button', 'icon-button song-more');
+      more.type = 'button';
+      setIcon(more, 'more');
+      more.setAttribute('aria-label', `更多操作：${track.title}`);
+      more.addEventListener('click', () => openTrackActions(track));
+      row.append(more);
+    }
     return row;
   }
 
@@ -865,7 +1037,7 @@
   }
 
   function renderFeature(target, subtitle, click) {
-    const artworkUrl = safeHttpsUrl(target.artwork);
+    const artworkUrl = sizedArtwork(target.artwork, 110);
     const card = element('button', `feature-card${artworkUrl ? ' has-art' : ''}`);
     card.type = 'button';
     card.setAttribute('aria-label', target.actionLabel || target.title);
@@ -873,7 +1045,7 @@
     setIcon(art, 'music');
     if (artworkUrl) {
       const image = document.createElement('img');
-      image.className = 'feature-cover'; image.alt = ''; image.src = artworkUrl; image.referrerPolicy = 'no-referrer';
+      image.className = 'feature-cover'; image.alt = ''; image.decoding = 'async'; image.src = artworkUrl; image.referrerPolicy = 'no-referrer';
       image.onerror = () => image.remove(); art.append(image);
     }
     const copy = element('span', 'feature-copy');
@@ -922,7 +1094,7 @@
     }
     if (state.home.songs.length) {
       const songs = section('每日推薦', '来自网易云音乐的真实推荐', null, null);
-      songs.wrap.append(renderSongList(state.home.songs.slice(0, 12), { duration: true })); root.append(songs.wrap);
+      songs.wrap.append(renderSongList(state.home.songs.slice(0, 12), { duration: true, actions: true })); root.append(songs.wrap);
     }
   }
 
@@ -938,7 +1110,7 @@
     }
     if (state.home.songs.length) {
       const songs = section('推荐歌曲', '点击一首开始播放', null, null);
-      songs.wrap.append(renderSongList(state.home.songs.slice(0, 20), { duration: true })); root.append(songs.wrap);
+      songs.wrap.append(renderSongList(state.home.songs.slice(0, 20), { duration: true, actions: true })); root.append(songs.wrap);
     }
     if (!state.homeLoading && !state.homeError && !state.home.playlists.length && !state.home.songs.length) {
       root.append(emptyState(state.account ? '暂时没有可浏览的内容' : '登录后发现更多音乐', state.account ? '当前接口没有返回精选歌单或歌曲。' : '网易云音乐账号登录后，展示你的推荐内容。', state.account ? '重新加载' : '网易云登录', state.account ? () => loadHome(true) : () => openAccount(true)));
@@ -958,7 +1130,7 @@
         const card = element('button', 'recent-track-card');
         card.type = 'button';
         card.setAttribute('aria-label', `播放 ${track.title}，${track.artist}`);
-        card.append(makeCover(track.artwork, 'recent-track-cover'));
+        card.append(makeCover(track.artwork, 'recent-track-cover', 112));
         const copy = element('span', 'recent-track-copy');
         copy.append(element('strong', '', track.title), element('span', '', track.artist || track.album || ''));
         card.append(copy);
@@ -1054,7 +1226,7 @@
       const data = state.searchResults;
       if (state.searchType === 'songs') {
         const tracks = data.songs || [];
-        if (tracks.length) root.append(renderSongList(tracks, { duration: true }));
+        if (tracks.length) root.append(renderSongList(tracks, { duration: true, actions: true }));
         else {
           const none = emptyState('没有找到歌曲', '试试歌名、歌手名，或切换搜索平台。', null, null);
           if (state.searchProvider === 'qq' && state.qqStatus && !state.qqStatus.loggedIn) {
@@ -1070,7 +1242,7 @@
         } else if (key === 'albums' && items.length) {
           const rail = element('div', 'card-rail'); items.forEach(item => {
             const album = { id: String(item.id), name: String(item.name || '专辑'), artwork: safeHttpsUrl(item.picUrl || item.coverImgUrl || ''), count: Number(item.size || 0) };
-            const card = element('button','playlist-card'); card.type='button'; card.append(makeCover(album.artwork,''),element('strong','',album.name));
+            const card = element('button','playlist-card'); card.type='button'; card.append(makeCover(album.artwork,'',176),element('strong','',album.name));
             card.addEventListener('click', () => loadAlbum(album.id)); rail.append(card);
           }); root.append(rail);
         } else if (key === 'artists' && items.length) {
@@ -1094,15 +1266,15 @@
     const playlist = state.playlist;
     const total = Math.max(playlist.tracks.length, playlist.total || 0);
     const countLabel = total > playlist.tracks.length ? `已加载 ${playlist.tracks.length} / ${total} 首` : `${playlist.tracks.length} 首歌曲`;
-    const hero = element('div','playlist-hero'); hero.append(makeCover(playlist.artwork,''));
+    const hero = element('div','playlist-hero'); hero.append(makeCover(playlist.artwork,'',112));
     const copy = element('div','playlist-hero-copy'); copy.append(element('h2','',playlist.name),element('p','',`${playlist.creator ? playlist.creator + ' · ' : ''}${countLabel}`)); hero.append(copy); root.append(hero);
     if (playlist.description) { const desc = element('p','login-status-line',playlist.description); root.append(desc); }
     const controls = element('div','playlist-controls');
-    const play = element('button','large-play'); play.type='button'; setIcon(play,'play'); play.append(document.createTextNode(total > playlist.tracks.length ? '播放已加载歌曲' : '全部播放')); play.addEventListener('click', () => playlist.tracks.length && playTracks(playlist.tracks,0)); controls.append(play);
-    const shuffle = element('button','round-action'); shuffle.type='button'; setIcon(shuffle,'shuffle'); shuffle.setAttribute('aria-label','随机播放'); shuffle.addEventListener('click', () => { const shuffled = playlist.tracks.slice().sort(() => Math.random()-.5); playTracks(shuffled,0); }); controls.append(shuffle); root.append(controls);
+    const play = element('button','large-play'); play.type='button'; setIcon(play,'play'); play.append(document.createTextNode(total > playlist.tracks.length ? '播放已加载歌曲' : '全部播放')); play.addEventListener('click', () => { if (!playlist.tracks.length) return; if (state.media.shuffle) setShuffle(false, true); playTracks(playlist.tracks,0); }); controls.append(play);
+    const shuffle = element('button','round-action'); shuffle.type='button'; setIcon(shuffle,'shuffle'); shuffle.setAttribute('aria-label','随机播放'); shuffle.addEventListener('click', () => { if (!playlist.tracks.length) return; setShuffle(true, true); playTracks(playlist.tracks, Math.floor(Math.random() * playlist.tracks.length)); }); controls.append(shuffle); root.append(controls);
     root.append(element('p','list-caption',countLabel));
     if (playlist.loadError) root.append(element('p','login-status-line',playlist.loadError));
-    if (playlist.tracks.length) root.append(renderSongList(playlist.tracks,{duration:true}));
+    if (playlist.tracks.length) root.append(renderSongList(playlist.tracks,{duration:true,actions:true}));
     else root.append(emptyState('歌单里没有歌曲', '音乐平台没有返回可播放曲目。', null, null));
   }
 
@@ -1185,7 +1357,7 @@
         const generation = ++tabTransitionGeneration;
         tabTransitionInFlight = false;
         const current = cancelSpring(content);
-        tabSpringTo(content,0,0,current.vx,current.vy,() => {
+        springTo(content,0,0,current.vx,current.vy,() => {
           if (generation !== tabTransitionGeneration) return;
           content.style.opacity='1'; content.style.willChange='';
           if (tab === 'search' && focusSearch) setTimeout(() => {
@@ -1229,8 +1401,8 @@
     setMotionPosition(content,incomingX,0);
     setMotionPosition(ghost,current.x,0);
     const initialVelocity = Number(velocityX)||current.vx;
-    tabSpringTo(ghost,outgoingX,0,tabSpringVelocity(initialVelocity,current.x,outgoingX),0,() => ghost.remove());
-    tabSpringTo(content,0,0,tabSpringVelocity(initialVelocity,incomingX,0),0,() => {
+    springTo(ghost,outgoingX,0,tabSpringVelocity(initialVelocity,current.x,outgoingX),0,() => ghost.remove());
+    springTo(content,0,0,tabSpringVelocity(initialVelocity,incomingX,0),0,() => {
       if (generation !== tabTransitionGeneration) return;
       content.style.opacity='1';
       content.style.willChange='';
@@ -1518,6 +1690,11 @@
   }
 
   function handleBack() {
+    if (trackActions) {
+      if (trackActions.view === 'playlists') { trackActions.view = 'menu'; renderTrackActions(); }
+      else closeTrackActions();
+      return true;
+    }
     const accountOverlay = $('#account-overlay');
     if (accountOverlay && accountOverlay.classList.contains('is-open')) {
       closeAccount();
@@ -1554,21 +1731,39 @@
   function currentTrackTitle(track) { return track && track.title ? track.title : '尚未播放'; }
   function sourceLabel(source) {
     const value = String(source || '').toLowerCase();
-    if (value.includes('qq')) return 'QQ 音源';
-    if (value.includes('netease') || value.includes('163') || value.includes('网易')) return '网易云';
-    if (state.settings.sourcePreference === 'qq') return 'QQ 音源';
-    if (state.settings.sourcePreference === 'netease') return '网易云';
-    return '自动';
+    if (value.includes('qq')) return 'QQ \u97f3\u6e90';
+    if (value.includes('netease') || value.includes('163') || value.includes('\u7f51\u6613')) return '\u7f51\u6613\u4e91';
+    if (value) return '\u97f3\u6e90';
+    const preference = state.settings.sourcePreference;
+    if (state.media.error) {
+      if (preference === 'qq') return 'QQ\u97f3\u6e90\u4e0d\u53ef\u7528';
+      if (preference === 'netease') return '\u7f51\u6613\u4e91\u97f3\u6e90\u4e0d\u53ef\u7528';
+      return '\u97f3\u6e90\u4e0d\u53ef\u7528';
+    }
+    if (state.media.buffering) {
+      if (preference === 'qq') return '\u6b63\u5728\u5339\u914dQQ';
+      if (preference === 'netease') return '\u6b63\u5728\u5339\u914d\u7f51\u6613\u4e91';
+      return '\u6b63\u5728\u5339\u914d\u97f3\u6e90';
+    }
+    return '\u97f3\u6e90\u672a\u786e\u8ba4';
   }
 
-  function updateArt(node, url) {
+  function updateSourceLabels() {
+    if (!state.media.track) return;
+    const label = sourceLabel(state.media.source);
+    $('#player-source').textContent = label;
+    $('#mini-source').textContent = label;
+    $('#mini-source').hidden = false;
+  }
+
+  function updateArt(node, url, size) {
     if (!node) return;
     const fallback = element('span','art-mark');
     setIcon(fallback, 'music');
     node.replaceChildren(fallback);
-    const safe = safeHttpsUrl(url);
+    const safe = sizedArtwork(url, size);
     if (safe) {
-      const img = document.createElement('img'); img.alt = ''; img.referrerPolicy = 'no-referrer'; img.src = safe; img.onerror = () => img.remove(); node.append(img);
+      const img = document.createElement('img'); img.alt = ''; img.decoding = 'async'; img.referrerPolicy = 'no-referrer'; img.src = safe; img.onerror = () => img.remove(); node.append(img);
     }
   }
 
@@ -1578,7 +1773,7 @@
     const host = $('#mini-subtitle');
     if (!host) return;
     const track = state.media.track;
-    const active = Number.isInteger(index) ? index : (state.lyrics.length && window.YPMLyrics ? window.YPMLyrics.activeIndex(state.lyrics,state.media.position) : -1);
+    const active = Number.isInteger(index) ? index : (state.lyrics.length && window.YPMLyrics ? window.YPMLyrics.activeIndex(state.lyrics,mediaPosition()) : -1);
     const line = track && active >= 0 ? state.lyrics[active] : null;
     const lyricText = line && String(line.text || '').trim();
     const text = lyricText || (track ? (track.artist || track.album || 'YesPlayMusic') : '');
@@ -1593,6 +1788,12 @@
 
   function updatePlayerChrome() {
     const track = state.media.track;
+    if (state.media.error) {
+      const errorKey = track ? JSON.stringify([track.provider, track.id]) : 'no-track';
+      setMessage('当前歌曲无法播放，请试试列表中的其他歌曲。', true, errorKey);
+    } else {
+      clearErrorMessage();
+    }
     const hasTrack = !!track;
     $('#mini-player').hidden = !hasTrack;
     if (!hasTrack) {
@@ -1601,62 +1802,123 @@
       if (state.favorite.key) invalidateFavoriteStatus(false);
       return;
     }
+    updateSourceLabels();
     const trackSignature = JSON.stringify([track.id,track.provider,track.title,track.artist,track.album,track.artwork,state.media.source]);
     if (trackSignature !== lastTrackSignature) {
       lastTrackSignature = trackSignature;
       $('#mini-title').textContent = currentTrackTitle(track);
       $('#player-title').textContent = currentTrackTitle(track);
       $('#player-artist').textContent = [track.artist, track.album].filter(Boolean).join(' · ') || '未知艺术家';
-      $('#player-source').textContent = sourceLabel(state.media.source || track.provider);
-      $('#mini-source').textContent = sourceLabel(state.media.source || track.provider);
-      $('#mini-source').hidden = false;
-      updateArt($('#mini-art'), track.artwork);
-      updateArt($('#player-artwork'), track.artwork);
+      updateArt($('#mini-art'), track.artwork, 43);
+      updateArt($('#player-artwork'), track.artwork, 360);
       loadFavoriteStatus(track);
     }
-    setIcon($('#mini-toggle'), state.media.playing ? 'pause' : 'play');
+    setToggleIcon($('#mini-toggle'), state.media.playing ? 'pause' : 'play');
     updateMiniFavoriteButton();
-    setIcon($('#player-toggle'), state.media.playing ? 'pause' : 'play');
+    setToggleIcon($('#player-toggle'), state.media.playing ? 'pause' : 'play');
     $('#player-toggle').setAttribute('aria-label', state.media.playing ? '暂停' : '播放');
+    updateProgress();
+    const shuffleButton = $('#shuffle-button');
+    shuffleButton.classList.toggle('is-selected',!!state.media.shuffle);
+    shuffleButton.setAttribute('aria-pressed',String(!!state.media.shuffle));
+    shuffleButton.setAttribute('aria-label',state.media.shuffle ? '随机播放已开启' : '顺序播放（随机播放已关闭）');
+    const repeat = state.media.repeat || 'off';
+    const repeatButton = $('#repeat-button');
+    repeatButton.classList.toggle('is-selected',repeat !== 'off');
+    repeatButton.dataset.mode = repeat;
+    repeatButton.setAttribute('aria-label',repeat === 'one' ? '单曲循环' : repeat === 'all' ? '列表循环' : '循环已关闭');
+    renderQueueIfChanged();
+    updateLyricsActive();
+  }
+
+  // The service publishes the position once per second; between updates it is extrapolated
+  // so lyrics and the progress bar advance at the 300 ms poll rate.
+  function mediaPosition() {
+    const media = state.media;
+    let position = Math.max(0, Number(media.position) || 0);
+    if (media.playing && !media.buffering && media.updatedAt) position += Math.max(0, Math.min(1500, Date.now() - media.updatedAt));
+    const duration = media.duration || (media.track && media.track.duration) || 0;
+    return duration ? Math.min(duration, position) : position;
+  }
+
+  function updateProgress() {
+    const track = state.media.track;
+    if (!track || seekDragging) return;
     const duration = Math.max(0, state.media.duration || track.duration || 0);
-    const position = Math.min(duration || state.media.position, Math.max(0,state.media.position || 0));
+    const position = mediaPosition();
     const slider = $('#seek-slider');
     slider.max = String(Math.max(1,duration));
     slider.value = String(Math.min(duration || 1,position));
     slider.style.setProperty('--progress', `${duration ? (position / duration) * 100 : 0}%`);
     $('#elapsed-time').textContent = formatTime(position);
     $('#remaining-time').textContent = `−${formatTime(Math.max(0,duration-position))}`;
-    $('#shuffle-button').classList.toggle('is-selected',!!state.media.shuffle);
-    $('#repeat-button').classList.toggle('is-selected',state.media.repeat && state.media.repeat !== 'off');
-    renderQueueIfChanged();
-    updateLyricsActive();
-    if (state.media.error) setMessage('当前歌曲无法播放，请试试列表中的其他歌曲。', true);
   }
 
   function favoriteProvider(track) {
-    const provider = String(track && track.provider || state.media.source || '').toLowerCase();
-    return provider.includes('qq') ? 'qq' : 'netease';
+    const id = String(track && track.id || '');
+    const provider = String(track && track.provider || '').toLowerCase();
+    return /^qq:/i.test(id) || provider.includes('qq') || (!!(track && (track.qqMid || track.songmid)) && !/^\d+$/.test(id))
+      ? 'qq' : 'netease';
   }
 
   function favoriteTrackKey(track) {
     if (!track || track.id === undefined || track.id === null) return '';
     const provider = favoriteProvider(track);
-    return `${provider}:${String(track.id)}:${provider === 'qq' ? String(track.qqMid || track.songmid || '') : ''}`;
+    return provider === 'qq'
+      ? 'qq:' + String(track.id) + ':' + String(track.qqMid || track.songmid || '')
+      : 'netease:' + String(track.id);
   }
 
-  function favoriteRequest(track, provider, liked) {
-    const id = String(track.id);
-    if (provider === 'qq') {
-      const args = { qqMid: String(track.qqMid || track.songmid || id), id };
-      return { method: liked === undefined ? 'qqLikeStatus' : 'qqSetLiked', args: liked === undefined ? args : Object.assign({}, args, { liked }) };
-    }
-    const args = { id };
+  function favoriteRequest(target, liked) {
+    const args = { id: String(target && target.id || '') };
     return { method: liked === undefined ? 'likeStatus' : 'setLiked', args: liked === undefined ? args : Object.assign({}, args, { liked }) };
+  }
+
+  function favoriteTargetFor(track) {
+    const failure = (message, retryable) => ({ target: null, errorMessage: message, retryable: !!retryable });
+    if (!track || track.id === undefined || track.id === null) {
+      return Promise.resolve(failure('\u65e0\u6cd5\u8bc6\u522b\u8fd9\u9996\u6b4c\uff0c\u65e0\u6cd5\u6536\u85cf', false));
+    }
+    if (favoriteProvider(track) !== 'qq') {
+      const id = String(track.id);
+      if (!/^[1-9]\d{0,23}$/.test(id)) {
+        return Promise.resolve(failure('\u65e0\u6cd5\u8bc6\u522b\u8fd9\u9996\u7f51\u6613\u4e91\u6b4c\u66f2\uff0c\u65e0\u6cd5\u6536\u85cf', false));
+      }
+      return Promise.resolve({
+        target: { id, title: String(track.title || ''), artist: String(track.artist || '') },
+        errorMessage: '', retryable: false
+      });
+    }
+
+    const title = String(track.title || '').trim();
+    if (!title) return Promise.resolve(failure('\u6b4c\u66f2\u4fe1\u606f\u4e0d\u8db3\uff0c\u65e0\u6cd5\u6536\u85cf', false));
+    const artist = String(track.artist || '');
+    const args = {
+      title,
+      artist: artist === '\u672a\u77e5\u827a\u672f\u5bb6' ? '' : artist,
+      artistAliases: Array.isArray(track.artistAliases) ? track.artistAliases : [],
+      duration: Math.max(0, Math.floor(Number(track.duration) || 0))
+    };
+    const unavailable = '\u6682\u65f6\u65e0\u6cd5\u5339\u914d\u5230\u7f51\u6613\u4e91\u7248\u672c\uff0c\u65e0\u6cd5\u6536\u85cf\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5';
+    const unmatched = '\u7f51\u6613\u4e91\u66f2\u5e93\u6ca1\u6709\u627e\u5230\u540c\u4e00\u9996\u6b4c\u66f2\uff0c\u65e0\u6cd5\u6536\u85cf';
+    try {
+      return request('matchTrack', args).then(response => {
+        if (!response || !apiRequestSucceeded(response)) return failure(unavailable, true);
+        const id = String(response.id || '');
+        if (response.matched !== true || !/^[1-9]\d{0,23}$/.test(id)) return failure(unmatched, false);
+        return {
+          target: { id, title: String(response.title || track.title || ''), artist: String(response.artist || '') },
+          errorMessage: '', retryable: false
+        };
+      }).catch(() => failure(unavailable, true));
+    } catch (_) {
+      return Promise.resolve(failure(unavailable, true));
+    }
   }
 
   function favoriteMessage(response, fallback) {
     const message = String(response && response.message || '').trim().slice(0, 80);
-    return /^[\u4e00-\u9fffA-Za-z0-9\s，。！？、；：（）()\-]+$/.test(message) ? message : fallback;
+    return /^[\u4e00-\u9fffA-Za-z0-9\s\uFF0C\u3002\uFF01\uFF1F\u3001\uFF1B\uFF1A\uFF08\uFF09()\-]+$/.test(message) ? message : fallback;
   }
 
   function favoriteRequestIsCurrent(generation, key) {
@@ -1671,10 +1933,12 @@
     const liked = current && state.favorite.liked === true;
     button.classList.toggle('is-liked', liked);
     button.setAttribute('aria-pressed', String(liked));
-    button.setAttribute('aria-label', liked ? '取消收藏' : '收藏歌曲');
+    button.setAttribute('aria-label', liked ? '取消收藏' : '收藏到网易云音乐');
     button.disabled = !current || state.favorite.loading || state.favorite.mutating || state.authMutation === state.favorite.provider;
     button.setAttribute('aria-busy', String(current && (state.favorite.loading || state.favorite.mutating)));
-    button.title = current && state.favorite.errorMessage ? state.favorite.errorMessage : (liked ? '取消收藏' : '收藏歌曲');
+    button.title = current && state.favorite.errorMessage
+      ? state.favorite.errorMessage
+      : (liked ? '从网易云音乐“我喜欢”中取消' : '收藏到网易云音乐“我喜欢”');
   }
 
   function invalidateFavoriteStatus(loading) {
@@ -1682,33 +1946,52 @@
     const track = state.media.track;
     const key = favoriteTrackKey(track);
     state.favorite = {
-      key, provider: track ? favoriteProvider(track) : '', available: false, loggedIn: false,
-      liked: null, loading: !!(loading && key), mutating: false, errorMessage: ''
+      key, provider: track ? 'netease' : '', target: null, available: false, loggedIn: false,
+      liked: null, loading: !!(loading && key), mutating: false, errorMessage: '', retryable: false
     };
     updateMiniFavoriteButton();
   }
 
-  function loadFavoriteStatus(track) {
+  async function loadFavoriteStatus(track) {
     const key = favoriteTrackKey(track);
     if (!key) return;
-    const provider = favoriteProvider(track);
+    const provider = 'netease';
     const generation = ++state.favoriteGeneration;
-    state.favorite = { key, provider, available: false, loggedIn: false, liked: null, loading: true, mutating: false, errorMessage: '' };
+    state.favorite = { key, provider, target: null, available: false, loggedIn: false, liked: null, loading: true, mutating: false, errorMessage: '', retryable: false };
     updateMiniFavoriteButton();
-    const requestInfo = favoriteRequest(track, provider);
-    request(requestInfo.method, requestInfo.args).then(response => {
-      if (!favoriteRequestIsCurrent(generation, key)) return;
-      if (!response || typeof response !== 'object' || !apiRequestSucceeded(response) || typeof response.loggedIn !== 'boolean' || typeof response.liked !== 'boolean') {
-        state.favorite = { key, provider, available: false, loggedIn: false, liked: null, loading: false, mutating: false, errorMessage: favoriteMessage(response, '无法读取收藏状态') };
-      } else {
-        state.favorite = { key, provider, available: true, loggedIn: response.loggedIn, liked: response.liked, loading: false, mutating: false, errorMessage: '' };
-      }
+
+    let resolution;
+    try { resolution = await favoriteTargetFor(track); }
+    catch (_) { resolution = { target: null, errorMessage: '\u6682\u65f6\u65e0\u6cd5\u5339\u914d\u7f51\u6613\u4e91\u7248\u672c\uff0c\u65e0\u6cd5\u6536\u85cf\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5', retryable: true }; }
+    if (!favoriteRequestIsCurrent(generation, key)) return;
+    if (!resolution || !resolution.target) {
+      state.favorite = {
+        key, provider, target: null, available: false, loggedIn: false, liked: null, loading: false, mutating: false,
+        errorMessage: resolution && resolution.errorMessage || '\u65e0\u6cd5\u5339\u914d\u5230\u53ef\u6536\u85cf\u7684\u7f51\u6613\u4e91\u7248\u672c',
+        retryable: !!(resolution && resolution.retryable)
+      };
       updateMiniFavoriteButton();
-    }).catch(() => {
-      if (!favoriteRequestIsCurrent(generation, key)) return;
-      state.favorite = { key, provider, available: false, loggedIn: false, liked: null, loading: false, mutating: false, errorMessage: '暂时无法读取收藏状态' };
-      updateMiniFavoriteButton();
-    });
+      return;
+    }
+
+    let response = null;
+    try {
+      const info = favoriteRequest(resolution.target);
+      response = await request(info.method, info.args);
+    } catch (_) {}
+    if (!favoriteRequestIsCurrent(generation, key)) return;
+    if (response && response.loggedIn === false) {
+      state.favorite = { key, provider, target: resolution.target, available: true, loggedIn: false, liked: false, loading: false, mutating: false, errorMessage: '', retryable: false };
+    } else if (!response || typeof response !== 'object' || !apiRequestSucceeded(response) || typeof response.loggedIn !== 'boolean' || typeof response.liked !== 'boolean') {
+      state.favorite = {
+        key, provider, target: resolution.target, available: false, loggedIn: false, liked: null, loading: false, mutating: false,
+        errorMessage: favoriteMessage(response, '\u65e0\u6cd5\u8bfb\u53d6\u7f51\u6613\u4e91\u6536\u85cf\u72b6\u6001'),
+        retryable: true
+      };
+    } else {
+      state.favorite = { key, provider, target: resolution.target, available: true, loggedIn: response.loggedIn, liked: response.liked, loading: false, mutating: false, errorMessage: '', retryable: false };
+    }
+    updateMiniFavoriteButton();
   }
 
   async function toggleFavorite() {
@@ -1716,46 +1999,393 @@
     const key = favoriteTrackKey(track);
     if (!key || state.favorite.key !== key || state.favorite.loading || state.favorite.mutating) return;
     if (!state.favorite.available) {
-      showToast(state.favorite.errorMessage || '暂时无法读取收藏状态');
-      loadFavoriteStatus(track);
+      const retryable = !!state.favorite.retryable;
+      showToast(state.favorite.errorMessage || '\u65e0\u6cd5\u8bfb\u53d6\u7f51\u6613\u4e91\u6536\u85cf\u72b6\u6001');
+      if (retryable) loadFavoriteStatus(track);
       return;
     }
     if (!state.favorite.loggedIn) {
-      showToast(state.favorite.provider === 'qq' ? '登录 QQ 音乐后可收藏' : '登录网易云音乐后可收藏');
+      showToast('\u767b\u5f55\u7f51\u6613\u4e91\u97f3\u4e50\u540e\u53ef\u6536\u85cf');
       return;
     }
-    if (typeof state.favorite.liked !== 'boolean') {
-      showToast('暂时无法读取收藏状态');
-      loadFavoriteStatus(track);
+    if (typeof state.favorite.liked !== 'boolean' || !state.favorite.target) {
+      showToast(state.favorite.errorMessage || '\u65e0\u6cd5\u8bfb\u53d6\u7f51\u6613\u4e91\u6536\u85cf\u72b6\u6001');
+      if (state.favorite.retryable) loadFavoriteStatus(track);
       return;
     }
-    const provider = state.favorite.provider;
     const generation = state.favoriteGeneration;
-    const requestInfo = favoriteRequest(track, provider, !state.favorite.liked);
+    const requestInfo = favoriteRequest(state.favorite.target, !state.favorite.liked);
     state.favorite.mutating = true;
     updateMiniFavoriteButton();
     try {
       const response = await request(requestInfo.method, requestInfo.args);
       if (!favoriteRequestIsCurrent(generation, key)) return;
-      if (!response || typeof response !== 'object' || !apiRequestSucceeded(response) || typeof response.loggedIn !== 'boolean' || typeof response.liked !== 'boolean') {
-        showToast(favoriteMessage(response, '暂时无法更新收藏状态'));
-      } else if (!response.loggedIn) {
+      if (response && response.loggedIn === false) {
         state.favorite.loggedIn = false;
         state.favorite.liked = false;
-        showToast(provider === 'qq' ? '登录 QQ 音乐后可收藏' : '登录网易云音乐后可收藏');
+        showToast('\u767b\u5f55\u7f51\u6613\u4e91\u97f3\u4e50\u540e\u53ef\u6536\u85cf');
+      } else if (!response || typeof response !== 'object' || !apiRequestSucceeded(response) || typeof response.loggedIn !== 'boolean' || typeof response.liked !== 'boolean') {
+        showToast(favoriteMessage(response, '\u6682\u65f6\u65e0\u6cd5\u66f4\u65b0\u7f51\u6613\u4e91\u6536\u85cf\u72b6\u6001'));
       } else {
         state.favorite.loggedIn = true;
         state.favorite.liked = response.liked;
-        showToast(response.liked ? '已添加到收藏' : '已取消收藏');
+        state.favorite.retryable = false;
+        showToast(response.liked ? '\u5df2\u6536\u85cf\u5230\u7f51\u6613\u4e91\u201c\u6211\u559c\u6b22\u201d' : '\u5df2\u4ece\u7f51\u6613\u4e91\u201c\u6211\u559c\u6b22\u201d\u53d6\u6d88\u6536\u85cf');
       }
     } catch (_) {
-      if (favoriteRequestIsCurrent(generation, key)) showToast('暂时无法更新收藏状态');
+      if (favoriteRequestIsCurrent(generation, key)) showToast('\u6682\u65f6\u65e0\u6cd5\u66f4\u65b0\u7f51\u6613\u4e91\u6536\u85cf\u72b6\u6001');
     } finally {
       if (favoriteRequestIsCurrent(generation, key)) {
         state.favorite.mutating = false;
         updateMiniFavoriteButton();
       }
     }
+  }
+  function setShuffle(enabled, silent) {
+    if (!nativeReady()) { showToast('请在手机应用中使用播放器'); return; }
+    sendCommand({ type: 'shuffle', enabled: !!enabled });
+    setPendingPlayerMode('shuffle', !!enabled);
+    if (!silent) showToast(enabled ? '随机播放' : '顺序播放');
+  }
+
+  function setRepeat(mode) {
+    if (!nativeReady()) { showToast('请在手机应用中使用播放器'); return; }
+    sendCommand({ type: 'repeat', mode });
+    setPendingPlayerMode('repeat', mode);
+    showToast(mode === 'one' ? '单曲循环' : mode === 'all' ? '列表循环' : '已关闭循环');
+  }
+
+  // Shows a mode change right away; state polls keep it until the service reports it.
+  function setPendingPlayerMode(key, value) {
+    pendingPlayerModes = Object.assign({}, pendingPlayerModes, { [key]: value, until: performance.now() + 2000 });
+    state.media = Object.assign({}, state.media, { [key]: value });
+    updatePlayerChrome();
+  }
+
+  function applyPendingPlayerModes(next) {
+    if (!pendingPlayerModes) return;
+    if (performance.now() > pendingPlayerModes.until) { pendingPlayerModes = null; return; }
+    let settled = true;
+    ['shuffle','repeat'].forEach(key => {
+      if (!(key in pendingPlayerModes)) return;
+      if (next[key] === pendingPlayerModes[key]) delete pendingPlayerModes[key];
+      else { next[key] = pendingPlayerModes[key]; settled = false; }
+    });
+    if (settled) pendingPlayerModes = null;
+  }
+
+  function providerName(provider) {
+    return provider === 'qq' ? 'QQ 音乐' : '网易云音乐';
+  }
+
+  function trackActionsCurrent(generation) {
+    return !!trackActions && trackActions.generation === generation;
+  }
+
+  function openTrackActions(raw) {
+    const track = normalizeTrack(raw, raw && raw.provider);
+    if (!track) return;
+    const provider = favoriteProvider(track);
+    const key = favoriteTrackKey(track);
+    const known = !!key && state.favorite.key === key && state.favorite.available && !state.favorite.loading
+      && typeof state.favorite.liked === 'boolean' && !!(state.favorite.target && state.favorite.target.id);
+    const target = known ? Object.assign({}, state.favorite.target)
+      : provider === 'qq' ? null : { id: String(track.id), title: track.title, artist: track.artist };
+    trackActions = {
+      track, provider, key, generation: ++trackActionsGeneration, view: 'menu', addingId: '', target,
+      // Playlists and favorites live in the NetEase account; QQ catalog tracks are matched first.
+      favorite: known
+        ? { loading: false, loggedIn: state.favorite.loggedIn, liked: state.favorite.liked, mutating: false, message: '', retryable: false }
+        : { loading: true, loggedIn: false, liked: null, mutating: false, message: '', retryable: false },
+      playlists: { loading: false, loaded: false, loggedIn: true, items: [], message: '' }
+    };
+    const cover = $('#track-actions-cover');
+    cover.replaceChildren(makeCover(track.artwork, ''));
+    $('#track-actions-title').textContent = track.title;
+    $('#track-actions-subtitle').textContent = [track.artist, providerName(provider)].filter(Boolean).join(' · ');
+    renderTrackActions();
+    $('#track-actions-body').scrollTop = 0;
+    showTrackActionsSheet();
+    if (!known) loadTrackActionFavorite(trackActions);
+  }
+  function showTrackActionsSheet() {
+    const overlay = $('#track-actions-overlay'); const sheet = $('#track-actions-sheet');
+    const generation = ++trackActionsSheetGeneration;
+    if (!overlay.classList.contains('is-open')) sheet.style.transform = `translate3d(0,${Math.max(window.innerHeight,sheet.offsetHeight)}px,0)`;
+    overlay.classList.add('is-open'); overlay.classList.remove('is-closing');
+    overlay.setAttribute('aria-hidden','false');
+    $('#track-actions-scrim').style.opacity = '';
+    const current = cancelSpring(sheet);
+    requestAnimationFrame(() => {
+      if (generation !== trackActionsSheetGeneration || !trackActions) return;
+      springTo(sheet,0,0,current.vx,current.vy);
+    });
+  }
+
+  function closeTrackActions(velocityY) {
+    if (!trackActions) return false;
+    trackActions = null;
+    trackActionsGeneration += 1;
+    const overlay = $('#track-actions-overlay'); const sheet = $('#track-actions-sheet');
+    const generation = ++trackActionsSheetGeneration;
+    const current = cancelSpring(sheet);
+    $('#track-actions-scrim').style.opacity = '';
+    overlay.classList.add('is-closing');
+    springTo(sheet,0,Math.max(window.innerHeight,sheet.offsetHeight),current.vx,Math.max(0,Number(velocityY)||current.vy),() => {
+      if (generation !== trackActionsSheetGeneration) return;
+      overlay.classList.remove('is-open','is-closing');
+      overlay.setAttribute('aria-hidden','true');
+      sheet.style.transform = '';
+    });
+    return true;
+  }
+
+  function promptProviderLogin(provider) {
+    closeTrackActions();
+    if (provider === 'qq') launchLogin('qq');
+    else openAccount(true);
+  }
+
+  function actionItem(icon, label, detail, onClick, options) {
+    const settings = options || {};
+    const button = element('button', `action-item${settings.className ? ` ${settings.className}` : ''}`);
+    button.type = 'button';
+    button.disabled = !!settings.disabled;
+    const iconNode = element('span', 'action-item-icon');
+    setIcon(iconNode, icon);
+    const copy = element('span', 'action-item-copy');
+    copy.append(element('strong', '', label));
+    if (detail) copy.append(element('small', '', detail));
+    button.append(iconNode, copy);
+    if (settings.busy) button.append(element('span', 'spinner'));
+    else if (settings.chevron) button.append(element('span', 'action-item-chevron', '›'));
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  function renderTrackActions() {
+    const body = $('#track-actions-body');
+    const actions = trackActions;
+    if (!body || !actions) return;
+    body.replaceChildren();
+    if (actions.view === 'playlists') { renderTrackActionPlaylists(body, actions); return; }
+    const favorite = actions.favorite;
+    const name = providerName(actions.provider);
+    let label = '收藏';
+    let detail = '收藏到网易云音乐“我喜欢”';
+    if (favorite.loading) detail = '正在读取网易云收藏状态…';
+    else if (favorite.mutating) { label = favorite.liked ? '正在取消收藏…' : '正在收藏…'; detail = ''; }
+    else if (!favorite.loggedIn && !favorite.message) detail = '登录网易云音乐后可收藏';
+    else if (favorite.liked === true) { label = '取消收藏'; detail = '已收藏到网易云音乐“我喜欢”'; }
+    else if (favorite.liked === false) detail = '收藏到网易云音乐“我喜欢”';
+    else detail = favorite.message || '暂时无法读取收藏状态，请重试';
+    const list = element('div', 'action-list');
+    list.append(
+      actionItem('heart', label, detail, toggleTrackActionFavorite, {
+        className: favorite.liked === true ? 'is-liked' : '',
+        disabled: favorite.loading || favorite.mutating, busy: favorite.loading || favorite.mutating
+      }),
+      actionItem('listAdd', '添加到歌单', actions.provider === 'qq' ? '匹配网易云版本后，添加到网易云歌单' : '添加到网易云创建的歌单',
+        openTrackActionPlaylists, { chevron: true })
+    );
+    body.append(list);
+  }
+
+  async function loadTrackActionFavorite(actions) {
+    const generation = actions.generation;
+    actions.favorite = { loading: true, loggedIn: false, liked: null, mutating: false, message: '', retryable: false };
+    renderTrackActions();
+
+    let resolution;
+    if (actions.target) resolution = { target: actions.target, errorMessage: '', retryable: false };
+    else {
+      try { resolution = await favoriteTargetFor(actions.track); }
+      catch (_) { resolution = { target: null, errorMessage: '\u6682\u65f6\u65e0\u6cd5\u5339\u914d\u7f51\u6613\u4e91\u7248\u672c\uff0c\u65e0\u6cd5\u6536\u85cf\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5', retryable: true }; }
+    }
+    if (!trackActionsCurrent(generation)) return;
+    if (!resolution || !resolution.target) {
+      actions.favorite = {
+        loading: false, loggedIn: true, liked: null, mutating: false,
+        message: resolution && resolution.errorMessage || '\u65e0\u6cd5\u5339\u914d\u5230\u53ef\u6536\u85cf\u7684\u7f51\u6613\u4e91\u7248\u672c',
+        retryable: !!(resolution && resolution.retryable)
+      };
+      renderTrackActions();
+      return;
+    }
+    actions.target = Object.assign({}, resolution.target);
+
+    let response = null;
+    try { response = await request('likeStatus', { id: String(actions.target.id) }); } catch (_) {}
+    if (!trackActionsCurrent(generation)) return;
+    if (response && response.loggedIn === false) {
+      actions.favorite = { loading: false, loggedIn: false, liked: false, mutating: false, message: '', retryable: false };
+    } else if (response && apiRequestSucceeded(response) && typeof response.liked === 'boolean' && typeof response.loggedIn === 'boolean') {
+      actions.favorite = { loading: false, loggedIn: response.loggedIn, liked: response.liked, mutating: false, message: '', retryable: false };
+    } else {
+      actions.favorite = {
+        loading: false, loggedIn: true, liked: null, mutating: false,
+        message: favoriteMessage(response, '暂时无法读取网易云收藏状态，请重试'), retryable: true
+      };
+    }
+    renderTrackActions();
+  }
+
+  function syncMiniFavorite(key, liked) {
+    if (!key || state.favorite.key !== key || key !== favoriteTrackKey(state.media.track) || state.favorite.mutating) return;
+    state.favorite.available = true;
+    state.favorite.provider = 'netease';
+    state.favorite.loggedIn = true;
+    state.favorite.liked = liked;
+    state.favorite.errorMessage = '';
+    state.favorite.retryable = false;
+    updateMiniFavoriteButton();
+  }
+
+  async function toggleTrackActionFavorite() {
+    const actions = trackActions;
+    if (!actions) return;
+    const favorite = actions.favorite;
+    if (favorite.loading || favorite.mutating) return;
+    if (favorite.message) {
+      showToast(favorite.message);
+      if (favorite.retryable) loadTrackActionFavorite(actions);
+      return;
+    }
+    if (!favorite.loggedIn) { promptProviderLogin('netease'); return; }
+    if (typeof favorite.liked !== 'boolean' || !actions.target) { loadTrackActionFavorite(actions); return; }
+
+    favorite.mutating = true;
+    renderTrackActions();
+    const info = favoriteRequest(actions.target, !favorite.liked);
+    let response = null;
+    try { response = await request(info.method, info.args); } catch (_) {}
+    if (!trackActionsCurrent(actions.generation)) return;
+    const valid = !!response && typeof response === 'object' && apiRequestSucceeded(response)
+      && typeof response.loggedIn === 'boolean' && typeof response.liked === 'boolean';
+    if (!valid) showToast(favoriteMessage(response, '暂时无法更新网易云收藏状态'));
+    else if (!response.loggedIn) {
+      favorite.loggedIn = false;
+      favorite.liked = false;
+      showToast('登录网易云音乐后可收藏');
+    } else {
+      syncMiniFavorite(actions.key, response.liked);
+      showToast(response.liked ? '已收藏到网易云“我喜欢”' : '已从网易云“我喜欢”取消收藏');
+    }
+    if (!trackActionsCurrent(actions.generation)) return;
+    if (valid && response.loggedIn) { closeTrackActions(); return; }
+    favorite.mutating = false;
+    if (valid) favorite.liked = response.liked;
+    renderTrackActions();
+  }
+  function openTrackActionPlaylists() {
+    const actions = trackActions;
+    if (!actions) return;
+    actions.view = 'playlists';
+    renderTrackActions();
+    $('#track-actions-body').scrollTop = 0;
+    if (!actions.playlists.loaded && !actions.playlists.loading) loadTrackActionPlaylists(actions);
+  }
+
+  function normalizeOwnedPlaylist(item) {
+    if (!item || typeof item !== 'object' || !/^\d{1,24}$/.test(String(item.id ?? ''))) return null;
+    return { id: String(item.id), name: String(item.name || '未命名歌单'), artwork: safeHttpsUrl(item.artwork), count: Math.max(0, Math.floor(Number(item.count) || 0)) };
+  }
+
+  async function loadTrackActionPlaylists(actions) {
+    const generation = actions.generation;
+    actions.playlists = { loading: true, loaded: false, loggedIn: true, items: [], message: '' };
+    renderTrackActions();
+    let next;
+    try {
+      const response = await request('ownedPlaylists', {});
+      if (!trackActionsCurrent(generation)) return;
+      if (response && response.loggedIn === false) next = { loading: false, loaded: true, loggedIn: false, items: [], message: '' };
+      else if (!apiRequestSucceeded(response) || !Array.isArray(response.playlists)) next = { loading: false, loaded: false, loggedIn: true, items: [], message: favoriteMessage(response, '暂时无法读取歌单') };
+      else next = { loading: false, loaded: true, loggedIn: true, items: response.playlists.map(normalizeOwnedPlaylist).filter(Boolean), message: '' };
+    } catch (_) {
+      if (!trackActionsCurrent(generation)) return;
+      next = { loading: false, loaded: false, loggedIn: true, items: [], message: '暂时无法读取歌单' };
+    }
+    if (next.loaded && next.loggedIn && !actions.target) {
+      let resolution;
+      try { resolution = await favoriteTargetFor(actions.track); }
+      catch (_) { resolution = { target: null, retryable: true }; }
+      if (!trackActionsCurrent(generation)) return;
+      if (resolution && resolution.target) actions.target = Object.assign({}, resolution.target);
+      else if (resolution && resolution.retryable) next.matchFailed = true;
+      else next.unmatched = true;
+    }
+    actions.playlists = next;
+    renderTrackActions();
+  }
+  function renderTrackActionPlaylists(body, actions) {
+    const heading = element('div', 'action-subheading');
+    const back = element('button', 'action-back');
+    back.type = 'button';
+    setIcon(back, 'back');
+    back.append(document.createTextNode('返回'));
+    back.addEventListener('click', () => { if (trackActionsCurrent(actions.generation)) { actions.view = 'menu'; renderTrackActions(); } });
+    heading.append(back, element('h3', '', '添加到歌单'));
+    body.append(heading);
+    const note = (text, buttonLabel, onClick, primary) => {
+      const box = element('div', 'action-note');
+      box.append(element('p', '', text));
+      if (buttonLabel) {
+        const button = element('button', primary ? 'primary-action' : 'secondary-button', buttonLabel);
+        button.type = 'button';
+        button.addEventListener('click', onClick);
+        box.append(button);
+      }
+      body.append(box);
+    };
+    const playlists = actions.playlists;
+    const retry = () => loadTrackActionPlaylists(actions);
+    if (playlists.loading) { body.append(loadingState(actions.target ? '正在读取你的歌单…' : '正在读取歌单并匹配网易云版本…')); return; }
+    if (!playlists.loggedIn) { note('歌单保存在网易云音乐账号里，登录后就能添加。', '网易云音乐登录', () => promptProviderLogin('netease'), true); return; }
+    if (!playlists.loaded) { note(playlists.message || '暂时无法读取歌单', '重新加载', retry); return; }
+    if (playlists.matchFailed) { note('暂时无法匹配网易云版本，请稍后重试。', '重试', retry); return; }
+    if (playlists.unmatched) { note('网易云音乐里没有找到同一版本的这首歌，暂时无法加入网易云歌单。'); return; }
+    if (actions.provider === 'qq' && actions.target) {
+      body.append(element('p', 'action-match', `将添加网易云版本：${actions.target.title}${actions.target.artist ? ` · ${actions.target.artist}` : ''}`));
+    }
+    if (!playlists.items.length) { note('你还没有自己创建的歌单，可以先在网易云音乐中新建。', '重新加载', retry); return; }
+    const list = element('div', 'action-list');
+    playlists.items.forEach(playlist => {
+      const row = element('button', 'action-item action-playlist');
+      row.type = 'button';
+      row.disabled = !!actions.addingId;
+      row.setAttribute('aria-label', `添加到歌单 ${playlist.name}`);
+      row.append(makeCover(playlist.artwork, ''));
+      const copy = element('span', 'action-item-copy');
+      copy.append(element('strong', '', playlist.name), element('small', '', `${playlist.count.toLocaleString()} 首歌曲`));
+      row.append(copy);
+      if (actions.addingId === playlist.id) row.append(element('span', 'spinner'));
+      row.addEventListener('click', () => addTrackToPlaylist(playlist));
+      list.append(row);
+    });
+    body.append(list);
+  }
+
+  async function addTrackToPlaylist(playlist) {
+    const actions = trackActions;
+    if (!actions || actions.addingId || !actions.target) return;
+    actions.addingId = playlist.id;
+    renderTrackActions();
+    let response = null;
+    try { response = await request('playlistAddTrack', { pid: playlist.id, id: actions.target.id }); } catch (_) { response = null; }
+    if (response && response.added === true) {
+      showToast(`已添加到“${playlist.name}”`);
+      state.libraryLoaded = false;
+      if (state.tab === 'library' && !state.playlist && !state.playlistLoading && !state.playlistError) loadLibrary(true);
+      if (trackActionsCurrent(actions.generation)) closeTrackActions();
+      return;
+    }
+    if (response && response.duplicate) showToast('这首歌已经在这个歌单里了');
+    else if (response && response.loggedIn === false) showToast('请先登录网易云音乐');
+    else showToast(favoriteMessage(response, '添加到歌单失败，请稍后重试'));
+    if (!trackActionsCurrent(actions.generation)) return;
+    actions.addingId = '';
+    renderTrackActions();
   }
 
   function lyricsText(response) {
@@ -1815,7 +2445,7 @@
   }
 
   function updateLyricsActive(force) {
-    const index = state.lyrics.length && window.YPMLyrics ? window.YPMLyrics.activeIndex(state.lyrics,state.media.position) : -1;
+    const index = state.lyrics.length && window.YPMLyrics ? window.YPMLyrics.activeIndex(state.lyrics,mediaPosition()) : -1;
     updateMiniSubtitle(index);
     if (!state.lyrics.length) return;
     if (index === state.lyricsIndex && !force) return;
@@ -1909,7 +2539,11 @@
 
   function renderQueueIfChanged(force) {
     const queue = state.media.queue || [];
-    const signature = queue.map(track => track && track.id != null ? `${track.provider || 'netease'}:${String(track.id)}` : '').join('|');
+    if (queue !== queueSignatureSource) {
+      queueSignatureSource = queue;
+      queueSignatureValue = queue.map(track => track && track.id != null ? `${track.provider || 'netease'}:${String(track.id)}` : '').join('|');
+    }
+    const signature = queueSignatureValue;
     const changed = !!force || signature !== lastQueueSignature;
     const previousIndex = lastQueueIndex;
     const indexChanged = state.media.index !== lastQueueIndex;
@@ -2084,7 +2718,7 @@
     }
     pager.classList.add('is-moving');
     const velocity = settings.velocity === undefined ? current.vx : settings.velocity;
-    tabSpringTo(track, target, 0, tabSpringVelocity(velocity,current.x,target), 0, finish);
+    springTo(track, target, 0, tabSpringVelocity(velocity,current.x,target), 0, finish);
   }
 
   function installPlayerPanelSwipe() {
@@ -2197,14 +2831,25 @@
   function normalizeMediaState(raw) {
     const value = raw && typeof raw === 'object' ? raw : {};
     const track = normalizeTrack(value.track, value.track && value.track.provider);
-    const queue = Array.isArray(value.queue) ? value.queue.map(item => normalizeTrack(item,item && item.provider)).filter(Boolean) : [];
+    const queue = mediaQueue(value);
     return {
       track, queue, index: Number.isFinite(Number(value.index)) ? Number(value.index) : -1,
       playing: !!value.playing, buffering: !!value.buffering,
       position: Math.max(0,Number(value.position)||0), duration: Math.max(0,Number(value.duration)||0),
       source: String(value.source||''), shuffle: !!value.shuffle, repeat: String(value.repeat||'off'),
-      error: value.error ? true : null
+      error: value.error ? true : null, updatedAt: Number(value.updatedAt) || 0
     };
+  }
+
+  function mediaQueue(value) {
+    // Saved or preview state still embeds the queue.
+    if (Array.isArray(value.queue)) return value.queue.map(item => normalizeTrack(item,item && item.provider)).filter(Boolean);
+    if (value.queueVersion === undefined || value.queueVersion === mediaQueueCache.version) return mediaQueueCache.queue;
+    let payload = null;
+    try { payload = typeof window.Native.getQueue === 'function' ? parseNativeObject(window.Native.getQueue(), null) : null; } catch (_) { payload = null; }
+    if (!payload || !Array.isArray(payload.queue)) return mediaQueueCache.queue;
+    mediaQueueCache = { version: payload.version, queue: payload.queue.map(item => normalizeTrack(item,item && item.provider)).filter(Boolean) };
+    return mediaQueueCache.queue;
   }
 
   let lastProcessedMediaJson = null;
@@ -2213,8 +2858,12 @@
     if (!nativeReady() || !window.Native || typeof window.Native.getState !== 'function') return;
     try {
       const rawState = window.Native.getState();
-      if (typeof rawState === 'string' && rawState === lastProcessedMediaJson) return;
+      if (typeof rawState === 'string' && rawState === lastProcessedMediaJson && !pendingPlayerModes) {
+        if (state.media.playing) { updateProgress(); updateLyricsActive(); }
+        return;
+      }
       const next = normalizeMediaState(parseNativeObject(rawState,{}));
+      applyPendingPlayerModes(next);
       const oldTrack = state.media.track;
       const trackKey = next.track && `${next.source}:${next.track.id}:${next.track.provider}`;
       const oldKey = oldTrack && `${state.media.source}:${oldTrack.id}:${oldTrack.provider}`;
@@ -2234,12 +2883,18 @@
   function onSeek() {
     const slider = $('#seek-slider');
     slider.addEventListener('input', () => {
+      seekDragging = true;
       const duration = Math.max(1,state.media.duration || state.media.track && state.media.track.duration || 1);
       const value = Number(slider.value); slider.style.setProperty('--progress',`${value/duration*100}%`);
       $('#elapsed-time').textContent = formatTime(value);
       $('#remaining-time').textContent = `−${formatTime(Math.max(0,duration-value))}`;
     });
-    slider.addEventListener('change', () => sendCommand({type:'seek',position:Number(slider.value)}));
+    slider.addEventListener('change', () => {
+      seekDragging = false;
+      const position = Number(slider.value);
+      sendCommand({type:'seek',position});
+      state.media = Object.assign({}, state.media, { position, updatedAt: Date.now() });
+    });
   }
 
   function installSheetGesture() {
@@ -2295,12 +2950,11 @@
     handle.addEventListener('pointercancel',event => end(event,true));
   }
 
-  function installQueueSheetGesture() {
-    const handle = $('#queue-sheet-handle'); const sheet = $('#queue-sheet');
+  function installSheetDrag(handle, sheet, scrim, isOpen, close) {
     let gesture = null;
     handle.addEventListener('pointerdown',event => {
       if (event.button !== undefined && event.button !== 0) return;
-      if (!state.queueSheetOpen || event.target.closest('button')) return;
+      if (!isOpen() || event.target.closest('button')) return;
       const current = cancelSpring(sheet);
       gesture = { pointerId:event.pointerId, axis:'pending', startX:event.clientX, startY:event.clientY, offsetY:current.y, y:current.y, samples:[{x:event.clientX,y:event.clientY,t:performance.now()}] };
     });
@@ -2324,21 +2978,21 @@
       gesture.y = Math.max(0,gesture.offsetY+dy);
       sampleGesture(gesture,event.clientX,event.clientY);
       setMotionPosition(sheet,0,gesture.y);
-      $('#queue-scrim').style.opacity = String(Math.max(0,1-gesture.y/Math.max(1,sheet.offsetHeight)));
+      scrim.style.opacity = String(Math.max(0,1-gesture.y/Math.max(1,sheet.offsetHeight)));
     },{passive:false});
     const end = (event,cancelled) => {
       if (!gesture || gesture.pointerId !== event.pointerId) return;
       const currentGesture = gesture; gesture = null;
       if (currentGesture.axis !== 'vertical') {
         const position = cancelSpring(sheet);
-        springTo(sheet,0,0,position.vx,position.vy,() => { $('#queue-scrim').style.opacity = ''; });
+        springTo(sheet,0,0,position.vx,position.vy,() => { scrim.style.opacity = ''; });
         return;
       }
       const velocity = gestureVelocity(currentGesture.samples,'y');
       const projected = currentGesture.y + Math.max(0,velocity)*.16;
       const threshold = Math.min(170,window.innerHeight*.21);
-      if (!cancelled && (projected > threshold || velocity > 900)) closeQueueSheet(velocity);
-      else springTo(sheet,0,0,0,Math.min(0,velocity),() => { $('#queue-scrim').style.opacity = ''; });
+      if (!cancelled && (projected > threshold || velocity > 900)) close(velocity);
+      else springTo(sheet,0,0,0,Math.min(0,velocity),() => { scrim.style.opacity = ''; });
     };
     handle.addEventListener('pointerup',event => end(event,false));
     handle.addEventListener('pointercancel',event => end(event,true));
@@ -2365,7 +3019,7 @@
     };
     const settleHome = (velocityX) => {
       const current = motionPosition(content);
-      tabSpringTo(content, 0, 0, tabSpringVelocity(velocityX,current.x,0), 0, () => {
+      springTo(content, 0, 0, tabSpringVelocity(velocityX,current.x,0), 0, () => {
         content.style.opacity = '1';
         content.style.willChange = '';
         tabTransitionInFlight = false;
@@ -2682,6 +3336,7 @@
     $('#send-captcha').addEventListener('click',sendNeteaseCaptcha);
     $('#netease-sms-form').addEventListener('submit',submitNeteaseSmsLogin);
     $('#netease-logout').addEventListener('click',() => logoutProvider('netease','logout'));
+    $('#clear-cache').addEventListener('click',clearCache);
     $$('.source-option').forEach(button => button.addEventListener('click',() => saveSettings({sourcePreference:button.dataset.source})));
     $$('.theme-picker button').forEach(button => button.addEventListener('click',() => saveSettings({theme:button.dataset.themeChoice})));
     installMiniSwipe();
@@ -2689,7 +3344,10 @@
     installQueueVirtualization();
     installPlayerPanelSwipe();
     installPlayerExpansion();
-    installQueueSheetGesture();
+    installSheetDrag($('#queue-sheet-handle'), $('#queue-sheet'), $('#queue-scrim'), () => state.queueSheetOpen, closeQueueSheet);
+    installSheetDrag($('#track-actions-handle'), $('#track-actions-sheet'), $('#track-actions-scrim'), () => !!trackActions, closeTrackActions);
+    $('#track-actions-close').addEventListener('click',() => closeTrackActions());
+    $('#track-actions-scrim').addEventListener('click',() => closeTrackActions());
     $('#mini-like').addEventListener('click',toggleFavorite);
     $('#mini-toggle').addEventListener('click',() => sendCommand({type:'toggle'}));
     $('#mini-queue').addEventListener('click',openQueueSheet);
@@ -2700,10 +3358,10 @@
     $('#player-toggle').addEventListener('click',() => sendCommand({type:'toggle'}));
     $('#next-button').addEventListener('click',() => sendCommand({type:'next'}));
     $('#previous-button').addEventListener('click',() => sendCommand({type:'previous'}));
-    $('#shuffle-button').addEventListener('click',() => sendCommand({type:'shuffle',enabled:!state.media.shuffle}));
+    $('#shuffle-button').addEventListener('click',() => setShuffle(!state.media.shuffle));
     $('#repeat-button').addEventListener('click',() => {
-      const current = state.media.repeat || 'off'; const next = current === 'off' ? 'all' : current === 'all' ? 'one' : 'off';
-      sendCommand({type:'repeat',mode:next}); showToast(next === 'one' ? '单曲循环' : next === 'all' ? '列表循环' : '已关闭循环');
+      const current = state.media.repeat || 'off';
+      setRepeat(current === 'off' ? 'all' : current === 'all' ? 'one' : 'off');
     });
     $$('.view-switch').forEach(button => button.addEventListener('click',() => setPlayerView(button.dataset.playerView)));
     $('#tab-content').addEventListener('click',event => {
@@ -2738,7 +3396,7 @@
     $$('.tab-icon').forEach(node => setIcon(node,node.dataset.icon));
     setIcon($('#player-close'),'close'); setIcon($('#player-settings'),'more'); setIcon($('#account-close'),'close');
     setIcon($('#mini-toggle'),'play'); setIcon($('#mini-like'),'heart'); setIcon($('#mini-queue'),'queue'); setIcon($('#player-toggle'),'play');
-    setIcon($('#queue-sheet-close'),'close');
+    setIcon($('#queue-sheet-close'),'close'); setIcon($('#track-actions-close'),'close');
     updateMiniFavoriteButton();
     setIcon($('#avatar-mark'),'music'); setIcon($('#mini-art'),'music'); setIcon($('#player-artwork'),'music'); setIcon($('#account-avatar'),'music');
     setIcon($('#previous-button'),'previous'); setIcon($('#next-button'),'next'); setIcon($('#shuffle-button'),'shuffle'); setIcon($('#repeat-button'),'repeat');

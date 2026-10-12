@@ -22,3 +22,5 @@ Thumbs.db
 # Versioned test builds shipped with the source snapshot
 !releases/*.apk
 
+# Private local toolchain, signing material, device evidence and publication helpers
+/.local/

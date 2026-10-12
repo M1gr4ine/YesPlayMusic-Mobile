@@ -2,9 +2,9 @@
 
 YesPlayMusic 的 Android 移动版，采用接近 Apple Music 的界面，并保留 YesPlayMusic 的音乐服务思路。项目基于 [qier222/YesPlayMusic](https://github.com/qier222/YesPlayMusic) 的开源项目与交互设计独立适配，**不是上游官方 Android 应用**，也不隶属于网易、腾讯、vivo、iQOO 或 Apple。
 
-当前源码版本：**0.2.9**（versionCode 11）。本目录可以独立构建 APK，包含 Android 源码、实机截图和试用版安装包。
+当前源码版本：**0.2.10**（versionCode 12）。本目录可以独立构建 APK，包含 Android 源码、实机截图和试用版安装包。
 
-[下载最新版 APK](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases/latest) · [v0.2.9 发布说明](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases/tag/v0.2.9)
+[下载最新版 APK](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases/latest) · [v0.2.10 发布说明](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases/tag/v0.2.10)
 
 ## 实机截图
 
@@ -39,10 +39,10 @@ cd releases && sha256sum -c SHA256SUMS.txt
 Windows PowerShell：
 
 ```powershell
-Get-FileHash .\releases\YesPlayMusic-Mobile-v0.2.9.apk -Algorithm SHA256
+Get-FileHash .\releases\YesPlayMusic-Mobile-v0.2.10.apk -Algorithm SHA256
 ```
 
-播放器手势、歌词与设置动画的真机验证结果见[验证记录](docs/VERIFICATION-v0.2.9.md)。安装包和 SHA-256 校验文件同时提供在 [GitHub Releases](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases)；`releases/` 目录保留同一份 APK，方便下载源码后直接试用。
+本次音源匹配、界面和安装包一致性的验证结果见[验证记录](docs/VERIFICATION-v0.2.10.md)。安装包和 SHA-256 校验文件同时提供在 [GitHub Releases](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases)；`releases/` 目录保留同一份 APK，方便下载源码后直接试用。
 
 ## 登录与已知限制
 

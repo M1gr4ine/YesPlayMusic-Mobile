@@ -36,7 +36,7 @@ import java.util.concurrent.Executors;
 /** Trusted packaged UI; audio and provider sessions are owned by native components. */
 public class MainActivity extends Activity {
     private static final String ORIGIN="appassets.androidplatform.net";
-    private static final Set<String> METHODS=new HashSet<>(Arrays.asList("home","search","playlist","album","userPlaylists","loginStatus","qrKey","qrCheck","sendCaptcha","loginCaptcha","lyrics","songDetails","logout","qqStatus","qqSearch","qqLyrics","qqLogout","likeStatus","setLiked","qqLikeStatus","qqSetLiked","recentHistory"));
+    private static final Set<String> METHODS=new HashSet<>(Arrays.asList("home","search","playlist","album","userPlaylists","loginStatus","qrKey","qrCheck","sendCaptcha","loginCaptcha","lyrics","songDetails","logout","qqStatus","qqSearch","qqLyrics","qqLogout","likeStatus","setLiked","recentHistory","ownedPlaylists","playlistAddTrack","matchTrack","cacheInfo","clearCache"));
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService requests=Executors.newFixedThreadPool(4);
     private WebView web;
@@ -119,11 +119,40 @@ public class MainActivity extends Activity {
             for(String[] task:tasks)manager.setCookie(task[0],task[1],ignored->{if(remaining.decrementAndGet()==0){manager.flush();done.run();}});
         });
     }
+    private JSONObject cacheInfo() throws org.json.JSONException {
+        return new JSONObject().put("code",200).put("bytes",directorySize(getCacheDir())+directorySize(getExternalCacheDir()));
+    }
+    /** Songs stream without a disk cache; this clears cover images and other cached web data. */
+    private JSONObject clearCache() throws Exception {
+        java.util.concurrent.CountDownLatch cleared=new java.util.concurrent.CountDownLatch(1);
+        main.post(()->{try{if(web!=null)web.clearCache(true);}finally{cleared.countDown();}});
+        cleared.await(5,java.util.concurrent.TimeUnit.SECONDS);
+        // WebView owns its cache folder and has just emptied it; deleting it underneath would break it.
+        deleteCacheChildren(getCacheDir(),true);deleteCacheChildren(getExternalCacheDir(),true);
+        return cacheInfo();
+    }
+    private static long directorySize(java.io.File file){
+        if(file==null||!file.exists()||java.nio.file.Files.isSymbolicLink(file.toPath()))return 0;
+        if(file.isFile())return file.length();
+        long total=0;java.io.File[] children=file.listFiles();
+        if(children!=null)for(java.io.File child:children)total+=directorySize(child);
+        return total;
+    }
+    private static void deleteCacheChildren(java.io.File directory,boolean keepWebView){
+        java.io.File[] children=directory==null?null:directory.listFiles();
+        if(children==null)return;
+        for(java.io.File child:children){
+            String name=child.getName();
+            if(keepWebView&&(name.startsWith("WebView")||name.startsWith("org.chromium")))continue;
+            if(child.isDirectory()&&!java.nio.file.Files.isSymbolicLink(child.toPath()))deleteCacheChildren(child,false);
+            child.delete();
+        }
+    }
     private class NativeBridge {
         @JavascriptInterface public void request(String id,String method,String args){
             if(id==null||id.length()>100||!METHODS.contains(method)||args==null||args.length()>100000){response(id==null?"":id,null,"请求参数不正确");return;}
             requests.execute(()->{try{
-                JSONObject input=new JSONObject(args);JSONObject result;if("recentHistory".equals(method))result=RecentPlaybackStore.get(MainActivity.this).execute(input);else result=method.startsWith("qq")?QQSource.get(MainActivity.this).execute(method,input):MusicApi.get(MainActivity.this).execute(method,input);
+                JSONObject input=new JSONObject(args);JSONObject result;if("cacheInfo".equals(method))result=cacheInfo();else if("clearCache".equals(method))result=clearCache();else if("recentHistory".equals(method))result=RecentPlaybackStore.get(MainActivity.this).execute(input);else result=method.startsWith("qq")?QQSource.get(MainActivity.this).execute(method,input):MusicApi.get(MainActivity.this).execute(method,input);
                 if ("logout".equals(method) || "qqLogout".equals(method)) { clearLoginCookies("qqLogout".equals(method) ? "qq" : "netease", () -> response(id,result.toString(),null)); }
                 else response(id,result.toString(),null);
             }catch(Exception error){String message=error.getMessage();if(message==null||message.length()>180)message="暂时无法连接音乐服务，请检查网络后重试";response(id,null,message);}});
@@ -132,7 +161,8 @@ public class MainActivity extends Activity {
             if(payload==null||payload.length()>700000)return;
             main.post(()->{try{new JSONObject(payload);Intent intent=new Intent(MainActivity.this,PlaybackService.class).putExtra("command","json").putExtra("payload",payload);startForegroundService(intent);}catch(Exception error){Toast.makeText(MainActivity.this,"播放操作失败，请重新打开播放器",Toast.LENGTH_SHORT).show();}});
         }
-        @JavascriptInterface public String getState(){return getSharedPreferences("player_state",MODE_PRIVATE).getString("json","{\"track\":null,\"queue\":[],\"playing\":false,\"buffering\":false,\"position\":0,\"duration\":0,\"index\":0,\"repeat\":\"all\",\"shuffle\":false,\"volume\":1,\"source\":\"\",\"error\":\"\"}");}
+        @JavascriptInterface public String getState(){String live=PlaybackService.publishedState();if(live!=null)return live;return getSharedPreferences("player_state",MODE_PRIVATE).getString("json","{\"track\":null,\"queue\":[],\"playing\":false,\"buffering\":false,\"position\":0,\"duration\":0,\"index\":0,\"repeat\":\"all\",\"shuffle\":false,\"volume\":1,\"source\":\"\",\"error\":\"\"}");}
+        @JavascriptInterface public String getQueue(){String live=PlaybackService.publishedQueue();return live!=null?live:"{\"version\":-1,\"queue\":[]}";}
         @JavascriptInterface public String getSettings(){try{SharedPreferences values=getSharedPreferences("mobile_settings",MODE_PRIVATE);return new JSONObject().put("sourcePreference",values.getString("sourcePreference","auto")).put("theme",values.getString("theme","system")).toString();}catch(Exception ignored){return "{}";}}
         @JavascriptInterface public void settings(String json){try{JSONObject input=new JSONObject(json);SharedPreferences.Editor edit=getSharedPreferences("mobile_settings",MODE_PRIVATE).edit();String source=input.optString("sourcePreference"),theme=input.optString("theme");if(Arrays.asList("auto","netease","qq").contains(source))edit.putString("sourcePreference",source);if(Arrays.asList("system","light","dark").contains(theme))edit.putString("theme",theme);edit.apply();}catch(Exception ignored){}}
         @JavascriptInterface public void login(String provider){if(!"qq".equals(provider)&&!"netease".equals(provider))return;main.post(()->startActivity(new Intent(MainActivity.this,LoginActivity.class).putExtra("provider",provider)));}

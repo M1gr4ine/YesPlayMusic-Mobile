@@ -11,6 +11,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -18,6 +19,7 @@ import java.util.Set;
 /** Ports the installed desktop player's QQ compatibility route; no external proxy. */
 public final class QQSource {
     private static QQSource instance;
+    private final Context appContext;
     private final AuthStore sessions;
     private long refreshRetryAt;
     private long sessionGeneration;
@@ -31,7 +33,7 @@ public final class QQSource {
     private final Set<String> favoriteMids = new HashSet<>();
     private final Set<String> favoriteIds = new HashSet<>();
     private static final String[] COOKIE_NAMES = {"uin","wxuin","qqmusic_key","qm_keyst","psrf_qqrefresh_token","qqrefresh_token","psrf_musickey_createtime","psrf_qqaccess_token","psrf_access_token","qqaccess_token","psrf_access_token_expiresAt","psrf_qqopenid","psrf_qqunionid","login_type","tmeLoginType","euin","music_ignore_pskey","wxopenid","wxunionid","wxrefresh_token"};
-    private QQSource(Context context) { sessions = new AuthStore(context); }
+    private QQSource(Context context) { appContext = context.getApplicationContext(); sessions = new AuthStore(appContext); }
     public static synchronized QQSource get(Context context) { if (instance == null) instance = new QQSource(context.getApplicationContext()); return instance; }
     public String getCookie() { return sessions.get("qq"); }
     public synchronized boolean setCookie(String raw) {
@@ -681,8 +683,21 @@ public final class QQSource {
     private static JSONObject toTrack(JSONObject song) throws Exception {
         JSONArray singers=song.optJSONArray("singer");StringBuilder artist=new StringBuilder();if(singers!=null)for(int i=0;i<singers.length();i++){if(i>0)artist.append(" / ");artist.append(singers.getJSONObject(i).optString("name"));}
         JSONObject album=song.optJSONObject("album"), file=song.optJSONObject("file");String mid=song.optString("mid",song.optString("songmid"));String albumMid=album==null?"":album.optString("mid");
-        return new JSONObject().put("id","qq:"+mid).put("qqMid",mid).put("provider","qq").put("title",song.optString("title",song.optString("name"))).put("artist",artist.toString()).put("album",album==null?"":album.optString("name")).put("artwork",albumMid.isEmpty()?"":"https://y.gtimg.cn/music/photo_new/T002R800x800M000"+albumMid+".jpg").put("duration",song.optLong("interval")*1000).put("mediaMid",file==null?mid:file.optString("media_mid",mid));
+        return new JSONObject().put("id","qq:"+mid).put("qqMid",mid).put("provider","qq").put("title",song.optString("title",song.optString("name"))).put("artist",artist.toString()).put("artistAliases",ArtistAliases.toJsonArray(ArtistAliases.fromArtists(singers))).put("album",album==null?"":album.optString("name")).put("artwork",albumMid.isEmpty()?"":"https://y.gtimg.cn/music/photo_new/T002R800x800M000"+albumMid+".jpg").put("duration",song.optLong("interval")*1000).put("mediaMid",file==null?mid:file.optString("media_mid",mid));
     }
+    private static JSONObject bestSearchMatch(JSONObject track,JSONArray songs,List<String> aliases) throws Exception {
+        JSONObject best=null;int bestScore=-1;
+        for(int i=0;songs!=null&&i<songs.length();i++){
+            JSONObject candidate=songs.optJSONObject(i);if(candidate==null)continue;
+            JSONObject normalized=toTrack(candidate);
+            List<String> candidateAliases=ArtistAliases.fromAliasArray(normalized.optJSONArray("artistAliases"),normalized.optString("artist",""));
+            int score=ArtistAliases.score(track.optString("title",""),track.optString("artist",""),aliases,track.optLong("duration"),
+                    normalized.optString("title",""),normalized.optString("artist",""),candidateAliases,normalized.optLong("duration"));
+            if(score>bestScore){bestScore=score;best=candidate;}
+        }
+        return bestScore<0?null:best;
+    }
+
     public JSONObject resolve(JSONObject track) throws Exception {
         String cookie=freshCookie();JSONObject match=null;String mid=track.optString("qqMid");
         if(mid.isEmpty()&&track.optString("id").startsWith("qq:"))mid=track.optString("id").substring(3);
@@ -690,11 +705,29 @@ public final class QQSource {
             try { JSONObject detail=request("music.pf_song_detail_svr","get_song_detail",new JSONObject().put("song_mid",mid),cookie);match=detail.optJSONObject("track_info"); } catch(Exception ignored){}
             if(match==null)match=new JSONObject().put("mid",mid).put("file",new JSONObject().put("media_mid",track.optString("mediaMid",mid)));
         } else {
-            JSONArray songs=searchRaw(track.optString("title")+" "+track.optString("artist"),1,10,cookie);int best=-1;
-            for(int i=0;i<songs.length();i++){
-                JSONObject candidate=songs.getJSONObject(i), normalized=toTrack(candidate);
-                int score=QQMatch.score(track.optString("title"),track.optString("artist"),track.optLong("duration"),normalized.optString("title"),normalized.optString("artist"),normalized.optLong("duration"));
-                if(score>best){best=score;match=candidate;}
+            JSONArray songs=searchRaw(track.optString("title")+" "+track.optString("artist"),1,10,cookie);
+            List<String> aliases=ArtistAliases.fromAliasArray(track.optJSONArray("artistAliases"),track.optString("artist"));
+            match=bestSearchMatch(track,songs,aliases);
+            if(!Thread.currentThread().isInterrupted()&&match==null&&aliases.isEmpty()
+                    &&"netease".equals(track.optString("provider",""))
+                    &&NetEaseAuthState.hasPositiveUserId(track.optString("id",""))){
+                try {
+                    List<String> recovered=MusicApi.get(appContext).findExactNeteaseArtistAliases(
+                            track.optString("id",""),track.optString("title",""),track.optString("artist",""));
+                    if(!recovered.isEmpty()){
+                        aliases=recovered;
+                        match=bestSearchMatch(track,songs,aliases);
+                    }
+                } catch(Exception ignored) {}
+            }
+            if(match==null){
+                List<String> aliasQueries=ArtistAliases.searchQueries(track.optString("title",""),track.optString("artist",""),aliases);
+                for(String query:aliasQueries){
+                    if(Thread.currentThread().isInterrupted())break;
+                    JSONArray aliasSongs=searchRaw(query,1,10,cookie);
+                    match=bestSearchMatch(track,aliasSongs,aliases);
+                    if(match!=null)break;
+                }
             }
         }
         if(match==null)throw new Exception("QQ 音乐未找到相符版本，可在 QQ 曲库中搜索");

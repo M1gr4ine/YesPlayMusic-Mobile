@@ -123,6 +123,21 @@
     </section>
   </div>
 
+  <div id="track-actions-overlay" class="sheet-overlay action-overlay" aria-hidden="true">
+    <button class="overlay-scrim" id="track-actions-scrim" type="button" tabindex="-1" aria-label="关闭歌曲操作"></button>
+    <section id="track-actions-sheet" class="action-sheet" role="dialog" aria-modal="true" aria-labelledby="track-actions-title">
+      <div id="track-actions-handle" class="action-sheet-handle">
+        <span class="sheet-grabber"></span>
+        <div class="action-sheet-heading">
+          <span id="track-actions-cover" class="action-sheet-cover" aria-hidden="true"></span>
+          <div class="action-sheet-copy"><strong id="track-actions-title">—</strong><span id="track-actions-subtitle"></span></div>
+          <button class="icon-button" id="track-actions-close" type="button" aria-label="关闭歌曲操作"></button>
+        </div>
+      </div>
+      <div id="track-actions-body" class="action-sheet-body"></div>
+    </section>
+  </div>
+
   <div id="account-overlay" class="sheet-overlay" aria-hidden="true">
     <button class="overlay-scrim" id="account-scrim" type="button" tabindex="-1" aria-label="关闭账号设置"></button>
     <section class="settings-sheet" role="dialog" aria-modal="true" aria-label="账号与设置">
@@ -158,6 +173,10 @@
       <section class="settings-group theme-group">
         <div class="settings-group-title"><h3>外观</h3><p>跟随系统或固定明暗模式</p></div>
         <div class="theme-picker" role="radiogroup" aria-label="外观"><button data-theme-choice="system" type="button">跟随系统</button><button data-theme-choice="light" type="button">浅色</button><button data-theme-choice="dark" type="button">深色</button></div>
+      </section>
+      <section class="settings-group">
+        <div class="settings-group-title"><h3>存储</h3><p>歌曲在线播放，不会保存到本机</p></div>
+        <div class="qq-account-row"><div><strong>缓存</strong><span id="cache-size">封面图片与网络缓存</span></div><button class="small-action secondary-action" id="clear-cache" type="button">清除缓存</button></div>
       </section>
       <button id="netease-logout" class="logout-button" type="button" hidden>退出网易云账号</button>
       <p class="settings-footnote">账号登录由应用内的官方授权页面完成，登录信息保存在本机。</p>

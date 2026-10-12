@@ -50,13 +50,11 @@ public final class RecentPlaybackStoreVectors {
         require(bounded.size() == 100, "history must be capped at 100 entries");
         require(key(bounded.get(0)).equals("netease:104"), "cap must retain the newest tracks");
 
-        Constructor<?> trackConstructor = Track.class.getDeclaredConstructor(String.class,
-                String.class, String.class, String.class, String.class, long.class,
-                String.class, String.class, String.class);
-        trackConstructor.setAccessible(true);
-        Track track = (Track) trackConstructor.newInstance("789", "Safe title", "Artist",
-                "Album", "https://img.example/cover.jpg", 180000L, "netease", "",
-                "https://audio.example/play?signature=fixture-only-secret");
+        Track track = Track.fromJson(new org.json.JSONObject()
+                .put("id", "789").put("title", "Safe title").put("artist", "Artist")
+                .put("album", "Album").put("artwork", "https://img.example/cover.jpg")
+                .put("duration", 180000L).put("provider", "netease")
+                .put("url", "https://audio.example/play?signature=fixture-only-secret"));
         Object saved = fromTrack.invoke(null, track, 500L);
         String persistedJson = String.valueOf(encode.invoke(saved));
         require(!persistedJson.contains("\"url\""), "history must not persist a playback URL field");

@@ -5,7 +5,10 @@ import java.util.Locale;
 public final class QQMatch {
     private QQMatch() {}
     public static String normalize(String text) {
-        return Normalizer.normalize(text == null ? "" : text, Normalizer.Form.NFKC).toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
+        return Normalizer.normalize(text == null ? "" : text, Normalizer.Form.NFKC)
+                .replace('\u98A8', '\u98CE')
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]", "");
     }
     private static String version(String value) {
         String text = (value == null ? "" : value).toLowerCase(Locale.ROOT);

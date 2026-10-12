@@ -13,6 +13,8 @@ import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaDescription;
@@ -57,7 +59,6 @@ import java.util.concurrent.Future;
 public final class PlaybackService extends MediaBrowserService
         implements AudioManager.OnAudioFocusChangeListener {
     public static final String TAG = "YPMPlayback";
-    public static final String ACTION_STATE = "dev.yesplaymusic.probe.STATE";
     public static final String EXTRA_COMMAND = "command";
     public static final String EXTRA_PAYLOAD = "payload";
 
@@ -75,6 +76,14 @@ public final class PlaybackService extends MediaBrowserService
     private static final int REPEAT_MODE_ONE = 2;
     private static final String CUSTOM_ACTION_REPEAT = "dev.yesplaymusic.probe.action.REPEAT";
     private static final String CUSTOM_ACTION_SHUFFLE = "dev.yesplaymusic.probe.action.SHUFFLE";
+    private static final long STATE_PERSIST_INTERVAL_MS = 10_000L;
+    private static final long POSITION_DRIFT_TOLERANCE_MS = 1_500L;
+    private static final long BLUETOOTH_RETURN_WINDOW_MS = 10_000L;
+
+    /** Latest state for the in-process UI bridge; progress ticks update it without disk writes. */
+    private static volatile String publishedStateJson;
+    /** Queue payload ({"version","queue"}); the UI fetches it only when queueVersion changes. */
+    private static volatile String publishedQueueJson;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService resolverExecutor = Executors.newFixedThreadPool(2);
@@ -118,14 +127,25 @@ public final class PlaybackService extends MediaBrowserService
     private boolean fallbackAttempted;
     private Future<?> resolverTask;
     private Future<?> artworkTask;
+    private String queueJsonCache;
+    // Seeded per service instance so a recreated service never reuses a version the UI cached.
+    private long queueVersion = SystemClock.elapsedRealtime();
+    private long lastStatePersistAt;
+    private int sessionStateCode = -1;
+    private long sessionStatePosition;
+    private long sessionStateUpdatedAt;
+    private float sessionStateSpeed;
+    private long noisyPausedAt;
 
     private final Runnable progressTick = new Runnable() {
         @Override public void run() {
             if (destroyed) return;
             if (isPlayerPlaying() || buffering) {
-                updatePlaybackState();
-                updateNotification();
-                publishState("progress");
+                // Controllers (notification, lock screen, Bluetooth AVRCP) extrapolate the
+                // position from the last PlaybackState. Re-publishing it every second makes
+                // every listener, including the headset link, process a redundant update.
+                syncSessionStateIfChanged();
+                publishProgress();
                 handler.postDelayed(this, 1000L);
             }
         }
@@ -136,6 +156,26 @@ public final class PlaybackService extends MediaBrowserService
             if (AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(intent.getAction())
                     && (isPlayerPlaying() || playWhenReady)) {
                 pausePlayback("audio-becoming-noisy", true);
+                noisyPausedAt = SystemClock.elapsedRealtime();
+            }
+        }
+    };
+
+    /** Resumes after a short Bluetooth dropout, e.g. a weak link that reconnects by itself. */
+    private final AudioDeviceCallback bluetoothReturnCallback = new AudioDeviceCallback() {
+        @Override public void onAudioDevicesAdded(AudioDeviceInfo[] added) {
+            if (noisyPausedAt == 0L || added == null) return;
+            if (SystemClock.elapsedRealtime() - noisyPausedAt > BLUETOOTH_RETURN_WINDOW_MS) {
+                noisyPausedAt = 0L;
+                return;
+            }
+            for (AudioDeviceInfo device : added) {
+                if (device != null && device.isSink() && isBluetoothMediaOutput(device.getType())) {
+                    noisyPausedAt = 0L;
+                    Log.i(TAG, "bluetooth-output-returned type=" + device.getType());
+                    playCurrent("bluetooth-returned");
+                    return;
+                }
             }
         }
     };
@@ -213,6 +253,7 @@ public final class PlaybackService extends MediaBrowserService
         mediaSession.setActive(!queue.isEmpty());
         setSessionToken(mediaSession.getSessionToken());
         registerNoisyReceiver();
+        if (audioManager != null) audioManager.registerAudioDeviceCallback(bluetoothReturnCallback, handler);
         refreshQueue();
         updateMetadata();
         updatePlaybackState();
@@ -361,6 +402,7 @@ public final class PlaybackService extends MediaBrowserService
             try { unregisterReceiver(noisyReceiver); } catch (RuntimeException ignored) { }
             noisyReceiverRegistered = false;
         }
+        if (audioManager != null) audioManager.unregisterAudioDeviceCallback(bluetoothReturnCallback);
         releasePlayer();
         abandonAudioFocus();
         if (mediaSession != null) {
@@ -385,13 +427,13 @@ public final class PlaybackService extends MediaBrowserService
             switch (command.optString("type", "")) {
                 case "play": {
                     JSONArray requested = command.optJSONArray("queue");
-                    if (requested != null && !replaceQueue(requested)) return;
+                    int index = command.optInt("index", currentIndex < 0 ? 0 : currentIndex);
+                    if (requested != null && !replaceQueue(requested, index)) return;
                     if (queue.isEmpty()) {
                         lastError = "empty_queue";
                         publishState("empty-queue");
                         return;
                     }
-                    int index = command.optInt("index", currentIndex < 0 ? 0 : currentIndex);
                     if (index < 0 || index >= queue.size()) index = 0;
                     playIndex(index, true, 0L, "command-play");
                     break;
@@ -427,7 +469,7 @@ public final class PlaybackService extends MediaBrowserService
         }
     }
 
-    private boolean replaceQueue(JSONArray requested) {
+    private boolean replaceQueue(JSONArray requested, int startIndex) {
         if (requested.length() > MAX_QUEUE_SIZE) {
             lastError = "queue_too_large";
             publishState("queue-too-large");
@@ -444,8 +486,10 @@ public final class PlaybackService extends MediaBrowserService
         abandonAudioFocus();
         queue.clear();
         queue.addAll(parsed);
-        currentIndex = queue.isEmpty() ? -1 : 0;
-        currentTrack = queue.isEmpty() ? null : queue.get(0);
+        // The shuffle order is rebuilt around the current song, so select it first.
+        currentIndex = queue.isEmpty() ? -1
+                : startIndex >= 0 && startIndex < queue.size() ? startIndex : 0;
+        currentTrack = queue.isEmpty() ? null : queue.get(currentIndex);
         currentArtwork = null;
         currentArtworkUrl = null;
         currentSource = null;
@@ -470,7 +514,10 @@ public final class PlaybackService extends MediaBrowserService
             return;
         }
         if (currentIndex < 0 || currentIndex >= queue.size()) currentIndex = 0;
-        playIndex(currentIndex, true, pendingSeekMs, event);
+        // Pressing play after the queue finished restarts the last song instead of its end.
+        boolean finished = stopped && currentDurationMs > 0L
+                && pendingSeekMs >= currentDurationMs - 500L;
+        playIndex(currentIndex, true, finished ? 0L : pendingSeekMs, event);
     }
 
     private void playIndex(int index, boolean autoplay, long seekPosition, String event) {
@@ -498,7 +545,9 @@ public final class PlaybackService extends MediaBrowserService
         final long requestGeneration = playbackGeneration;
         cancelNetworkTasks();
         releasePlayer();
+        noisyPausedAt = 0L;
         currentIndex = index;
+        syncShuffleCursor(index);
         currentTrack = queue.get(index);
         currentArtwork = null;
         currentArtworkUrl = null;
@@ -613,6 +662,9 @@ public final class PlaybackService extends MediaBrowserService
                     try { mp.seekTo((int) Math.min(pendingSeekMs, Integer.MAX_VALUE)); }
                     catch (IllegalStateException ignored) { }
                 }
+                // Consumed: a later play/resume must continue from the player position
+                // instead of jumping back to this restore point.
+                pendingSeekMs = 0L;
                 updateMetadata();
                 updatePlaybackState();
                 updateNotification();
@@ -633,10 +685,12 @@ public final class PlaybackService extends MediaBrowserService
                     if (what == MediaPlayer.MEDIA_INFO_BUFFERING_START) {
                         buffering = true;
                         updatePlaybackState();
+                        updateNotification();
                         publishState("stream-buffering");
                     } else if (what == MediaPlayer.MEDIA_INFO_BUFFERING_END) {
                         buffering = false;
                         updatePlaybackState();
+                        updateNotification();
                         publishState("stream-buffered");
                     }
                 }
@@ -820,8 +874,8 @@ public final class PlaybackService extends MediaBrowserService
             return;
         }
         int previous;
-        if (shuffleEnabled && shuffleOrder.size() == queue.size() && shuffleCursor > 0) {
-            previous = shuffleOrder.get(--shuffleCursor);
+        if (shuffleEnabled && shuffleOrder.size() == queue.size()) {
+            previous = shuffleCursor > 0 ? shuffleOrder.get(--shuffleCursor) : currentIndex;
         } else if (currentIndex > 0) previous = currentIndex - 1;
         else if (repeatMode == REPEAT_MODE_ALL) previous = queue.size() - 1;
         else previous = currentIndex;
@@ -877,6 +931,7 @@ public final class PlaybackService extends MediaBrowserService
                 ducked = false;
                 applyVolume();
             }
+            noisyPausedAt = 0L;
             boolean startedNow = false;
             if (!isPlayerPlaying()) {
                 player.start();
@@ -909,6 +964,7 @@ public final class PlaybackService extends MediaBrowserService
     }
 
     private void pausePlayback(String event, boolean abandonFocus) {
+        noisyPausedAt = 0L;
         playWhenReady = false;
         resumeOnFocusGain = false;
         if (buffering && !playerPrepared && resolverTask != null) {
@@ -986,7 +1042,22 @@ public final class PlaybackService extends MediaBrowserService
         shuffleCursor = 0;
     }
 
+    /** Keeps the shuffle history consistent when a song is picked directly from the queue. */
+    private void syncShuffleCursor(int index) {
+        if (!shuffleEnabled || shuffleOrder.size() != queue.size()) return;
+        if (shuffleCursor >= 0 && shuffleCursor < shuffleOrder.size()
+                && shuffleOrder.get(shuffleCursor) == index) return;
+        int at = shuffleOrder.indexOf(index);
+        if (at < 0) return;
+        shuffleOrder.remove(at);
+        if (at <= shuffleCursor) shuffleCursor--;
+        int insert = Math.min(Math.max(0, shuffleCursor + 1), shuffleOrder.size());
+        shuffleOrder.add(insert, index);
+        shuffleCursor = insert;
+    }
+
     private void stopPlaybackAndService(String event) {
+        noisyPausedAt = 0L;
         pendingSeekMs = safePosition();
         playbackGeneration++;
         cancelNetworkTasks();
@@ -1085,6 +1156,8 @@ public final class PlaybackService extends MediaBrowserService
     }
 
     private void refreshQueue() {
+        queueJsonCache = null;
+        queueVersion++;
         if (mediaSession == null) return;
         ArrayList<MediaSession.QueueItem> items = new ArrayList<>();
         for (int i = 0; i < queue.size(); i++) {
@@ -1136,33 +1209,46 @@ public final class PlaybackService extends MediaBrowserService
         mediaSession.setMetadata(metadata.build());
     }
 
+    private int currentSessionStateCode() {
+        if (buffering) return PlaybackState.STATE_BUFFERING;
+        if (isPlayerPlaying()) return PlaybackState.STATE_PLAYING;
+        if (stopped) return PlaybackState.STATE_STOPPED;
+        if (currentTrack != null) return PlaybackState.STATE_PAUSED;
+        return PlaybackState.STATE_NONE;
+    }
+
+    /** Publishes a session update only when the state changed or the position drifted. */
+    private void syncSessionStateIfChanged() {
+        int state = currentSessionStateCode();
+        if (state != sessionStateCode) {
+            updatePlaybackState();
+            updateNotification();
+            return;
+        }
+        long expected = sessionStatePosition + (long) ((SystemClock.elapsedRealtime()
+                - sessionStateUpdatedAt) * sessionStateSpeed);
+        if (Math.abs(safePosition() - expected) > POSITION_DRIFT_TOLERANCE_MS) updatePlaybackState();
+    }
+
     private void updatePlaybackState() {
         if (mediaSession == null) return;
-        int state;
-        float speed;
-        if (buffering) {
-            state = PlaybackState.STATE_BUFFERING;
-            speed = 0.0f;
-        } else if (isPlayerPlaying()) {
-            state = PlaybackState.STATE_PLAYING;
-            speed = 1.0f;
-        } else if (stopped) {
-            state = PlaybackState.STATE_STOPPED;
-            speed = 0.0f;
-        } else if (currentTrack != null) {
-            state = PlaybackState.STATE_PAUSED;
-            speed = 0.0f;
-        } else {
-            state = PlaybackState.STATE_NONE;
-            speed = 0.0f;
-        }
+        int state = currentSessionStateCode();
+        float speed = state == PlaybackState.STATE_PLAYING ? 1.0f : 0.0f;
+        long position = safePosition();
+        long updatedAt = SystemClock.elapsedRealtime();
+        sessionStateCode = state;
+        sessionStatePosition = position;
+        sessionStateUpdatedAt = updatedAt;
+        sessionStateSpeed = speed;
         Bundle extras = new Bundle();
         extras.putString("repeat", repeatName(repeatMode));
         extras.putBoolean("shuffle", shuffleEnabled);
         if (currentSource != null) extras.putString("source", currentSource);
         PlaybackState.Builder stateBuilder = new PlaybackState.Builder()
                 .setActions(availableActions())
-                .setState(state, safePosition(), speed, SystemClock.elapsedRealtime())
+                .setState(state, position, speed, updatedAt)
+                .setActiveQueueItemId(currentIndex >= 0 ? currentIndex
+                        : MediaSession.QueueItem.UNKNOWN_ID)
                 .setBufferedPosition(safeDuration() * Math.max(0, bufferingPercent) / 100L)
                 .setExtras(extras)
                 .addCustomAction(CUSTOM_ACTION_REPEAT, repeatActionTitle(),
@@ -1181,27 +1267,59 @@ public final class PlaybackService extends MediaBrowserService
                 | PlaybackState.ACTION_SKIP_TO_QUEUE_ITEM;
     }
 
+    static String publishedState() {
+        return publishedStateJson;
+    }
+
+    static String publishedQueue() {
+        return publishedQueueJson;
+    }
+
     private void publishState(String event) {
-        String json = buildStateJson().toString();
-        getSharedPreferences(STATE_PREFS, MODE_PRIVATE).edit().putString(STATE_KEY, json).apply();
-        Intent intent = new Intent(ACTION_STATE);
-        intent.setPackage(getPackageName());
-        intent.putExtra("state", json);
-        intent.putExtra("event", event);
-        sendBroadcast(intent);
+        persistState(publishSnapshot(), SystemClock.elapsedRealtime());
         Log.i(TAG, "state event=" + event + " index=" + currentIndex
                 + " playing=" + isPlayerPlaying() + " buffering=" + buffering
                 + " source=" + currentSource + " positionMs=" + safePosition());
     }
 
-    private JSONObject buildStateJson() {
+    /** Progress ticks refresh the in-memory copy; the saved copy only every few seconds. */
+    private void publishProgress() {
+        String fields = publishSnapshot();
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastStatePersistAt >= STATE_PERSIST_INTERVAL_MS) persistState(fields, now);
+    }
+
+    /** Publishes the queue before the state that names its version, so readers never see it stale. */
+    private String publishSnapshot() {
+        queueJson();
+        String fields = buildStateFields();
+        publishedStateJson = fields;
+        return fields;
+    }
+
+    private void persistState(String fields, long now) {
+        lastStatePersistAt = now;
+        // The saved copy embeds the queue so a restarted service can restore it.
+        String json = "{\"queue\":" + queueJson()
+                + (fields.length() > 2 ? "," + fields.substring(1) : "}");
+        getSharedPreferences(STATE_PREFS, MODE_PRIVATE).edit().putString(STATE_KEY, json).apply();
+    }
+
+    private String queueJson() {
+        if (queueJsonCache == null) {
+            JSONArray tracks = new JSONArray();
+            for (Track track : queue) tracks.put(track.toJson(false));
+            queueJsonCache = tracks.toString();
+            publishedQueueJson = "{\"version\":" + queueVersion + ",\"queue\":" + queueJsonCache + "}";
+        }
+        return queueJsonCache;
+    }
+
+    private String buildStateFields() {
         JSONObject state = new JSONObject();
-        JSONArray tracks = new JSONArray();
-        for (Track track : queue) tracks.put(track.toJson(false));
         try {
             state.put("track", currentTrack == null
                     ? JSONObject.NULL : currentTrack.toJson(false));
-            state.put("queue", tracks);
             state.put("index", currentIndex);
             state.put("playing", isPlayerPlaying());
             state.put("buffering", buffering);
@@ -1213,8 +1331,11 @@ public final class PlaybackService extends MediaBrowserService
             state.put("error", lastError == null ? JSONObject.NULL : lastError);
             state.put("source", currentSource == null ? JSONObject.NULL : currentSource);
             state.put("bufferingPercent", bufferingPercent);
+            state.put("queueVersion", queueVersion);
+            // Lets the UI extrapolate the position between the once-per-second updates.
+            state.put("updatedAt", System.currentTimeMillis());
         } catch (JSONException ignored) { }
-        return state;
+        return state.toString();
     }
 
     private void restoreSavedState() {
@@ -1454,6 +1575,12 @@ public final class PlaybackService extends MediaBrowserService
                     || domainIs(host, "gtimg.cn");
         }
         return domainIs(host, "music.126.net") || domainIs(host, "music.163.com");
+    }
+
+    private static boolean isBluetoothMediaOutput(int type) {
+        return type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                || type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                || type == AudioDeviceInfo.TYPE_BLE_SPEAKER;
     }
 
     private static boolean domainIs(String host, String suffix) {
