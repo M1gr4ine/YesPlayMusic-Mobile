@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
     private android.window.OnBackInvokedCallback systemBack;
     private boolean alive;
     private int topInset,bottomInset;
+    private boolean imeVisible;
     @Override public void onCreate(Bundle state){
         super.onCreate(state);alive=true;
         if(Build.VERSION.SDK_INT>=33){systemBack=this::handleBack;getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,systemBack);}
@@ -69,7 +70,7 @@ public class MainActivity extends Activity {
                 if(request.isForMainFrame()||!"https".equals(uri.getScheme())||!imageHost(uri.getHost()))return empty();
                 return null;
             }
-            @Override public void onPageFinished(WebView view,String url){applyInsets();}
+            @Override public void onPageFinished(WebView view,String url){applyInsets();applyKeyboard();}
         });
         web.setWebChromeClient(new WebChromeClient(){
             @Override public boolean onConsoleMessage(ConsoleMessage message){
@@ -82,6 +83,8 @@ public class MainActivity extends Activity {
             float density=getResources().getDisplayMetrics().density;
             if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());topInset=Math.round(bars.top/density);bottomInset=Math.round(bars.bottom/density);}
             else{topInset=Math.round(insets.getSystemWindowInsetTop()/density);bottomInset=Math.round(insets.getSystemWindowInsetBottom()/density);}
+            boolean ime=Build.VERSION.SDK_INT>=30?insets.isVisible(WindowInsets.Type.ime()):insets.getSystemWindowInsetBottom()-insets.getStableInsetBottom()>100*density;
+            if(ime!=imeVisible){imeVisible=ime;applyKeyboard();}
             applyInsets();return insets;
         });
         setContentView(web);web.loadUrl("https://"+ORIGIN+"/assets/index.html");
@@ -91,6 +94,7 @@ public class MainActivity extends Activity {
     private static boolean imageHost(String host){if(host==null)return false;host=host.toLowerCase(Locale.ROOT);return host.endsWith(".music.126.net")||host.endsWith(".music.163.com")||host.endsWith(".music.126.com")||host.endsWith(".gtimg.cn")||host.endsWith(".qlogo.cn")||host.endsWith(".qq.com")||host.endsWith(".gtimg.com");}
     private static WebResourceResponse empty(){return new WebResourceResponse("text/plain","UTF-8",new ByteArrayInputStream(new byte[0]));}
     private void applyInsets(){if(web!=null&&alive)web.evaluateJavascript("document.documentElement.style.setProperty('--safe-top','"+topInset+"px');document.documentElement.style.setProperty('--safe-bottom','"+bottomInset+"px');",null);}
+    private void applyKeyboard(){if(web!=null&&alive)web.evaluateJavascript("window.YPM&&window.YPM.setKeyboard&&window.YPM.setKeyboard("+imeVisible+")",null);}
     private void response(String id,String result,String error){main.post(()->{if(alive&&web!=null)web.evaluateJavascript("window.YPM&&window.YPM.resolve("+JSONObject.quote(id)+","+(result==null?"null":JSONObject.quote(result))+","+(error==null?"null":JSONObject.quote(error))+");",null);});}
     @Override public void onBackPressed(){handleBack();}
     private void handleBack(){if(!alive)return;if(web!=null)web.evaluateJavascript("window.YPM&&window.YPM.back?window.YPM.back():false",result->{if(alive&&!"true".equals(result))moveTaskToBack(true);});else moveTaskToBack(true);}

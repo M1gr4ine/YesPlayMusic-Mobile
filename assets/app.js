@@ -106,6 +106,8 @@
   let trackActionsSheetGeneration = 0;
   let pendingPlayerModes = null;
   let seekDragging = false;
+  // Native IME visibility from WindowInsets; null until the Android shell reports it.
+  let nativeKeyboardVisible = null;
   let mediaQueueCache = { version: undefined, queue: [] };
   let queueSignatureSource = null;
   let queueSignatureValue = '';
@@ -1191,7 +1193,7 @@
     });
     form.append(input);
     if (state.searchQuery) { const clear = element('button', 'search-clear', '×'); clear.type = 'button'; clear.setAttribute('aria-label','清除搜索'); clear.addEventListener('click', () => { state.searchQuery = ''; state.searchResults = null; renderTab(); $('#search-input')?.focus(); }); form.append(clear); }
-    form.addEventListener('submit', event => { event.preventDefault(); clearTimeout(state.searchTimer); runSearch(input.value.trim()); });
+    form.addEventListener('submit', event => { event.preventDefault(); clearTimeout(state.searchTimer); input.blur(); runSearch(input.value.trim()); });
     root.append(form);
 
     const providerRow = element('div', 'search-source-row');
@@ -1721,6 +1723,29 @@
   }
 
   window.YPM.back = handleBack;
+
+  function updateKeyboard() {
+    let keyboardOpen;
+    if (nativeKeyboardVisible !== null) keyboardOpen = nativeKeyboardVisible;
+    else {
+      const viewport = window.visualViewport;
+      keyboardOpen = !!(viewport && window.innerHeight - viewport.height > 140) || document.activeElement?.id === 'search-input';
+    }
+    $('#app')?.classList.toggle('keyboard-open',keyboardOpen);
+  }
+
+  window.YPM.setKeyboard = function (visible) {
+    const wasVisible = nativeKeyboardVisible;
+    nativeKeyboardVisible = !!visible;
+    // Back (or the IME's own hide key) closes the keyboard without blurring the field; drop focus
+    // so the tab bar, mini player and tab swipe come back.
+    if (wasVisible && !nativeKeyboardVisible) {
+      const active = document.activeElement;
+      if (active && active.matches && active.matches('input,textarea,[contenteditable="true"]')) active.blur();
+    }
+    updateKeyboard();
+    return true;
+  };
 
   function formatTime(milliseconds) {
     const total = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1000));
@@ -3029,7 +3054,7 @@
       if (event.button !== undefined && event.button !== 0) return;
       if (event.isPrimary === false || state.fullPlayer || state.queueSheetOpen || $('#account-overlay').classList.contains('is-open')) return;
       if (state.playlist || state.playlistLoading || state.playlistError || $('#app').classList.contains('keyboard-open')) return;
-      if (document.activeElement && document.activeElement.matches('input,textarea,select,[contenteditable="true"]')) return;
+      if (nativeKeyboardVisible !== false && document.activeElement && document.activeElement.matches('input,textarea,select,[contenteditable="true"]')) return;
       if (blockedTarget(event.target) || !inGestureArea(event)) return;
       tabTransitionGeneration += 1;
       tabTransitionInFlight = false;
@@ -3374,11 +3399,6 @@
     });
     window.addEventListener('focus',() => { pollMediaState(); refreshAuth(); });
     window.addEventListener('native-resume',() => { pollMediaState(); refreshAuth(); });
-    const updateKeyboard = () => {
-      const viewport = window.visualViewport;
-      const keyboardOpen = !!(viewport && window.innerHeight - viewport.height > 140);
-      $('#app').classList.toggle('keyboard-open',keyboardOpen || document.activeElement?.id === 'search-input');
-    };
     if (window.visualViewport) window.visualViewport.addEventListener('resize',updateKeyboard);
     window.addEventListener('resize',updateKeyboard);
     document.addEventListener('focusin',updateKeyboard);
