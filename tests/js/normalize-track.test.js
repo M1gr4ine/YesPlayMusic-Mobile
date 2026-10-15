@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadAppFunctions } = require('./support/app-harness');
 
-const app = loadAppFunctions(['artistNames', 'artistAliasNames', 'normalizeTrack'], { safeHttpsUrl: value => String(value || '') });
+const app = loadAppFunctions(['artistNames', 'artistAliasNames', 'artistRefs', 'normalizeTrack'], { safeHttpsUrl: value => String(value || '') });
 const normalize = raw => JSON.parse(JSON.stringify(app.normalizeTrack(raw, 'netease')));
 
 test('collects provider artist aliases without changing the displayed artist', () => {

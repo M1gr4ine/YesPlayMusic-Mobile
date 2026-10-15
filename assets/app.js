@@ -23,6 +23,8 @@
     heart: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M20.8 8.8c0 5.2-8.8 10.3-8.8 10.3S3.2 14 3.2 8.8a4.4 4.4 0 0 1 8.8-.3 4.4 4.4 0 0 1 8.8.3Z"/></svg>',
     music: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.7"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
     queue: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 6.5h12M4 11.5h12M4 16.5h7"/><path d="m16 15 4 3-4 3z"/></svg>',
+    artist: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>',
+    album: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.5"/></svg>',
     listAdd: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 6.5h11M4 11.5h11M4 16.5h7"/><path d="M17.5 13v7M14 16.5h7"/></svg>'
   };
 
@@ -53,6 +55,8 @@
     playlistError: false,
     playlistRequestGeneration: 0,
     playlistOriginScrollTop: 0,
+    playlistKind: '',
+    detailStack: [],
     tabScrollTop: { listen: 0, library: 0, search: 0 },
     searchQuery: '',
     searchProvider: 'netease',
@@ -62,6 +66,7 @@
     searchError: false,
     media: { track: null, queue: [], index: -1, playing: false, position: 0, duration: 0, source: '', shuffle: false, repeat: 'off', error: null },
     fullPlayer: false,
+    playerDetailLookup: null,
     playerExpanded: false,
     queueSheetOpen: false,
     playerView: 'lyrics',
@@ -557,7 +562,20 @@
     if (qqMid) result.qqMid = String(qqMid);
     const mediaMid = raw.media_mid || raw.mediaMid;
     if (mediaMid) result.mediaMid = String(mediaMid);
+    if (result.provider === 'netease') {
+      const refs = artistRefs(raw.artistRefs || raw.artists || raw.ar);
+      if (refs.length) result.artistRefs = refs;
+      const albumId = String(raw.albumId ?? (albumObject && albumObject.id) ?? '');
+      if (/^[1-9]\d{0,23}$/.test(albumId)) result.albumId = albumId;
+    }
     return result;
+  }
+
+  // NetEase artist ids and names, kept so a track can open its artist and album pages.
+  function artistRefs(artists) {
+    if (!Array.isArray(artists)) return [];
+    return artists.map(item => item && typeof item === 'object' ? { id: String(item.id ?? ''), name: String(item.name || '') } : null)
+      .filter(item => item && item.name && /^[1-9]\d{0,23}$/.test(item.id)).slice(0, 16);
   }
 
   function extractSongs(response, provider) {
@@ -1002,11 +1020,11 @@
     const main = element('button', 'song-row-main');
     main.type = 'button';
     main.setAttribute('aria-label', `播放 ${track.title}，${track.artist}`);
-    main.append(makeCover(track.artwork, ''));
+    main.append(options && options.numbered ? element('span', 'song-index', String(index + 1)) : makeCover(track.artwork, ''));
     const copy = element('span', 'song-copy');
     const title = element('strong', '', track.title);
     if (track.provider === 'qq') title.append(element('span', 'track-tag', 'QQ'));
-    copy.append(title, element('span', '', [track.artist, track.album].filter(Boolean).join(' · ')));
+    copy.append(title, element('span', '', (options && options.numbered ? [track.artist] : [track.artist, track.album]).filter(Boolean).join(' · ')));
     main.append(copy);
     main.addEventListener('click', () => {
       if (options && typeof options.onSelect === 'function') options.onSelect(track, index);
@@ -1216,15 +1234,18 @@
         if (key === 'playlists' && items.length) {
           const rail = element('div', 'card-rail'); items.forEach(item => rail.append(renderPlaylistCard(item, false))); root.append(rail);
         } else if (key === 'albums' && items.length) {
-          const rail = element('div', 'card-rail'); items.forEach(item => {
-            const album = { id: String(item.id), name: String(item.name || '专辑'), artwork: safeHttpsUrl(item.picUrl || item.coverImgUrl || ''), count: Number(item.size || 0) };
-            const card = element('button','playlist-card'); card.type='button'; card.append(makeCover(album.artwork,'',176),element('strong','',album.name));
-            card.addEventListener('click', () => loadAlbum(album.id)); rail.append(card);
-          }); root.append(rail);
+          const rail = element('div', 'card-rail');
+          items.map(normalizeAlbum).filter(Boolean).forEach(album => rail.append(renderAlbumCard(album, album.artist)));
+          root.append(rail);
         } else if (key === 'artists' && items.length) {
           const list = element('div','song-list'); items.forEach(item => {
-            const row = element('div','song-row'); row.append(makeCover(safeHttpsUrl(item.picUrl || ''),''));
-            const copy = element('div','song-copy'); copy.append(element('strong','',String(item.name || '未知艺人')),element('span','',`${Number(item.albumSize || 0)} 张专辑`)); row.append(copy); list.append(row);
+            const id = String(item && item.id || '');
+            if (!/^[1-9]\d{0,23}$/.test(id)) return;
+            const row = element('article','song-row'); const main = element('button','song-row-main artist-row'); main.type='button';
+            const name = String(item.name || '未知艺人'); main.setAttribute('aria-label', `打开歌手 ${name}`);
+            main.append(makeCover(safeHttpsUrl(item.picUrl || item.img1v1Url || ''),'artist-avatar'));
+            const copy = element('span','song-copy'); copy.append(element('strong','',name),element('span','',`${Number(item.albumSize || 0)} 张专辑`)); main.append(copy, element('span','my-playlist-chevron','›'));
+            main.addEventListener('click', () => openArtist(id)); row.append(main); list.append(row);
           }); root.append(list);
         } else root.append(emptyState('没有匹配内容', '换一个关键词再试试。', null, null));
       }
@@ -1234,11 +1255,14 @@
   function renderPlaylistPage() {
     const root = $('#tab-content');
     const back = element('button','back-button'); back.type='button'; setIcon(back,'back'); back.append(document.createTextNode('返回')); back.addEventListener('click', handleBack); root.append(back);
-    if (state.playlistLoading) { root.append(loadingState('正在读取歌单…')); return; }
+    const noun = { recent: '播放记录', album: '专辑', artist: '歌手' }[state.playlistKind] || '歌单';
+    if (state.playlistLoading) { root.append(loadingState(`正在读取${noun}…`)); return; }
     if (state.playlistError || !state.playlist) {
-      const retry = state.playlistId === 'recent-history' ? openRecentHistory : () => openPlaylist(state.playlistId);
-      root.append(emptyState(state.playlistId === 'recent-history' ? '播放记录无法打开' : '歌单无法打开', '请确认网络连接后重试。', '重新加载', retry)); return;
+      const kind = state.playlistKind; const id = state.playlistId;
+      root.append(emptyState(`${noun}无法打开`, '请确认网络连接后重试。', '重新加载', () => openDetail(kind, id, { replace: true }))); return;
     }
+    if (state.playlistKind === 'artist') { renderArtistPage(root, state.playlist); return; }
+    if (state.playlistKind === 'album') { renderAlbumPage(root, state.playlist); return; }
     const playlist = state.playlist;
     const total = Math.max(playlist.tracks.length, playlist.total || 0);
     const countLabel = total > playlist.tracks.length ? `已加载 ${playlist.tracks.length} / ${total} 首` : `${playlist.tracks.length} 首歌曲`;
@@ -1279,7 +1303,7 @@
     if (!['listen','library','search'].includes(tab)) return;
     if (!(options && options.skipSavePreviousScroll) && !state.playlist && !state.playlistLoading && !state.playlistError) state.tabScrollTop[state.tab] = $('#tab-content').scrollTop;
     state.playlistRequestGeneration += 1;
-    state.playlist = null; state.playlistId = null; state.playlistLoading = false; state.playlistError = false;
+    state.playlist = null; state.playlistId = null; state.playlistLoading = false; state.playlistError = false; state.detailStack = [];
     state.tab = tab; renderTab(false);
     const scrollTop = options && Number.isFinite(options.scrollTop) ? Math.max(0, options.scrollTop) : 0;
     $('#tab-content').scrollTop = scrollTop;
@@ -1467,13 +1491,10 @@
     }
   }
 
-  async function openRecentHistory() {
-    const generation = ++state.playlistRequestGeneration;
+  async function openRecentHistory(options) {
+    const generation = beginDetail('recent', 'recent-history', options);
     const historyGeneration = ++state.recentHistoryRequestGeneration;
-    state.playlistOriginScrollTop = $('#tab-content')?.scrollTop || 0;
-    state.playlistId = 'recent-history'; state.playlist = null; state.playlistLoading = true; state.playlistError = false;
     state.recentHistoryLoading = true; state.recentHistoryError = false;
-    renderTab();
     try {
       const response = await request('recentHistory', { limit: 100 });
       if (generation !== state.playlistRequestGeneration || historyGeneration !== state.recentHistoryRequestGeneration) return;
@@ -1502,11 +1523,9 @@
     }
   }
 
-  async function openPlaylist(id) {
+  async function openPlaylist(id, options) {
     if (!id) return;
-    const generation = ++state.playlistRequestGeneration;
-    state.playlistOriginScrollTop = $('#tab-content')?.scrollTop || 0;
-    state.playlistId = String(id); state.playlist = null; state.playlistLoading = true; state.playlistError = false; renderTab();
+    const generation = beginDetail('playlist', id, options);
     try {
       const playlist = extractPlaylistDetail(await request('playlist', { id: String(id) }));
       if (generation !== state.playlistRequestGeneration) return;
@@ -1521,18 +1540,254 @@
     }
   }
 
-  async function loadAlbum(id) {
-    if (!id) return;
+  // Detail pages stack, so artist → album → artist can be walked back one page at a time.
+  function beginDetail(kind, id, options) {
+    const root = $('#tab-content');
+    const detailOpen = !!(state.playlist || state.playlistLoading || state.playlistError);
+    if (!(options && options.replace)) {
+      if (detailOpen) {
+        if (state.playlistId === 'recent-history' && state.playlistLoading) {
+          state.recentHistoryRequestGeneration += 1;
+          state.recentHistoryLoading = false;
+        }
+        state.detailStack.push({ kind: state.playlistKind, id: state.playlistId, playlist: state.playlist, scrollTop: root ? root.scrollTop : 0 });
+        if (state.detailStack.length > 20) state.detailStack.shift();
+      } else {
+        state.playlistOriginScrollTop = root ? root.scrollTop : 0;
+        state.detailStack = [];
+      }
+    }
     const generation = ++state.playlistRequestGeneration;
-    state.playlistOriginScrollTop = $('#tab-content')?.scrollTop || 0;
-    state.playlistId = String(id); state.playlist = null; state.playlistLoading = true; state.playlistError = false; renderTab();
+    state.playlistKind = kind; state.playlistId = String(id); state.playlist = null; state.playlistLoading = true; state.playlistError = false;
+    renderTab();
+    return generation;
+  }
+
+  function openDetail(kind, id, options) {
+    if (kind === 'recent') return openRecentHistory(options);
+    if (kind === 'album') return openAlbum(id, options);
+    if (kind === 'artist') return openArtist(id, options);
+    return openPlaylist(id, options);
+  }
+
+  // Same labels as the desktop album page: an "EP/Single" with one track is a single.
+  function albumKind(album) {
+    const type = String(album && album.type || '');
+    if (type === 'EP/Single') return Number(album.size) === 1 ? '单曲' : 'EP';
+    if (type === 'Single') return '单曲';
+    if (type === 'EP') return 'EP';
+    return '专辑';
+  }
+
+  function normalizeAlbum(item) {
+    if (!item || typeof item !== 'object' || !/^[1-9]\d{0,23}$/.test(String(item.id ?? ''))) return null;
+    return {
+      id: String(item.id), name: String(item.name || '专辑'), artwork: safeHttpsUrl(item.picUrl || item.blurPicUrl || item.coverImgUrl || ''),
+      artist: artistNames(item), kind: albumKind(item), publishTime: Number(item.publishTime) || 0, size: Math.max(0, Number(item.size) || 0)
+    };
+  }
+
+  function releaseYear(time) {
+    const date = new Date(Number(time) || 0);
+    return time > 0 && Number.isFinite(date.getTime()) ? String(date.getFullYear()) : '';
+  }
+
+  function releaseDate(time) {
+    const date = new Date(Number(time) || 0);
+    return time > 0 && Number.isFinite(date.getTime()) ? `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日` : '';
+  }
+
+  function renderAlbumCard(album, subtitle) {
+    const card = element('button', 'playlist-card');
+    card.type = 'button';
+    card.setAttribute('aria-label', `打开专辑 ${album.name}`);
+    card.append(makeCover(album.artwork, '', 176), element('strong', '', album.name));
+    if (subtitle) card.append(element('small', '', subtitle));
+    card.addEventListener('click', () => openAlbum(album.id));
+    return card;
+  }
+
+  function renderPlayControls(root, tracks, label) {
+    const controls = element('div', 'playlist-controls');
+    const play = element('button', 'large-play'); play.type = 'button'; setIcon(play, 'play'); play.append(document.createTextNode(label));
+    play.addEventListener('click', () => { if (!tracks.length) return; if (state.media.shuffle) setShuffle(false, true); playTracks(tracks, 0); });
+    const shuffle = element('button', 'round-action'); shuffle.type = 'button'; setIcon(shuffle, 'shuffle'); shuffle.setAttribute('aria-label', '随机播放');
+    shuffle.addEventListener('click', () => { if (!tracks.length) return; setShuffle(true, true); playTracks(tracks, Math.floor(Math.random() * tracks.length)); });
+    controls.append(play, shuffle);
+    root.append(controls);
+  }
+
+  function renderDescription(root, text) {
+    const value = String(text || '').trim();
+    if (!value) return;
+    const description = element('button', 'detail-description', value);
+    description.type = 'button';
+    description.setAttribute('aria-expanded', 'false');
+    description.addEventListener('click', () => {
+      const expanded = description.classList.toggle('is-expanded');
+      description.setAttribute('aria-expanded', String(expanded));
+    });
+    root.append(description);
+  }
+
+  async function openAlbum(id, options) {
+    if (!/^[1-9]\d{0,23}$/.test(String(id || ''))) return;
+    const generation = beginDetail('album', id, options);
     try {
       const response = await request('album', { id: String(id) });
       if (generation !== state.playlistRequestGeneration) return;
-      const album = response && response.album ? response.album : response;
-      state.playlist = { id: String(id), name: String(album && album.name || '专辑'), artwork: safeHttpsUrl(album && (album.picUrl || album.coverImgUrl) || ''), creator: artistNames(album || {}), description: '', tracks: extractSongs(response,'netease') };
-    } catch (_) { if (generation === state.playlistRequestGeneration) state.playlistError = true; }
-    finally { if (generation === state.playlistRequestGeneration) { state.playlistLoading = false; renderTab(); $('#tab-content').scrollTop = 0; } }
+      const album = response && response.album && typeof response.album === 'object' ? response.album : null;
+      if (!album) throw safeFailure();
+      const artwork = safeHttpsUrl(album.picUrl || album.blurPicUrl || '');
+      const tracks = extractSongs(response, 'netease').map(track => track.artwork ? track : Object.assign(track, { artwork }));
+      const artists = artistRefs(Array.isArray(album.artists) && album.artists.length ? album.artists : [album.artist]);
+      state.playlist = {
+        id: String(album.id || id), name: String(album.name || '专辑'), artwork, kind: albumKind(album),
+        artists, artistLabel: artistNames(album), publishTime: Number(album.publishTime) || 0,
+        company: String(album.company || ''), description: String(album.description || ''),
+        tracks, total: tracks.length, moreAlbums: null
+      };
+      loadMoreAlbums(state.playlist);
+    } catch (_) {
+      if (generation === state.playlistRequestGeneration) state.playlistError = true;
+    } finally {
+      if (generation === state.playlistRequestGeneration) { state.playlistLoading = false; renderTab(); $('#tab-content').scrollTop = 0; }
+    }
+  }
+
+  // "More by" rail under an album, like the desktop page; it is optional, so failures stay quiet.
+  async function loadMoreAlbums(album) {
+    const artist = album.artists[0];
+    if (!artist) return;
+    try {
+      const response = await request('artistAlbums', { id: artist.id, limit: 30 });
+      album.moreAlbums = (Array.isArray(response && response.hotAlbums) ? response.hotAlbums : [])
+        .map(normalizeAlbum).filter(item => item && item.id !== album.id).slice(0, 12);
+    } catch (_) { return; }
+    if (state.playlist === album && album.moreAlbums.length) renderTab();
+  }
+
+  async function openArtist(id, options) {
+    if (!/^[1-9]\d{0,23}$/.test(String(id || ''))) return;
+    const generation = beginDetail('artist', id, options);
+    try {
+      const response = await request('artist', { id: String(id) });
+      if (generation !== state.playlistRequestGeneration) return;
+      const artist = response && response.artist && typeof response.artist === 'object' ? response.artist : null;
+      if (!artist) throw safeFailure();
+      const aliases = [].concat(artist.trans || [], Array.isArray(artist.alias) ? artist.alias : []).map(String).filter(Boolean);
+      state.playlist = {
+        id: String(artist.id || id), name: String(artist.name || '歌手'), artwork: safeHttpsUrl(artist.picUrl || artist.img1v1Url || ''),
+        aliases: Array.from(new Set(aliases)).slice(0, 3), description: String(artist.briefDesc || ''),
+        songCount: Math.max(0, Number(artist.musicSize) || 0), albumCount: Math.max(0, Number(artist.albumSize) || 0), mvCount: Math.max(0, Number(artist.mvSize) || 0),
+        tracks: (Array.isArray(response.hotSongs) ? response.hotSongs : []).map(item => normalizeTrack(item, 'netease')).filter(Boolean),
+        showAllSongs: false, albums: [], albumsLoading: true, albumsError: false
+      };
+      loadArtistAlbums(state.playlist);
+    } catch (_) {
+      if (generation === state.playlistRequestGeneration) state.playlistError = true;
+    } finally {
+      if (generation === state.playlistRequestGeneration) { state.playlistLoading = false; renderTab(); $('#tab-content').scrollTop = 0; }
+    }
+  }
+
+  async function loadArtistAlbums(artist) {
+    artist.albumsLoading = true; artist.albumsError = false;
+    try {
+      const response = await request('artistAlbums', { id: artist.id, limit: 200 });
+      if (!Array.isArray(response && response.hotAlbums)) throw safeFailure();
+      artist.albums = response.hotAlbums.map(normalizeAlbum).filter(Boolean);
+    } catch (_) { artist.albumsError = true; }
+    artist.albumsLoading = false;
+    if (state.playlist === artist) renderTab();
+  }
+
+  function renderAlbumPage(root, album) {
+    const hero = element('div', 'playlist-hero detail-hero');
+    hero.append(makeCover(album.artwork, '', 112));
+    const copy = element('div', 'playlist-hero-copy');
+    copy.append(element('span', 'detail-eyebrow', album.kind), element('h2', '', album.name));
+    const by = element('p', 'detail-links');
+    if (album.artists.length) {
+      album.artists.forEach((artist, index) => {
+        if (index) by.append(document.createTextNode(' / '));
+        const link = element('button', 'detail-link', artist.name); link.type = 'button';
+        link.setAttribute('aria-label', `打开歌手 ${artist.name}`);
+        link.addEventListener('click', () => openArtist(artist.id));
+        by.append(link);
+      });
+    } else by.textContent = album.artistLabel || '未知艺术家';
+    const minutes = Math.round(album.tracks.reduce((sum, track) => sum + (track.duration || 0), 0) / 60000);
+    copy.append(by, element('p', '', [releaseYear(album.publishTime), `${album.tracks.length} 首歌曲`, minutes ? `${minutes} 分钟` : ''].filter(Boolean).join(' · ')));
+    hero.append(copy);
+    root.append(hero);
+    renderPlayControls(root, album.tracks, '全部播放');
+    renderDescription(root, album.description);
+    if (album.tracks.length) root.append(renderSongList(album.tracks, { duration: true, actions: true, numbered: true }));
+    else root.append(emptyState('专辑里没有歌曲', '音乐平台没有返回可播放曲目。', null, null));
+    const footnote = [releaseDate(album.publishTime) && `发行于 ${releaseDate(album.publishTime)}`, album.company && `© ${album.company}`].filter(Boolean);
+    if (footnote.length) {
+      const notes = element('div', 'detail-footnote');
+      footnote.forEach(line => notes.append(element('p', '', line)));
+      root.append(notes);
+    }
+    if (album.moreAlbums && album.moreAlbums.length && album.artists[0]) {
+      const artist = album.artists[0];
+      const more = section(`更多来自 ${artist.name}`, '', '歌手主页', () => openArtist(artist.id));
+      const rail = element('div', 'card-rail');
+      album.moreAlbums.forEach(item => rail.append(renderAlbumCard(item, [releaseYear(item.publishTime), item.kind].filter(Boolean).join(' · '))));
+      more.wrap.append(rail);
+      root.append(more.wrap);
+    }
+  }
+
+  function renderArtistPage(root, artist) {
+    const hero = element('div', 'playlist-hero detail-hero artist-hero');
+    hero.append(makeCover(artist.artwork, 'artist-avatar', 112));
+    const copy = element('div', 'playlist-hero-copy');
+    copy.append(element('span', 'detail-eyebrow', '歌手'), element('h2', '', artist.name));
+    if (artist.aliases.length) copy.append(element('p', 'detail-alias', artist.aliases.join(' / ')));
+    copy.append(element('p', '', [`${artist.songCount.toLocaleString()} 首歌曲`, `${artist.albumCount.toLocaleString()} 张专辑`, artist.mvCount ? `${artist.mvCount.toLocaleString()} 个 MV` : ''].filter(Boolean).join(' · ')));
+    hero.append(copy);
+    root.append(hero);
+    renderPlayControls(root, artist.tracks, '播放热门歌曲');
+    renderDescription(root, artist.description);
+
+    const latest = artist.albums.slice().sort((a, b) => b.publishTime - a.publishTime)[0];
+    if (latest) {
+      const release = section('最新发布', '', null, null);
+      const card = element('button', 'latest-release'); card.type = 'button';
+      card.setAttribute('aria-label', `打开专辑 ${latest.name}`);
+      card.append(makeCover(latest.artwork, '', 76));
+      const info = element('span', 'latest-release-copy');
+      info.append(element('strong', '', latest.name), element('span', '', [releaseDate(latest.publishTime), latest.kind, latest.size ? `${latest.size} 首歌曲` : ''].filter(Boolean).join(' · ')));
+      card.append(info, element('span', 'my-playlist-chevron', '›'));
+      card.addEventListener('click', () => openAlbum(latest.id));
+      release.wrap.append(card);
+      root.append(release.wrap);
+    }
+
+    const visible = artist.showAllSongs ? artist.tracks : artist.tracks.slice(0, 10);
+    const toggle = artist.tracks.length > 10 ? () => { artist.showAllSongs = !artist.showAllSongs; renderTab(); } : null;
+    const songs = section('热门歌曲', '', toggle ? (artist.showAllSongs ? '收起' : `全部 ${artist.tracks.length} 首`) : null, toggle);
+    if (visible.length) songs.wrap.append(renderSongList(visible, { duration: true, actions: true, onSelect: (track, index) => playTracks(artist.tracks, index) }));
+    else songs.wrap.append(element('p', 'login-status-line', '网易云音乐没有返回热门歌曲。'));
+    root.append(songs.wrap);
+
+    if (artist.albumsLoading && !artist.albums.length) { root.append(loadingState('正在读取专辑…')); return; }
+    if (artist.albumsError && !artist.albums.length) {
+      root.append(emptyState('专辑暂时无法读取', '检查网络连接后再试一次。', '重新加载', () => { loadArtistAlbums(artist); renderTab(); }));
+      return;
+    }
+    const groups = [['专辑', artist.albums.filter(item => item.kind === '专辑')], ['EP 和单曲', artist.albums.filter(item => item.kind !== '专辑')]];
+    groups.forEach(([title, items]) => {
+      if (!items.length) return;
+      const group = section(title, `${items.length} 张`, null, null);
+      const rail = element('div', 'card-rail');
+      items.forEach(item => rail.append(renderAlbumCard(item, [releaseYear(item.publishTime), item.kind === '专辑' ? '' : item.kind].filter(Boolean).join(' · '))));
+      group.wrap.append(rail);
+      root.append(group.wrap);
+    });
   }
 
   async function runSearch(query) {
@@ -1612,6 +1867,7 @@
   }
 
   function closePlayer(velocityY) {
+    state.playerDetailLookup = null;
     const overlay = $('#player-overlay'); const sheet = $('#player-sheet');
     if (!state.fullPlayer && !overlay.classList.contains('is-open')) return false;
     const generation = ++playerGeneration;
@@ -1668,7 +1924,7 @@
   function handleBack() {
     if (standbyActive()) { closeStandby(); return true; }
     if (trackActions) {
-      if (trackActions.view === 'playlists') { trackActions.view = 'menu'; renderTrackActions(); }
+      if (trackActions.view !== 'menu') { trackActions.view = 'menu'; renderTrackActions(); }
       else closeTrackActions();
       return true;
     }
@@ -1689,6 +1945,15 @@
         state.recentHistoryLoading = false;
       }
       state.playlistRequestGeneration += 1;
+      const previous = state.detailStack.pop();
+      if (previous && !previous.playlist) { openDetail(previous.kind, previous.id, { replace: true }); return true; }
+      if (previous) {
+        state.playlistKind = previous.kind; state.playlistId = previous.id; state.playlist = previous.playlist;
+        state.playlistLoading = false; state.playlistError = false;
+        renderTab();
+        $('#tab-content').scrollTop = previous.scrollTop;
+        return true;
+      }
       state.playlist = null; state.playlistId = null; state.playlistLoading = false; state.playlistError = false;
       renderTab();
       $('#tab-content').scrollTop = state.playlistOriginScrollTop;
@@ -1796,6 +2061,8 @@
     }
     const hasTrack = !!track;
     $('#mini-player').hidden = !hasTrack;
+    $('#player-artist').disabled = !hasTrack || !!state.playerDetailLookup;
+    $('#player-album').disabled = !hasTrack || !!state.playerDetailLookup;
     if (standbyActive()) {
       if (track && favoriteTrackKey(track) !== state.favorite.key) loadFavoriteStatus(track);
       else if (!track && state.favorite.key) invalidateFavoriteStatus(false);
@@ -1814,7 +2081,11 @@
       lastTrackSignature = trackSignature;
       $('#mini-title').textContent = currentTrackTitle(track);
       $('#player-title').textContent = currentTrackTitle(track);
-      $('#player-artist').textContent = [track.artist, track.album].filter(Boolean).join(' · ') || '未知艺术家';
+      $('#player-artist').textContent = track.artist || '未知艺术家';
+      $('#player-artist').setAttribute('aria-label', `打开歌手 ${track.artist || '未知艺术家'}`);
+      $('#player-album').textContent = track.album || '';
+      $('#player-album').setAttribute('aria-label', `打开专辑 ${track.album || ''}`);
+      $('#player-album-line').hidden = !track.album;
       updateArt($('#mini-art'), track.artwork, 43);
       updateArt($('#player-artwork'), track.artwork, 360);
       if (favoriteTrackKey(track) !== state.favorite.key) loadFavoriteStatus(track);
@@ -2124,6 +2395,7 @@
       : provider === 'qq' ? null : { id: String(track.id), title: track.title, artist: track.artist };
     trackActions = {
       track, provider, key, generation: ++trackActionsGeneration, view: 'menu', addingId: '', target,
+      refs: null, detailLoading: '', artistChoices: [],
       // Playlists and favorites live in the NetEase account; QQ catalog tracks are matched first.
       favorite: known
         ? { loading: false, loggedIn: state.favorite.loggedIn, liked: state.favorite.liked, mutating: false, message: '', retryable: false }
@@ -2200,6 +2472,7 @@
     if (!body || !actions) return;
     body.replaceChildren();
     if (actions.view === 'playlists') { renderTrackActionPlaylists(body, actions); return; }
+    if (actions.view === 'artists') { renderTrackActionArtists(body, actions); return; }
     const favorite = actions.favorite;
     const name = providerName(actions.provider);
     let label = '收藏';
@@ -2219,6 +2492,168 @@
       actionItem('listAdd', '添加到歌单', actions.provider === 'qq' ? '匹配网易云版本后，添加到网易云歌单' : '添加到网易云创建的歌单',
         openTrackActionPlaylists, { chevron: true })
     );
+    const artist = actions.track.artist === '未知艺术家' ? '' : actions.track.artist;
+    [['artist', '歌手', artist || '查看歌手主页', '正在查找网易云歌手…'], ['album', '专辑', actions.track.album || '查看所在专辑', '正在查找网易云专辑…']]
+      .forEach(([kind, label, detail, busyDetail]) => {
+        const busy = actions.detailLoading === kind;
+        list.append(actionItem(kind, label, busy ? busyDetail : detail, () => openTrackActionDetail(kind),
+          { chevron: true, busy, disabled: !!actions.detailLoading }));
+      });
+    body.append(list);
+  }
+
+  function foldName(value) {
+    return String(value || '').normalize('NFKC').toLowerCase().replace(/\s+/g, '');
+  }
+
+  // Artist and album ids for a track: carried on NetEase rows, read from song detail otherwise,
+  // and taken from the matched NetEase version for QQ catalog songs.
+  async function trackRefsFor(track) {
+    const validId = value => /^[1-9]\d{0,23}$/.test(String(value ?? ''));
+    if (favoriteProvider(track) !== 'qq' && validId(track.id)) {
+      const response = await request('songDetail', { id: String(track.id) });
+      if (!response || !Array.isArray(response.songs)) throw safeFailure();
+      const song = response.songs[0] || {};
+      const album = song.al || song.album;
+      return { artists: artistRefs(song.ar || song.artists), albumId: album && validId(album.id) ? String(album.id) : '' };
+    }
+    const artist = track.artist === '未知艺术家' ? '' : String(track.artist || '');
+    const response = await request('matchTrack', {
+      title: String(track.title || ''), artist, artistAliases: Array.isArray(track.artistAliases) ? track.artistAliases : [],
+      duration: Math.max(0, Math.floor(Number(track.duration) || 0))
+    });
+    if (!response || !apiRequestSucceeded(response)) throw safeFailure();
+    if (response.matched !== true) return { artists: [], albumId: '' };
+    return { artists: artistRefs(response.artists), albumId: validId(response.albumId) ? String(response.albumId) : '' };
+  }
+
+  // Fallback when no matched song gives ids: look the artist up by name, accepting exact names or aliases only.
+  async function searchNeteaseArtist(name) {
+    const response = await request('search', { keywords: name, type: 100, limit: 10 });
+    const items = response && response.result && Array.isArray(response.result.artists) ? response.result.artists : [];
+    const wanted = foldName(name);
+    const hit = items.find(item => item && [item.name, item.trans].concat(Array.isArray(item.alias) ? item.alias : []).some(value => foldName(value) === wanted));
+    return hit ? artistRefs([hit]) : [];
+  }
+
+  async function searchNeteaseAlbum(name, artist) {
+    const response = await request('search', { keywords: `${name} ${artist}`.trim(), type: 10, limit: 10 });
+    const items = response && response.result && Array.isArray(response.result.albums) ? response.result.albums : [];
+    const exact = items.filter(item => item && foldName(item.name) === foldName(name));
+    const artists = String(artist || '').split(' / ').map(foldName).filter(Boolean);
+    const hit = exact.find(item => artistNames(item).split(' / ').some(value => artists.includes(foldName(value)))) || exact[0];
+    return hit && /^[1-9]\d{0,23}$/.test(String(hit.id)) ? String(hit.id) : '';
+  }
+
+  async function trackActionTarget(actions, kind) {
+    const track = actions.track;
+    if (kind === 'artist' && track.artistRefs && track.artistRefs.length) return track.artistRefs;
+    if (kind === 'album' && track.albumId) return track.albumId;
+    if (!actions.refs) actions.refs = await trackRefsFor(track);
+    const refs = actions.refs;
+    const artist = track.artist === '未知艺术家' ? '' : String(track.artist || '');
+    if (kind === 'artist' && !refs.artists.length && !refs.artistSearched) {
+      const found = [];
+      for (const name of artist.split(' / ').filter(Boolean).slice(0, 4)) found.push(...await searchNeteaseArtist(name));
+      refs.artists = found.filter((item, index) => found.findIndex(other => other.id === item.id) === index);
+      refs.artistSearched = true;
+    }
+    if (kind === 'album' && !refs.albumId && !refs.albumSearched && track.album) {
+      refs.albumId = await searchNeteaseAlbum(track.album, artist);
+      refs.albumSearched = true;
+    }
+    return kind === 'artist' ? refs.artists : refs.albumId;
+  }
+
+  // Resolve in place without showing an intermediate action sheet.
+  async function openPlayerDetail(kind) {
+    const track = state.media.track;
+    if (!track || !state.fullPlayer || state.playerDetailLookup) return;
+    const lookup = { track, generation: playerGeneration, key: favoriteTrackKey(track) };
+    state.playerDetailLookup = lookup;
+    $('#player-artist').disabled = true;
+    $('#player-album').disabled = true;
+    const current = () => state.playerDetailLookup === lookup && state.fullPlayer
+      && lookup.generation === playerGeneration && lookup.key === favoriteTrackKey(state.media.track);
+    try {
+      const target = await trackActionTarget(lookup, kind);
+      if (!current()) return;
+      if (kind === 'album') {
+        if (!target) { showToast('在网易云音乐中没有找到这张专辑'); return; }
+        closePlayer();
+        openAlbum(target);
+        return;
+      }
+      const artists = target;
+      if (!artists.length) { showToast('在网易云音乐中没有找到这位歌手'); return; }
+      if (artists.length === 1) {
+        closePlayer();
+        openArtist(artists[0].id);
+      } else {
+        openTrackActions(track);
+        trackActions.artistChoices = artists;
+        trackActions.view = 'artists';
+        renderTrackActions();
+      }
+    } catch (_) {
+      if (current()) showToast(`暂时无法读取${kind === 'album' ? '专辑' : '歌手'}，请稍后重试`);
+    } finally {
+      if (state.playerDetailLookup === lookup) state.playerDetailLookup = null;
+      $('#player-artist').disabled = !state.media.track || !!state.playerDetailLookup;
+      $('#player-album').disabled = !state.media.track || !!state.playerDetailLookup;
+    }
+  }
+
+  // Detail pages render in the tab content, so sheets above it get out of the way first.
+  function leaveTrackActionsFor(open) {
+    closeTrackActions();
+    if (state.queueSheetOpen) closeQueueSheet();
+    if (state.fullPlayer) closePlayer();
+    open();
+  }
+
+  async function openTrackActionDetail(kind) {
+    const actions = trackActions;
+    if (!actions || actions.detailLoading) return;
+    actions.detailLoading = kind;
+    renderTrackActions();
+    let target = null;
+    let failed = false;
+    try { target = await trackActionTarget(actions, kind); } catch (_) { failed = true; }
+    if (!trackActionsCurrent(actions.generation)) return;
+    actions.detailLoading = '';
+    renderTrackActions();
+    if (failed) { showToast('暂时无法连接网易云音乐，请稍后重试'); return; }
+    if (kind === 'album') {
+      if (target) leaveTrackActionsFor(() => openAlbum(target));
+      else showToast('网易云音乐里没有找到这张专辑');
+      return;
+    }
+    if (!target.length) { showToast('网易云音乐里没有找到这位歌手'); return; }
+    if (target.length === 1) { leaveTrackActionsFor(() => openArtist(target[0].id)); return; }
+    actions.artistChoices = target;
+    actions.view = 'artists';
+    renderTrackActions();
+    $('#track-actions-body').scrollTop = 0;
+  }
+
+  function renderTrackActionHeading(body, actions, title) {
+    const heading = element('div', 'action-subheading');
+    const back = element('button', 'action-back');
+    back.type = 'button';
+    setIcon(back, 'back');
+    back.append(document.createTextNode('返回'));
+    back.addEventListener('click', () => { if (trackActionsCurrent(actions.generation)) { actions.view = 'menu'; renderTrackActions(); } });
+    heading.append(back, element('h3', '', title));
+    body.append(heading);
+  }
+
+  function renderTrackActionArtists(body, actions) {
+    renderTrackActionHeading(body, actions, '选择歌手');
+    const list = element('div', 'action-list');
+    actions.artistChoices.forEach(artist => {
+      list.append(actionItem('artist', artist.name, '', () => leaveTrackActionsFor(() => openArtist(artist.id)), { chevron: true }));
+    });
     body.append(list);
   }
 
@@ -2350,14 +2785,7 @@
     renderTrackActions();
   }
   function renderTrackActionPlaylists(body, actions) {
-    const heading = element('div', 'action-subheading');
-    const back = element('button', 'action-back');
-    back.type = 'button';
-    setIcon(back, 'back');
-    back.append(document.createTextNode('返回'));
-    back.addEventListener('click', () => { if (trackActionsCurrent(actions.generation)) { actions.view = 'menu'; renderTrackActions(); } });
-    heading.append(back, element('h3', '', '添加到歌单'));
-    body.append(heading);
+    renderTrackActionHeading(body, actions, '添加到歌单');
     const note = (text, buttonLabel, onClick, primary) => {
       const box = element('div', 'action-note');
       box.append(element('p', '', text));
@@ -3527,6 +3955,8 @@
     $('#next-button').addEventListener('click',() => sendCommand({type:'next'}));
     $('#previous-button').addEventListener('click',() => sendCommand({type:'previous'}));
     $('#mode-button').addEventListener('click',cyclePlayMode);
+    $('#player-artist').addEventListener('click', () => openPlayerDetail('artist'));
+    $('#player-album').addEventListener('click', () => openPlayerDetail('album'));
     $('#player-track-more').addEventListener('click',() => { if (state.media.track) openTrackActions(state.media.track); });
     $$('.view-switch').forEach(button => button.addEventListener('click',() => setPlayerView(button.dataset.playerView)));
     $('#lyrics-translation-toggle').addEventListener('click',toggleLyricsTranslation);

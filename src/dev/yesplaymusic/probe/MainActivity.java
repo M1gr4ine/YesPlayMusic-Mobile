@@ -39,7 +39,7 @@ import java.util.concurrent.Executors;
 /** Trusted packaged UI; audio and provider sessions are owned by native components. */
 public class MainActivity extends Activity {
     private static final String ORIGIN="appassets.androidplatform.net";
-    private static final Set<String> METHODS=new HashSet<>(Arrays.asList("home","search","playlist","album","userPlaylists","loginStatus","sendCaptcha","loginCaptcha","lyrics","logout","qqStatus","qqSearch","qqLyrics","qqLogout","likeStatus","setLiked","recentHistory","ownedPlaylists","playlistAddTrack","matchTrack","cacheInfo","clearCache"));
+    private static final Set<String> METHODS=new HashSet<>(Arrays.asList("home","search","playlist","album","artist","artistAlbums","songDetail","userPlaylists","loginStatus","sendCaptcha","loginCaptcha","lyrics","logout","qqStatus","qqSearch","qqLyrics","qqLogout","likeStatus","setLiked","recentHistory","ownedPlaylists","playlistAddTrack","matchTrack","cacheInfo","clearCache"));
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService requests=Executors.newFixedThreadPool(4);
     private WebView web;

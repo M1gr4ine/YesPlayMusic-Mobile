@@ -95,6 +95,9 @@ public final class MusicApi {
         if ("search".equals(method)) return search(input);
         if ("playlist".equals(method)) return playlist(input);
         if ("album".equals(method)) return album(input);
+        if ("artist".equals(method)) return artist(input);
+        if ("artistAlbums".equals(method)) return artistAlbums(input);
+        if ("songDetail".equals(method)) return songDetails(input);
         if ("userPlaylists".equals(method)) return userPlaylists(input);
         if ("loginStatus".equals(method)) return loginStatus();
         if ("likeStatus".equals(method)) return likeStatus(input);
@@ -401,6 +404,21 @@ public final class MusicApi {
         return sanitize(requestWeapi("/api/v1/album/" + id, new JSONObject()));
     }
 
+    /** Artist profile plus hot songs, as the desktop artist page loads them. */
+    private JSONObject artist(JSONObject args) throws Exception {
+        String id = requireId(args.optString("id", args.optString("artistId", "")));
+        return sanitize(requestWeapi("/api/v1/artist/" + id, new JSONObject()));
+    }
+
+    private JSONObject artistAlbums(JSONObject args) throws Exception {
+        String id = requireId(args.optString("id", args.optString("artistId", "")));
+        JSONObject params = new JSONObject();
+        params.put("limit", clamp(args.optInt("limit", 100), 1, 200));
+        params.put("offset", Math.max(0, args.optInt("offset", 0)));
+        params.put("total", true);
+        return sanitize(requestWeapi("/api/artist/albums/" + id, params));
+    }
+
     private JSONObject userPlaylists(JSONObject args) throws Exception {
         String uid = args.optString("uid", "");
         if (uid.isEmpty()) {
@@ -664,7 +682,19 @@ public final class MusicApi {
                 .put("title", best.optString("name", title))
                 .put("artist", bestArtist)
                 .put("album", album == null ? "" : album.optString("name", ""))
+                .put("albumId", album == null ? "" : album.optString("id", ""))
+                .put("artists", artistRefs(best.optJSONArray("ar")))
                 .put("duration", best.optLong("dt", 0L));
+    }
+
+    private static JSONArray artistRefs(JSONArray artists) throws JSONException {
+        JSONArray refs = new JSONArray();
+        for (int i = 0; artists != null && i < artists.length(); i++) {
+            JSONObject artist = artists.optJSONObject(i);
+            if (artist == null || artist.optString("name", "").isEmpty()) continue;
+            refs.put(new JSONObject().put("id", artist.optString("id", "")).put("name", artist.optString("name")));
+        }
+        return refs;
     }
 
     private static String artistNames(JSONArray artists) {
