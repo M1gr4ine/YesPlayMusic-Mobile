@@ -25,7 +25,7 @@
 
   const state = {
     tab: 'listen',
-    settings: { sourcePreference: 'auto', theme: 'system' },
+    settings: { sourcePreference: 'auto', theme: 'system', statusLyrics: true },
     account: null,
     qqStatus: null,
     home: { playlists: [], songs: [] },
@@ -751,6 +751,7 @@
     const settings = parseNativeObject(window.Native.getSettings(), {});
     if (['auto', 'netease', 'qq'].includes(settings.sourcePreference)) state.settings.sourcePreference = settings.sourcePreference;
     if (['system', 'light', 'dark'].includes(settings.theme)) state.settings.theme = settings.theme;
+    if (typeof settings.statusLyrics === 'boolean') state.settings.statusLyrics = settings.statusLyrics;
     state.searchProvider = state.settings.sourcePreference === 'qq' ? 'qq' : 'netease';
     applyTheme();
   }
@@ -868,6 +869,7 @@
       } else setIcon(miniMark, 'music');
     }
     $$('.source-option').forEach(button => button.setAttribute('aria-checked', String(button.dataset.source === state.settings.sourcePreference)));
+    $('#status-lyrics').setAttribute('aria-checked', String(state.settings.statusLyrics !== false));
     const qqLoggedIn = !!(state.qqStatus && state.qqStatus.loggedIn);
     $('#qq-account-status').textContent = state.qqStatus ? (qqLoggedIn ? '已连接 QQ 音乐' : '未登录 QQ 音乐') : '暂时无法读取 QQ 登录状态';
     $('#qq-login').textContent = qqLoggedIn ? '已登录' : 'QQ 登录';
@@ -3364,6 +3366,7 @@
     $('#clear-cache').addEventListener('click',clearCache);
     $$('.source-option').forEach(button => button.addEventListener('click',() => saveSettings({sourcePreference:button.dataset.source})));
     $$('.theme-picker button').forEach(button => button.addEventListener('click',() => saveSettings({theme:button.dataset.themeChoice})));
+    $('#status-lyrics').addEventListener('click',() => saveSettings({statusLyrics:state.settings.statusLyrics === false}));
     installMiniSwipe();
     installTabSwipe();
     installQueueVirtualization();

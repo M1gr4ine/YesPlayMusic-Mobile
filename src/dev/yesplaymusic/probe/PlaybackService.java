@@ -88,6 +88,7 @@ public final class PlaybackService extends MediaBrowserService
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService resolverExecutor = Executors.newFixedThreadPool(2);
     private final ExecutorService artworkExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService lyricsExecutor = Executors.newSingleThreadExecutor();
     private final Random random = new Random();
     private final ArrayList<Track> queue = new ArrayList<>();
     private final ArrayList<Integer> shuffleOrder = new ArrayList<>();
@@ -136,6 +137,19 @@ public final class PlaybackService extends MediaBrowserService
     private long sessionStateUpdatedAt;
     private float sessionStateSpeed;
     private long noisyPausedAt;
+    private Future<?> lyricsTask;
+    private String lyricsKey = "";
+    private LrcLines lyrics = LrcLines.EMPTY;
+    /** Lyric line shown as the session title, or -1 to show the song title. */
+    private int lyricIndex = -1;
+    private SharedPreferences settingsPrefs;
+
+    private final Runnable lyricTick = this::syncLyricLine;
+
+    private final SharedPreferences.OnSharedPreferenceChangeListener settingsListener =
+            (prefs, key) -> {
+                if ("statusLyrics".equals(key)) handler.post(this::syncLyricLine);
+            };
 
     private final Runnable progressTick = new Runnable() {
         @Override public void run() {
@@ -244,6 +258,8 @@ public final class PlaybackService extends MediaBrowserService
                 .setWillPauseWhenDucked(false).setOnAudioFocusChangeListener(this, handler).build();
 
         createNotificationChannel();
+        settingsPrefs = getSharedPreferences(SETTINGS_PREFS, MODE_PRIVATE);
+        settingsPrefs.registerOnSharedPreferenceChangeListener(settingsListener);
         restoreSavedState();
         mediaSession = new MediaSession(this, "YesPlayMusic");
         mediaSession.setCallback(sessionCallback, handler);
@@ -398,6 +414,8 @@ public final class PlaybackService extends MediaBrowserService
         playbackGeneration++;
         cancelNetworkTasks();
         handler.removeCallbacks(progressTick);
+        handler.removeCallbacks(lyricTick);
+        if (settingsPrefs != null) settingsPrefs.unregisterOnSharedPreferenceChangeListener(settingsListener);
         if (noisyReceiverRegistered) {
             try { unregisterReceiver(noisyReceiver); } catch (RuntimeException ignored) { }
             noisyReceiverRegistered = false;
@@ -413,6 +431,7 @@ public final class PlaybackService extends MediaBrowserService
         }
         resolverExecutor.shutdownNow();
         artworkExecutor.shutdownNow();
+        lyricsExecutor.shutdownNow();
         super.onDestroy();
     }
 
@@ -546,9 +565,11 @@ public final class PlaybackService extends MediaBrowserService
         cancelNetworkTasks();
         releasePlayer();
         noisyPausedAt = 0L;
+        Track nextTrack = queue.get(index);
+        if (currentTrack == null || !currentTrack.id.equals(nextTrack.id)) clearLyrics();
         currentIndex = index;
         syncShuffleCursor(index);
-        currentTrack = queue.get(index);
+        currentTrack = nextTrack;
         currentArtwork = null;
         currentArtworkUrl = null;
         currentSource = null;
@@ -645,6 +666,7 @@ public final class PlaybackService extends MediaBrowserService
         }
         currentDurationMs = positiveDuration(resolution.durationMs, currentTrack.duration);
         buffering = true;
+        loadLyricsAsync();
         try {
             final MediaPlayer nextPlayer = new MediaPlayer();
             player = nextPlayer;
@@ -949,6 +971,7 @@ public final class PlaybackService extends MediaBrowserService
             updatePlaybackState();
             updateNotification();
             scheduleProgressUpdates();
+            syncLyricLine();
             publishState(event);
         } catch (IllegalStateException error) {
             Log.w(TAG, "player-start-failed");
@@ -961,6 +984,7 @@ public final class PlaybackService extends MediaBrowserService
             try { player.pause(); } catch (IllegalStateException ignored) { }
         }
         handler.removeCallbacks(progressTick);
+        handler.removeCallbacks(lyricTick);
     }
 
     private void pausePlayback(String event, boolean abandonFocus) {
@@ -977,6 +1001,7 @@ public final class PlaybackService extends MediaBrowserService
         }
         if (abandonFocus) abandonAudioFocus();
         if (!buffering) handler.removeCallbacks(progressTick);
+        handler.removeCallbacks(lyricTick);
         updatePlaybackState();
         updateNotification();
         publishState(event);
@@ -994,6 +1019,7 @@ public final class PlaybackService extends MediaBrowserService
             } catch (IllegalStateException ignored) { }
         }
         updatePlaybackState();
+        syncLyricLine();
         publishState(event);
     }
 
@@ -1188,13 +1214,15 @@ public final class PlaybackService extends MediaBrowserService
             mediaSession.setMetadata(new MediaMetadata.Builder().build());
             return;
         }
+        String title = sessionTitle();
+        String artist = sessionArtist();
         MediaMetadata.Builder metadata = new MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_MEDIA_ID, currentTrack.id)
-                .putString(MediaMetadata.METADATA_KEY_TITLE, currentTrack.title)
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, currentTrack.artist)
+                .putString(MediaMetadata.METADATA_KEY_TITLE, title)
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, artist)
                 .putString(MediaMetadata.METADATA_KEY_ALBUM, currentTrack.album)
-                .putString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE, currentTrack.title)
-                .putString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE, currentTrack.artist)
+                .putString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE, title)
+                .putString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE, artist)
                 .putLong(MediaMetadata.METADATA_KEY_DURATION, safeDuration())
                 .putLong(MediaMetadata.METADATA_KEY_NUM_TRACKS, queue.size());
         if (currentArtworkUrl != null && !currentArtworkUrl.isEmpty()) {
@@ -1207,6 +1235,90 @@ public final class PlaybackService extends MediaBrowserService
             metadata.putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, currentArtwork);
         }
         mediaSession.setMetadata(metadata.build());
+    }
+
+    /**
+     * Like QQ Music, the current lyric line replaces the title and "song-artist" the artist,
+     * so the lock screen, notification and status-bar island show synced lyrics.
+     */
+    private String sessionTitle() {
+        String line = lyrics.text(lyricIndex);
+        return line != null ? line : currentTrack.title;
+    }
+
+    private String sessionArtist() {
+        if (lyrics.text(lyricIndex) == null) return currentTrack.artist;
+        return currentTrack.artist.isEmpty() ? currentTrack.title
+                : currentTrack.title + "-" + currentTrack.artist;
+    }
+
+    private boolean statusLyricsEnabled() {
+        return settingsPrefs == null || settingsPrefs.getBoolean("statusLyrics", true);
+    }
+
+    private void clearLyrics() {
+        if (lyricsTask != null) {
+            lyricsTask.cancel(true);
+            lyricsTask = null;
+        }
+        handler.removeCallbacks(lyricTick);
+        lyricsKey = "";
+        lyrics = LrcLines.EMPTY;
+        lyricIndex = -1;
+    }
+
+    /** Fetches lyrics from the provider that is actually streaming, as the player UI does. */
+    private void loadLyricsAsync() {
+        final Track track = currentTrack;
+        if (track == null) return;
+        final boolean qq = "qq".equals(currentSource) || "qq".equals(track.provider);
+        final String key = (qq ? "qq:" : "netease:") + track.id + ":" + track.qqMid;
+        if (key.equals(lyricsKey)) return;
+        clearLyrics();
+        lyricsKey = key;
+        updateMetadata();
+        updateNotification();
+        final Context context = getApplicationContext();
+        lyricsTask = lyricsExecutor.submit(() -> {
+            LrcLines parsed = LrcLines.EMPTY;
+            try {
+                JSONObject args = new JSONObject().put("id", track.id)
+                        .put("mid", track.qqMid.isEmpty() ? track.id : track.qqMid);
+                JSONObject response = qq ? QQSource.get(context).execute("qqLyrics", args)
+                        : MusicApi.get(context).execute("lyrics", args);
+                JSONObject lrc = response == null ? null : response.optJSONObject("lrc");
+                parsed = LrcLines.parse(lrc != null ? lrc.optString("lyric", "")
+                        : response == null ? "" : response.optString("lyric", ""));
+            } catch (Exception error) {
+                Log.w(TAG, "lyrics-load-failed type=" + error.getClass().getSimpleName());
+            }
+            final LrcLines result = parsed;
+            handler.post(() -> {
+                if (destroyed || !key.equals(lyricsKey)) return;
+                lyricsTask = null;
+                lyrics = result;
+                lyricIndex = -1;
+                syncLyricLine();
+            });
+        });
+    }
+
+    /** Shows the line at the playback position and wakes up again when the next line starts. */
+    private void syncLyricLine() {
+        handler.removeCallbacks(lyricTick);
+        if (destroyed || currentTrack == null) return;
+        boolean enabled = statusLyricsEnabled();
+        long position = safePosition();
+        int index = enabled ? lyrics.indexAt(position) : -1;
+        if (index != lyricIndex) {
+            lyricIndex = index;
+            updateMetadata();
+            updateNotification();
+        }
+        if (!enabled || lyrics.isEmpty() || !isPlayerPlaying()) return;
+        long next = lyrics.nextTime(index);
+        if (next < 0L) return;
+        handler.postDelayed(lyricTick, Math.max(50L, Math.min(next - position + 20L, 10_000L)));
     }
 
     private int currentSessionStateCode() {
@@ -1414,8 +1526,8 @@ public final class PlaybackService extends MediaBrowserService
 
     private Notification buildNotification() {
         boolean playing = isPlayerPlaying();
-        String title = currentTrack == null ? "YesPlayMusic" : currentTrack.title;
-        String subtitle = currentTrack == null ? "准备播放" : currentTrack.artist;
+        String title = currentTrack == null ? "YesPlayMusic" : sessionTitle();
+        String subtitle = currentTrack == null ? "准备播放" : sessionArtist();
         if (buffering) subtitle = "正在缓冲 · " + subtitle;
         else if (lastError != null) subtitle = "无法播放 · " + subtitle;
         Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID)
