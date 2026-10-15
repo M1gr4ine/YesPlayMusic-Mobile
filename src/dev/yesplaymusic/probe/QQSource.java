@@ -115,7 +115,10 @@ public final class QQSource {
         }
         if("qqLyrics".equals(method)){
             String mid=args.optString("qqMid",args.optString("mid",args.optString("id",""))).replaceFirst("^qq:","");
-            JSONObject data=getJson("https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid="+URLEncoder.encode(mid,"UTF-8")+"&format=json&nobase64=1",freshCookie());
+            String cookie=freshCookie();JSONObject data;
+            // The legacy lyric endpoint never returns translations; PlayLyricInfo does when trans=1.
+            try{data=request("music.musichallSong.PlayLyricInfo","GetPlayLyricInfo",new JSONObject().put("songMID",mid).put("trans",1).put("roma",0).put("crypt",0).put("qrc",0).put("type",0),cookie);if(data.optString("lyric").isEmpty())throw new Exception("empty lyric");}
+            catch(Exception unavailable){data=getJson("https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid="+URLEncoder.encode(mid,"UTF-8")+"&format=json&nobase64=1",cookie);}
             return new JSONObject().put("code",200).put("lrc",new JSONObject().put("lyric",lyricText(data.optString("lyric")))).put("tlyric",new JSONObject().put("lyric",lyricText(data.optString("trans"))));
         }
         throw new Exception("不支持的 QQ 音乐操作");

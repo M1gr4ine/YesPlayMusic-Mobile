@@ -79,17 +79,20 @@
               <div class="time-row"><span id="elapsed-time">0:00</span><span id="remaining-time">−0:00</span></div>
             </div>
             <div class="transport-row">
-              <button class="icon-button secondary-transport" id="shuffle-button" type="button" aria-label="随机播放"></button>
+              <button class="icon-button secondary-transport" id="mode-button" type="button" aria-label="播放模式"></button>
               <button class="icon-button transport-button" id="previous-button" type="button" aria-label="上一首"></button>
               <button class="play-button" id="player-toggle" type="button" aria-label="播放"></button>
               <button class="icon-button transport-button" id="next-button" type="button" aria-label="下一首"></button>
-              <button class="icon-button secondary-transport" id="repeat-button" type="button" aria-label="循环模式"></button>
+              <button class="icon-button secondary-transport" id="player-track-more" type="button" aria-label="收藏或添加到歌单"></button>
             </div>
           </div>
           </div>
-          <div id="player-view-switch" class="player-view-switch" role="tablist" aria-label="播放内容">
+          <div id="player-view-switch" class="player-view-switch">
+            <div class="view-switch-tabs" role="tablist" aria-label="播放内容">
               <button id="lyrics-tab" class="view-switch is-selected" data-player-view="lyrics" type="button" role="tab" aria-controls="lyrics-panel" aria-selected="true">歌词</button>
               <button id="queue-tab" class="view-switch" data-player-view="queue" type="button" role="tab" aria-controls="queue-panel" aria-selected="false">播放列表</button>
+            </div>
+            <button id="lyrics-translation-toggle" class="lyrics-translation-toggle" type="button" aria-label="显示中文翻译" aria-pressed="true" hidden>译</button>
           </div>
           <div id="player-pager" class="player-pager" aria-label="歌词与播放列表">
             <div id="player-pager-track" class="player-pager-track">

@@ -304,7 +304,13 @@ button:active { transform: scale(.975); transition: transform 90ms ease-out; }
 .transport-button svg { width: 26px; height: 26px; fill: currentColor; stroke: none; }
 .play-button { display: grid; width: 64px; height: 64px; place-items: center; border: 0; border-radius: 50%; color: var(--canvas); background: var(--ink); box-shadow: 0 6px 15px rgba(23,23,23,.14); }
 .play-button svg { width: 28px; height: 28px; fill: currentColor; stroke: none; }
-.player-view-switch { display: flex; justify-content: center; gap: 24px; margin: 4px 0 3px; }
+.player-view-switch { position: relative; display: flex; justify-content: center; gap: 24px; margin: 4px 0 3px; }
+.view-switch-tabs { display: flex; align-items: center; justify-content: center; gap: 24px; }
+.lyrics-translation-toggle { position: absolute; top: 50%; right: 0; display: grid; width: 44px; height: 44px; place-items: center; padding: 0; border: 0; background: transparent; color: var(--secondary); font-size: .74rem; font-weight: 700; transform: translateY(-50%); }
+.lyrics-translation-toggle::before { position: absolute; inset: 10px; border: 1.5px solid currentColor; border-radius: 7px; content: ""; transition: background-color 160ms ease, border-color 160ms ease; }
+.lyrics-translation-toggle[aria-pressed="true"] { color: var(--accent); }
+.lyrics-translation-toggle[aria-pressed="true"]::before { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.lyrics-translation-toggle[hidden] { display: none; }
 .view-switch { position: relative; padding: 8px 2px; border: 0; color: var(--secondary); background: transparent; font-size: .76rem; font-weight: 620; }
 .view-switch.is-selected { color: var(--ink); font-weight: 710; }
 .view-switch.is-selected::after { position: absolute; right: 20%; bottom: 1px; left: 20%; height: 2px; border-radius: 9px; background: var(--accent); content: ""; }
@@ -489,7 +495,7 @@ button:active { transform: scale(.975); transition: transform 90ms ease-out; }
 /* Shuffle / repeat state in the player. */
 .secondary-transport { position: relative; border-radius: 50%; transition: color 160ms ease, background-color 160ms ease; }
 .secondary-transport.is-selected { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-#repeat-button[data-mode="one"]::after { position: absolute; top: 8px; right: 7px; display: grid; min-width: 13px; height: 13px; place-items: center; border-radius: 99px; color: #fff; background: var(--accent); content: "1"; font-size: 9px; font-weight: 800; line-height: 1; }
+#mode-button[data-mode="one"]::after { position: absolute; top: 8px; right: 7px; display: grid; min-width: 13px; height: 13px; place-items: center; border-radius: 99px; color: #fff; background: var(--accent); content: "1"; font-size: 9px; font-weight: 800; line-height: 1; }
 
 /* Song "more" button and action sheet. */
 .song-more { flex: 0 0 36px; width: 36px; height: 36px; margin-right: -8px; color: var(--secondary); }

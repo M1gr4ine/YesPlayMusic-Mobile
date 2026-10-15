@@ -27,6 +27,15 @@ test('pairs translation lines without losing untimed metadata or blank lyrics', 
   assert.deepEqual(paired, [{ time: 4000, text: '远处的灯', translation: '远方灯火' }]);
 });
 
+test('pairs QQ translations whose timestamps drift and skips "//" placeholders', () => {
+  const lines = parseLrc('[00:05.10]詞\n[00:22.48]夜\n[00:30.00]雪', '[00:05.10]//\n[00:22.47]夜晚\n[00:30.03]下雪');
+  assert.deepEqual(lines, [
+    { time: 5100, text: '詞', translation: '' },
+    { time: 22480, text: '夜', translation: '夜晚' },
+    { time: 30000, text: '雪', translation: '下雪' }
+  ]);
+});
+
 test('selects the last lyric at or before the current playback position', () => {
   const lines = parseLrc('[00:02.00]第一行\n[00:05.50]第二行\n[00:09.00]第三行');
   assert.equal(activeIndex(lines, 0), -1);

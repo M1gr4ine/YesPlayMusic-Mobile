@@ -40,6 +40,23 @@
     return entries.sort((a, b) => a.time - b.time);
   }
 
+  const TRANSLATION_TOLERANCE_MS = 300;
+
+  function nearestTime(sortedTimes, target, tolerance) {
+    let low = 0;
+    let high = sortedTimes.length - 1;
+    let best = null;
+    while (low <= high) {
+      const middle = (low + high) >> 1;
+      const time = sortedTimes[middle];
+      if (best === null || Math.abs(time - target) < Math.abs(best - target)) best = time;
+      if (time < target) low = middle + 1;
+      else if (time > target) high = middle - 1;
+      else return time;
+    }
+    return best !== null && Math.abs(best - target) <= tolerance ? best : null;
+  }
+
   function parseLrc(lyrics, translatedLyrics) {
     const primary = readLrc(lyrics);
     const translated = readLrc(translatedLyrics);
@@ -49,10 +66,16 @@
       line.text = line.text ? `${line.text}\n${item.text}` : item.text;
       byTime.set(item.time, line);
     }
+    const times = Array.from(byTime.keys()).sort((a, b) => a - b);
     for (const item of translated) {
-      const line = byTime.get(item.time) || { time: item.time, text: '', translation: '' };
+      // QQ marks untranslated lines with "//".
+      if (/^\/+$/.test(item.text)) continue;
+      // Translation timestamps can drift a few milliseconds from the original line.
+      const time = nearestTime(times, item.time, TRANSLATION_TOLERANCE_MS);
+      const key = time === null ? item.time : time;
+      const line = byTime.get(key) || { time: key, text: '', translation: '' };
       line.translation = line.translation ? `${line.translation}\n${item.text}` : item.text;
-      byTime.set(item.time, line);
+      byTime.set(key, line);
     }
     return Array.from(byTime.values()).sort((a, b) => a.time - b.time);
   }

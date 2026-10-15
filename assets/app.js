@@ -13,6 +13,7 @@
     next: '<svg viewBox="0 0 24 24"><path d="M5.5 5.5a1 1 0 0 1 1.5-.86l9.1 5.25a1 1 0 0 1 0 1.73L7 16.87a1 1 0 0 1-1.5-.86zM18 5h1.7v14H18z"/></svg>',
     previous: '<svg viewBox="0 0 24 24"><path d="M18.5 5.5a1 1 0 0 0-1.5-.86l-9.1 5.25a1 1 0 0 0 0 1.73l9.1 5.25a1 1 0 0 0 1.5-.86zM4.3 5H6v14H4.3z"/></svg>',
     shuffle: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M16 4h4v4M4 7h2.7c4.5 0 5.3 10 10.6 10H20m-4 3 4-3-4-3M4 17h2.7c1.7 0 2.8-1.6 3.8-3.6M14 7c.9-1.2 1.9-2 3.3-2H20m-4 3 4-3-4-3"/></svg>',
+    order: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 6.5h10M4 12h10M4 17.5h6M18 5v14m-3-3 3 3 3-3"/></svg>',
     repeat: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M17 2.5 20.5 6 17 9.5M4 10V8a2 2 0 0 1 2-2h14.5M7 21.5 3.5 18 7 14.5M20 14v2a2 2 0 0 1-2 2H3.5"/></svg>',
     more: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg>',
@@ -25,7 +26,7 @@
 
   const state = {
     tab: 'listen',
-    settings: { sourcePreference: 'auto', theme: 'system', statusLyrics: true },
+    settings: { sourcePreference: 'auto', theme: 'system', statusLyrics: true, lyricsTranslation: true },
     account: null,
     qqStatus: null,
     home: { playlists: [], songs: [] },
@@ -752,6 +753,7 @@
     if (['auto', 'netease', 'qq'].includes(settings.sourcePreference)) state.settings.sourcePreference = settings.sourcePreference;
     if (['system', 'light', 'dark'].includes(settings.theme)) state.settings.theme = settings.theme;
     if (typeof settings.statusLyrics === 'boolean') state.settings.statusLyrics = settings.statusLyrics;
+    if (typeof settings.lyricsTranslation === 'boolean') state.settings.lyricsTranslation = settings.lyricsTranslation;
     state.searchProvider = state.settings.sourcePreference === 'qq' ? 'qq' : 'netease';
     applyTheme();
   }
@@ -1845,15 +1847,15 @@
     setToggleIcon($('#player-toggle'), state.media.playing ? 'pause' : 'play');
     $('#player-toggle').setAttribute('aria-label', state.media.playing ? '暂停' : '播放');
     updateProgress();
-    const shuffleButton = $('#shuffle-button');
-    shuffleButton.classList.toggle('is-selected',!!state.media.shuffle);
-    shuffleButton.setAttribute('aria-pressed',String(!!state.media.shuffle));
-    shuffleButton.setAttribute('aria-label',state.media.shuffle ? '随机播放已开启' : '顺序播放（随机播放已关闭）');
-    const repeat = state.media.repeat || 'off';
-    const repeatButton = $('#repeat-button');
-    repeatButton.classList.toggle('is-selected',repeat !== 'off');
-    repeatButton.dataset.mode = repeat;
-    repeatButton.setAttribute('aria-label',repeat === 'one' ? '单曲循环' : repeat === 'all' ? '列表循环' : '循环已关闭');
+    const mode = currentPlayMode();
+    const modeButton = $('#mode-button');
+    if (modeButton.dataset.mode !== mode) {
+      setIcon(modeButton, mode === 'shuffle' ? 'shuffle' : mode === 'order' ? 'order' : 'repeat');
+      modeButton.dataset.mode = mode;
+    }
+    modeButton.classList.toggle('is-selected', mode !== 'order');
+    modeButton.setAttribute('aria-label', `${PLAY_MODE_LABELS[mode]}，点按切换播放模式`);
+    $('#player-track-more').disabled = !track;
     renderQueueIfChanged();
     updateLyricsActive();
   }
@@ -2075,11 +2077,24 @@
     if (!silent) showToast(enabled ? '随机播放' : '顺序播放');
   }
 
-  function setRepeat(mode) {
+  // One player button cycles through the shuffle and repeat combinations.
+  const PLAY_MODES = ['order', 'all', 'one', 'shuffle'];
+  const PLAY_MODE_LABELS = { order: '顺序播放', all: '列表循环', one: '单曲循环', shuffle: '随机播放' };
+
+  function currentPlayMode() {
+    const repeat = state.media.repeat || 'off';
+    if (repeat === 'one') return 'one';
+    if (state.media.shuffle) return 'shuffle';
+    return repeat === 'all' ? 'all' : 'order';
+  }
+
+  function setPlayMode(mode) {
     if (!nativeReady()) { showToast('请在手机应用中使用播放器'); return; }
-    sendCommand({ type: 'repeat', mode });
-    setPendingPlayerMode('repeat', mode);
-    showToast(mode === 'one' ? '单曲循环' : mode === 'all' ? '列表循环' : '已关闭循环');
+    const shuffle = mode === 'shuffle';
+    const repeat = mode === 'one' ? 'one' : mode === 'order' ? 'off' : 'all';
+    if (!!state.media.shuffle !== shuffle) { sendCommand({ type: 'shuffle', enabled: shuffle }); setPendingPlayerMode('shuffle', shuffle); }
+    if ((state.media.repeat || 'off') !== repeat) { sendCommand({ type: 'repeat', mode: repeat }); setPendingPlayerMode('repeat', repeat); }
+    showToast(PLAY_MODE_LABELS[mode]);
   }
 
   // Shows a mode change right away; state polls keep it until the service reports it.
@@ -2457,18 +2472,42 @@
     const list = $('#lyrics-lines');
     if (!list) return;
     list.replaceChildren();
+    updateLyricsTranslationToggle();
     if (state.lyricsLoading) { list.append(element('p','lyrics-empty','正在获取歌词…')); return; }
     if (!state.lyrics.length) { list.append(element('p','lyrics-empty',state.media.track ? '暂无可同步的歌词' : '播放歌曲后显示歌词')); return; }
+    const showTranslation = state.settings.lyricsTranslation !== false;
     state.lyrics.forEach((line,index) => {
       const button = element('button',`lyric-line${index === state.lyricsIndex ? ' is-active' : ''}`);
       button.type='button'; button.dataset.index=String(index); button.dataset.time=String(line.time);
       button.setAttribute('aria-current',index === state.lyricsIndex ? 'true' : 'false');
       button.append(element('span','',line.text || '…'));
-      if (line.translation) button.append(element('span','translation',line.translation));
+      if (showTranslation && line.translation) button.append(element('span','translation',line.translation));
       button.addEventListener('click', () => sendCommand({type:'seek',position:line.time}));
       list.append(button);
     });
     updateLyricsActive(true);
+  }
+
+  function updateLyricsTranslationToggle() {
+    const toggle = $('#lyrics-translation-toggle');
+    if (!toggle) return;
+    const shown = state.settings.lyricsTranslation !== false;
+    toggle.hidden = state.playerView === 'queue' || !state.lyrics.some(line => line.translation);
+    toggle.setAttribute('aria-pressed', String(shown));
+    toggle.setAttribute('aria-label', shown ? '隐藏中文翻译' : '显示中文翻译');
+  }
+
+  function toggleLyricsTranslation() {
+    const list = $('#lyrics-lines');
+    const active = $('.lyric-line.is-active', list);
+    const offsetIn = line => line.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    const offset = active ? offsetIn(active) : null;
+    saveSettings({ lyricsTranslation: state.settings.lyricsTranslation === false });
+    renderLyrics();
+    // Keep the current line where it was instead of letting the list jump.
+    const next = $('.lyric-line.is-active', list);
+    if (next && offset !== null) list.scrollTop += offsetIn(next) - offset;
+    showToast(state.settings.lyricsTranslation === false ? '仅显示原歌词' : '显示原歌词和中文翻译');
   }
 
   function updateLyricsActive(force) {
@@ -2700,6 +2739,7 @@
       button.classList.toggle('is-selected', selected);
       button.setAttribute('aria-selected', String(selected));
     });
+    updateLyricsTranslationToggle();
     ['lyrics','queue'].forEach(name => {
       const panel = $(`#${name}-panel`);
       panel.hidden = false;
@@ -3386,12 +3426,10 @@
     $('#player-toggle').addEventListener('click',() => sendCommand({type:'toggle'}));
     $('#next-button').addEventListener('click',() => sendCommand({type:'next'}));
     $('#previous-button').addEventListener('click',() => sendCommand({type:'previous'}));
-    $('#shuffle-button').addEventListener('click',() => setShuffle(!state.media.shuffle));
-    $('#repeat-button').addEventListener('click',() => {
-      const current = state.media.repeat || 'off';
-      setRepeat(current === 'off' ? 'all' : current === 'all' ? 'one' : 'off');
-    });
+    $('#mode-button').addEventListener('click',() => setPlayMode(PLAY_MODES[(PLAY_MODES.indexOf(currentPlayMode()) + 1) % PLAY_MODES.length]));
+    $('#player-track-more').addEventListener('click',() => { if (state.media.track) openTrackActions(state.media.track); });
     $$('.view-switch').forEach(button => button.addEventListener('click',() => setPlayerView(button.dataset.playerView)));
+    $('#lyrics-translation-toggle').addEventListener('click',toggleLyricsTranslation);
     $('#tab-content').addEventListener('click',event => {
       const search = event.target.closest('[data-search-term]');
       if (search) { state.searchQuery=search.dataset.searchTerm; navigateTab('search'); runSearch(state.searchQuery); }
@@ -3422,7 +3460,7 @@
     setIcon($('#queue-sheet-close'),'close'); setIcon($('#track-actions-close'),'close');
     updateMiniFavoriteButton();
     setIcon($('#avatar-mark'),'music'); setIcon($('#mini-art'),'music'); setIcon($('#player-artwork'),'music'); setIcon($('#account-avatar'),'music');
-    setIcon($('#previous-button'),'previous'); setIcon($('#next-button'),'next'); setIcon($('#shuffle-button'),'shuffle'); setIcon($('#repeat-button'),'repeat');
+    setIcon($('#previous-button'),'previous'); setIcon($('#next-button'),'next'); setIcon($('#mode-button'),'order'); $('#mode-button').dataset.mode='order'; setIcon($('#player-track-more'),'more');
   }
 
   function boot() {

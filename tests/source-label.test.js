@@ -49,6 +49,7 @@ const productionFunctions = [
   'updateSourceLabels',
   'clearErrorMessage',
   'updatePlayerChrome',
+  'currentPlayMode',
   'saveSettings'
 ].map(extractFunction).join('\n');
 
@@ -88,6 +89,8 @@ const context = vm.createContext({
   setToggleIcon() {},
   updateMiniFavoriteButton() {},
   updateProgress() {},
+  setIcon() {},
+  PLAY_MODE_LABELS: { order: '顺序播放', all: '列表循环', one: '单曲循环', shuffle: '随机播放' },
   renderQueueIfChanged() {},
   updateLyricsActive() {},
   setMessage() {},

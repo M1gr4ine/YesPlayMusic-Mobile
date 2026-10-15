@@ -38,7 +38,8 @@ const productionFunctions = [
   'updateSourceLabels',
   'clearErrorMessage',
   'setMessage',
-  'updatePlayerChrome'
+  'updatePlayerChrome',
+  'currentPlayMode'
 ].map(extractFunction).filter(Boolean).join('\n');
 
 function createFakeClock() {
@@ -115,6 +116,8 @@ const context = vm.createContext({
   setToggleIcon() {},
   updateMiniFavoriteButton() {},
   updateProgress() {},
+  setIcon() {},
+  PLAY_MODE_LABELS: { order: '顺序播放', all: '列表循环', one: '单曲循环', shuffle: '随机播放' },
   renderQueueIfChanged() {},
   updateLyricsActive() {},
   setMessage: undefined,
