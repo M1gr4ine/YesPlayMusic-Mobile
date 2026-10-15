@@ -697,52 +697,85 @@ public final class QQSource {
         }
         return bestScore<0?null:best;
     }
-
-    public JSONObject resolve(JSONObject track) throws Exception {
-        String cookie=freshCookie();JSONObject match=null;String mid=track.optString("qqMid");
-        if(mid.isEmpty()&&track.optString("id").startsWith("qq:"))mid=track.optString("id").substring(3);
-        if(!mid.isEmpty()){
-            try { JSONObject detail=request("music.pf_song_detail_svr","get_song_detail",new JSONObject().put("song_mid",mid),cookie);match=detail.optJSONObject("track_info"); } catch(Exception ignored){}
-            if(match==null)match=new JSONObject().put("mid",mid).put("file",new JSONObject().put("media_mid",track.optString("mediaMid",mid)));
-        } else {
-            JSONArray songs=searchRaw(track.optString("title")+" "+track.optString("artist"),1,10,cookie);
-            List<String> aliases=ArtistAliases.fromAliasArray(track.optJSONArray("artistAliases"),track.optString("artist"));
-            match=bestSearchMatch(track,songs,aliases);
-            if(!Thread.currentThread().isInterrupted()&&match==null&&aliases.isEmpty()
-                    &&"netease".equals(track.optString("provider",""))
-                    &&NetEaseAuthState.hasPositiveUserId(track.optString("id",""))){
-                try {
-                    List<String> recovered=MusicApi.get(appContext).findExactNeteaseArtistAliases(
-                            track.optString("id",""),track.optString("title",""),track.optString("artist",""));
-                    if(!recovered.isEmpty()){
-                        aliases=recovered;
-                        match=bestSearchMatch(track,songs,aliases);
-                    }
-                } catch(Exception ignored) {}
-            }
-            if(match==null){
-                List<String> aliasQueries=ArtistAliases.searchQueries(track.optString("title",""),track.optString("artist",""),aliases);
-                for(String query:aliasQueries){
-                    if(Thread.currentThread().isInterrupted())break;
-                    JSONArray aliasSongs=searchRaw(query,1,10,cookie);
-                    match=bestSearchMatch(track,aliasSongs,aliases);
-                    if(match!=null)break;
+    private static final int MAX_PLAYBACK_CANDIDATES=3;
+    private static void addCandidate(LinkedHashMap<String,JSONObject> found,JSONObject song){
+        if(song==null||found.size()>=MAX_PLAYBACK_CANDIDATES)return;
+        String mid=song.optString("mid",song.optString("songmid"));
+        if(!mid.isEmpty()&&!found.containsKey(mid))found.put(mid,song);
+    }
+    /** Port of UNM select.js: first results within 5 s of the requested duration, in search order. */
+    private static void addUnmCandidates(LinkedHashMap<String,JSONObject> found,JSONObject track,JSONArray songs,boolean titleOnlyQuery) throws Exception {
+        for(int i=0;songs!=null&&i<songs.length()&&i<QQMatch.UNM_WINDOW;i++){
+            JSONObject candidate=songs.optJSONObject(i);if(candidate==null)continue;
+            JSONObject normalized=toTrack(candidate);
+            if(QQMatch.unmAccepts(track.optString("title",""),track.optLong("duration"),normalized.optString("title",""),normalized.optLong("duration"),titleOnlyQuery))addCandidate(found,candidate);
+        }
+    }
+    /**
+     * Ordered QQ versions to try for a NetEase-catalog track: strict title/artist matches first, then the
+     * duration-based pick the desktop app's UNM module makes, then a title-only search for songs QQ files
+     * under a different (Chinese or romanized) artist name.
+     */
+    private List<JSONObject> searchCandidates(JSONObject track,String cookie) throws Exception {
+        String title=track.optString("title",""),artist=track.optString("artist","");
+        LinkedHashMap<String,JSONObject> found=new LinkedHashMap<>();
+        JSONArray songs=searchRaw(QQMatch.keyword(title,artist),1,10,cookie);
+        List<String> aliases=ArtistAliases.fromAliasArray(track.optJSONArray("artistAliases"),artist);
+        addCandidate(found,bestSearchMatch(track,songs,aliases));
+        if(!Thread.currentThread().isInterrupted()&&found.isEmpty()&&aliases.isEmpty()
+                &&"netease".equals(track.optString("provider",""))
+                &&NetEaseAuthState.hasPositiveUserId(track.optString("id",""))){
+            try {
+                List<String> recovered=MusicApi.get(appContext).findExactNeteaseArtistAliases(track.optString("id",""),title,artist);
+                if(!recovered.isEmpty()){
+                    aliases=recovered;
+                    addCandidate(found,bestSearchMatch(track,songs,aliases));
                 }
+            } catch(Exception ignored) {}
+        }
+        addUnmCandidates(found,track,songs,false);
+        if(found.isEmpty()){
+            for(String query:ArtistAliases.searchQueries(title,artist,aliases)){
+                if(Thread.currentThread().isInterrupted())break;
+                JSONArray aliasSongs=searchRaw(query,1,10,cookie);
+                addCandidate(found,bestSearchMatch(track,aliasSongs,aliases));
+                addUnmCandidates(found,track,aliasSongs,false);
+                if(!found.isEmpty())break;
             }
         }
-        if(match==null)throw new Exception("QQ 音乐未找到相符版本，可在 QQ 曲库中搜索");
-        mid=match.optString("mid");JSONObject file=match.optJSONObject("file");String mediaMid=file==null?mid:file.optString("media_mid",mid);
+        if(found.isEmpty()&&!Thread.currentThread().isInterrupted()&&!artist.trim().isEmpty()){
+            JSONArray titleSongs=searchRaw(title.trim(),1,10,cookie);
+            addCandidate(found,bestSearchMatch(track,titleSongs,aliases));
+            addUnmCandidates(found,track,titleSongs,true);
+        }
+        return new java.util.ArrayList<>(found.values());
+    }
+
+    public JSONObject resolve(JSONObject track) throws Exception {
+        String cookie=freshCookie();List<JSONObject> candidates=new java.util.ArrayList<>();String mid=track.optString("qqMid");
+        if(mid.isEmpty()&&track.optString("id").startsWith("qq:"))mid=track.optString("id").substring(3);
+        if(!mid.isEmpty()){
+            JSONObject match=null;
+            try { JSONObject detail=request("music.pf_song_detail_svr","get_song_detail",new JSONObject().put("song_mid",mid),cookie);match=detail.optJSONObject("track_info"); } catch(Exception ignored){}
+            if(match==null)match=new JSONObject().put("mid",mid).put("file",new JSONObject().put("media_mid",track.optString("mediaMid",mid)));
+            candidates.add(match);
+        } else candidates=searchCandidates(track,cookie);
+        if(candidates.isEmpty())throw new Exception("QQ 音乐未找到相符版本，可在 QQ 曲库中搜索");
         Map<String,String> values=fields(cookie);String uin=first(values,"uin","wxuin");if(uin.isEmpty())uin="0";
         String guid=String.valueOf(1000000+new Random().nextInt(8999999));
-        for(String[] quality:new String[][]{{"M800",".mp3","320k"},{"M500",".mp3","128k"},{"C400",".m4a","AAC"}}){
-            JSONObject param=new JSONObject().put("guid",guid).put("loginflag",1).put("filename",new JSONArray().put(quality[0]+mediaMid+quality[1])).put("songmid",new JSONArray().put(mid)).put("songtype",new JSONArray().put(0)).put("uin",uin).put("platform","20");
-            JSONObject data=request("vkey.GetVkeyServer","CgiGetVkey",param,cookie);JSONArray info=data.optJSONArray("midurlinfo"),sip=data.optJSONArray("sip");
-            String path=info!=null&&info.length()>0?info.getJSONObject(0).optString("purl"):"";
-            if(!path.isEmpty()&&sip!=null&&sip.length()>0){
-                URL resolved=new URL(new URL(sip.getString(0)),path);String host=resolved.getHost().toLowerCase(java.util.Locale.ROOT);
-                if(!(host.endsWith(".qq.com")||host.endsWith(".qqmusic.qq.com")||host.endsWith(".gtimg.cn")))throw new Exception("QQ 音乐返回了未知播放地址");
-                String url=resolved.toString().replaceFirst("^http:","https:");
-                return new JSONObject().put("url",url).put("source","qq").put("qqMid",mid).put("quality",quality[2]).put("trial",false).put("duration",match.optLong("interval",track.optLong("duration")/1000)*1000);
+        for(JSONObject match:candidates){
+            if(Thread.currentThread().isInterrupted())break;
+            mid=match.optString("mid");JSONObject file=match.optJSONObject("file");String mediaMid=file==null?mid:file.optString("media_mid",mid);
+            for(String[] quality:new String[][]{{"M800",".mp3","320k"},{"M500",".mp3","128k"},{"C400",".m4a","AAC"}}){
+                JSONObject param=new JSONObject().put("guid",guid).put("loginflag",1).put("filename",new JSONArray().put(quality[0]+mediaMid+quality[1])).put("songmid",new JSONArray().put(mid)).put("songtype",new JSONArray().put(0)).put("uin",uin).put("platform","20");
+                JSONObject data=request("vkey.GetVkeyServer","CgiGetVkey",param,cookie);JSONArray info=data.optJSONArray("midurlinfo"),sip=data.optJSONArray("sip");
+                String path=info!=null&&info.length()>0?info.getJSONObject(0).optString("purl"):"";
+                if(!path.isEmpty()&&sip!=null&&sip.length()>0){
+                    URL resolved=new URL(new URL(sip.getString(0)),path);String host=resolved.getHost().toLowerCase(java.util.Locale.ROOT);
+                    if(!(host.endsWith(".qq.com")||host.endsWith(".qqmusic.qq.com")||host.endsWith(".gtimg.cn")))throw new Exception("QQ 音乐返回了未知播放地址");
+                    String url=resolved.toString().replaceFirst("^http:","https:");
+                    return new JSONObject().put("url",url).put("source","qq").put("qqMid",mid).put("quality",quality[2]).put("trial",false).put("duration",match.optLong("interval",track.optLong("duration")/1000)*1000);
+                }
             }
         }
         throw new Exception(cookie.isEmpty()?"这首歌的 QQ 音源需要登录，请在资料库中登录 QQ 音乐":"QQ 音乐未提供可播放地址，请确认登录及歌曲权益");
