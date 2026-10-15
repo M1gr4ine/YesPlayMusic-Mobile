@@ -16,6 +16,8 @@
     order: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 6.5h10M4 12h10M4 17.5h6M18 5v14m-3-3 3 3 3-3"/></svg>',
     repeat: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M17 2.5 20.5 6 17 9.5M4 10V8a2 2 0 0 1 2-2h14.5M7 21.5 3.5 18 7 14.5M20 14v2a2 2 0 0 1-2 2H3.5"/></svg>',
     more: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>',
+    unlock: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 7.7-1.5"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="m15 5-7 7 7 7"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M20.8 8.8c0 5.2-8.8 10.3-8.8 10.3S3.2 14 3.2 8.8a4.4 4.4 0 0 1 8.8-.3 4.4 4.4 0 0 1 8.8.3Z"/></svg>',
@@ -372,13 +374,16 @@
   let globalMessageFoldTimer = 0;
   let activeGlobalErrorKey = '';
 
-  function clearErrorMessage() {
-    if (!activeGlobalErrorKey) return;
+  function stopGlobalMessageTimers() {
     clearTimeout(globalMessageDismissTimer);
     clearTimeout(globalMessageFoldTimer);
     globalMessageDismissTimer = 0;
     globalMessageFoldTimer = 0;
     activeGlobalErrorKey = '';
+  }
+
+  function hideGlobalMessage() {
+    stopGlobalMessageTimers();
     const node = $('#global-message');
     if (!node) return;
     node.hidden = true;
@@ -387,34 +392,18 @@
     node.classList.remove('is-error', 'is-collapsing');
   }
 
+  function clearErrorMessage() {
+    if (activeGlobalErrorKey) hideGlobalMessage();
+  }
+
   function setMessage(message, isError, errorKey) {
     const node = $('#global-message');
     if (!node) return;
-    if (!message) {
-      clearTimeout(globalMessageDismissTimer);
-      clearTimeout(globalMessageFoldTimer);
-      globalMessageDismissTimer = 0;
-      globalMessageFoldTimer = 0;
-      activeGlobalErrorKey = '';
-      node.hidden = true;
-      node.textContent = '';
-      node.style.height = '';
-      node.classList.remove('is-error', 'is-collapsing');
-      return;
-    }
-    if (isError) {
-      const nextKey = String(errorKey || message);
-      if (nextKey === activeGlobalErrorKey) return;
-      clearTimeout(globalMessageDismissTimer);
-      clearTimeout(globalMessageFoldTimer);
-      activeGlobalErrorKey = nextKey;
-    } else {
-      clearTimeout(globalMessageDismissTimer);
-      clearTimeout(globalMessageFoldTimer);
-      globalMessageDismissTimer = 0;
-      globalMessageFoldTimer = 0;
-      activeGlobalErrorKey = '';
-    }
+    if (!message) { hideGlobalMessage(); return; }
+    const nextKey = isError ? String(errorKey || message) : '';
+    if (isError && nextKey === activeGlobalErrorKey) return;
+    stopGlobalMessageTimers();
+    activeGlobalErrorKey = nextKey;
     node.textContent = message;
     node.style.height = '';
     node.classList.remove('is-collapsing');
@@ -1104,25 +1093,6 @@
     }
   }
 
-  function renderBrowse() {
-    const root = $('#tab-content');
-    root.append(element('p', 'greeting', '发现歌单与歌曲'));
-    if (state.homeLoading) root.append(loadingState('正在加载精选内容…'));
-    if (state.homeError) root.append(emptyState('内容暂时不可用', '检查网络后重新获取音乐平台内容。', '重新加载', () => loadHome(true)));
-    if (state.home.playlists.length) {
-      const list = section('精选歌单', '音乐平台实时返回', null, null);
-      const rail = element('div', 'card-rail'); state.home.playlists.forEach(item => rail.append(renderPlaylistCard(item, false)));
-      list.wrap.append(rail); root.append(list.wrap);
-    }
-    if (state.home.songs.length) {
-      const songs = section('推荐歌曲', '点击一首开始播放', null, null);
-      songs.wrap.append(renderSongList(state.home.songs.slice(0, 20), { duration: true, actions: true })); root.append(songs.wrap);
-    }
-    if (!state.homeLoading && !state.homeError && !state.home.playlists.length && !state.home.songs.length) {
-      root.append(emptyState(state.account ? '暂时没有可浏览的内容' : '登录后发现更多音乐', state.account ? '当前接口没有返回精选歌单或歌曲。' : '网易云音乐账号登录后，展示你的推荐内容。', state.account ? '重新加载' : '网易云登录', state.account ? () => loadHome(true) : () => openAccount(true)));
-    }
-  }
-
   function renderLibrary() {
     const root = $('#tab-content');
     const recent = section('最近播放', '', '已播歌曲', () => openRecentHistory());
@@ -1696,6 +1666,7 @@
   }
 
   function handleBack() {
+    if (standbyActive()) { closeStandby(); return true; }
     if (trackActions) {
       if (trackActions.view === 'playlists') { trackActions.view = 'menu'; renderTrackActions(); }
       else closeTrackActions();
@@ -1800,7 +1771,7 @@
 
   function updateMiniSubtitle(index) {
     const host = $('#mini-subtitle');
-    if (!host) return;
+    if (!host || standbyActive()) return;
     const track = state.media.track;
     const active = Number.isInteger(index) ? index : (state.lyrics.length && window.YPMLyrics ? window.YPMLyrics.activeIndex(state.lyrics,mediaPosition()) : -1);
     const line = track && active >= 0 ? state.lyrics[active] : null;
@@ -1825,6 +1796,12 @@
     }
     const hasTrack = !!track;
     $('#mini-player').hidden = !hasTrack;
+    if (standbyActive()) {
+      if (track && favoriteTrackKey(track) !== state.favorite.key) loadFavoriteStatus(track);
+      else if (!track && state.favorite.key) invalidateFavoriteStatus(false);
+      syncStandby();
+      return;
+    }
     if (!hasTrack) {
       lastTrackSignature = '';
       updateMiniSubtitle(-1);
@@ -1840,7 +1817,7 @@
       $('#player-artist').textContent = [track.artist, track.album].filter(Boolean).join(' · ') || '未知艺术家';
       updateArt($('#mini-art'), track.artwork, 43);
       updateArt($('#player-artwork'), track.artwork, 360);
-      loadFavoriteStatus(track);
+      if (favoriteTrackKey(track) !== state.favorite.key) loadFavoriteStatus(track);
     }
     setToggleIcon($('#mini-toggle'), state.media.playing ? 'pause' : 'play');
     updateMiniFavoriteButton();
@@ -1872,9 +1849,11 @@
 
   function updateProgress() {
     const track = state.media.track;
-    if (!track || seekDragging) return;
+    if (!track) return;
     const duration = Math.max(0, state.media.duration || track.duration || 0);
     const position = mediaPosition();
+    if (standbyActive()) { standby.setProgress(position, duration); return; }
+    if (seekDragging) return;
     const slider = $('#seek-slider');
     slider.max = String(Math.max(1,duration));
     slider.value = String(Math.min(duration || 1,position));
@@ -1968,6 +1947,12 @@
     button.title = current && state.favorite.errorMessage
       ? state.favorite.errorMessage
       : (liked ? '从网易云音乐“我喜欢”中取消' : '收藏到网易云音乐“我喜欢”');
+    syncStandby();
+  }
+
+  // While the same song is revalidated, keep showing its last known heart instead of blinking it off.
+  function lastKnownLiked(key) {
+    return key && state.favorite.key === key ? state.favorite.liked : null;
   }
 
   function invalidateFavoriteStatus(loading) {
@@ -1976,7 +1961,7 @@
     const key = favoriteTrackKey(track);
     state.favorite = {
       key, provider: track ? 'netease' : '', target: null, available: false, loggedIn: false,
-      liked: null, loading: !!(loading && key), mutating: false, errorMessage: '', retryable: false
+      liked: loading ? lastKnownLiked(key) : null, loading: !!(loading && key), mutating: false, errorMessage: '', retryable: false
     };
     updateMiniFavoriteButton();
   }
@@ -1986,7 +1971,7 @@
     if (!key) return;
     const provider = 'netease';
     const generation = ++state.favoriteGeneration;
-    state.favorite = { key, provider, target: null, available: false, loggedIn: false, liked: null, loading: true, mutating: false, errorMessage: '', retryable: false };
+    state.favorite = { key, provider, target: null, available: false, loggedIn: false, liked: lastKnownLiked(key), loading: true, mutating: false, errorMessage: '', retryable: false };
     updateMiniFavoriteButton();
 
     let resolution;
@@ -2086,6 +2071,10 @@
     if (repeat === 'one') return 'one';
     if (state.media.shuffle) return 'shuffle';
     return repeat === 'all' ? 'all' : 'order';
+  }
+
+  function cyclePlayMode() {
+    setPlayMode(PLAY_MODES[(PLAY_MODES.indexOf(currentPlayMode()) + 1) % PLAY_MODES.length]);
   }
 
   function setPlayMode(mode) {
@@ -2468,6 +2457,7 @@
   }
 
   function renderLyrics() {
+    syncStandby();
     updateMiniSubtitle();
     const list = $('#lyrics-lines');
     if (!list) return;
@@ -2512,6 +2502,7 @@
 
   function updateLyricsActive(force) {
     const index = state.lyrics.length && window.YPMLyrics ? window.YPMLyrics.activeIndex(state.lyrics,mediaPosition()) : -1;
+    if (standbyActive()) { standby.setLine(index); return; }
     updateMiniSubtitle(index);
     if (!state.lyrics.length) return;
     if (index === state.lyricsIndex && !force) return;
@@ -2536,6 +2527,119 @@
         list.scrollTo({top:targetTop,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
       }
     }
+  }
+
+  // Landscape lyrics standby. While it covers the screen the portrait UI is left untouched
+  // (content-visibility: hidden) and refreshed once on exit, so the 300 ms poll only feeds the standby page.
+  const standbyQuery = window.matchMedia('(orientation: landscape) and (min-aspect-ratio: 4/3) and (max-height: 600px)');
+  let standby = null;
+  let standbyLocked = false;
+  let standbyNativeKey = '';
+
+  function standbyActive() { return !!standby && standby.active; }
+
+  function nativeCall(method, ...args) {
+    if (!window.Native || typeof window.Native[method] !== 'function') return false;
+    try { window.Native[method](...args); return true; } catch (_) { return false; }
+  }
+
+  // Immersive while shown; the screen only stays on while music is actually playing.
+  function syncStandbyNative() {
+    const active = standbyActive();
+    const keepAwake = active && !!state.media.playing;
+    const key = `${active}:${keepAwake}`;
+    if (key === standbyNativeKey) return;
+    standbyNativeKey = key;
+    nativeCall('standby', active, keepAwake);
+  }
+
+  function syncStandby() {
+    if (!standbyActive()) return;
+    const track = state.media.track;
+    standby.setTrack(track ? {
+      key: `${track.provider}:${track.id}:${track.artwork || ''}`,
+      title: currentTrackTitle(track),
+      artist: [track.artist, track.album].filter(Boolean).join(' · '),
+      cover: sizedArtwork(track.artwork, 240),
+      backdrop: sizedArtwork(track.artwork, 24)
+    } : null);
+    standby.setLyrics(state.lyrics, { loading: state.lyricsLoading, translation: state.settings.lyricsTranslation !== false });
+    const key = favoriteTrackKey(track);
+    const current = !!key && state.favorite.key === key;
+    const mode = currentPlayMode();
+    standby.setPlayback({
+      playing: !!state.media.playing,
+      liked: current && state.favorite.liked === true,
+      likeDisabled: !current || state.favorite.loading || state.favorite.mutating,
+      mode,
+      modeLabel: `${PLAY_MODE_LABELS[mode]}，点按切换播放模式`
+    });
+    standby.setLine(state.lyrics.length && window.YPMLyrics ? window.YPMLyrics.activeIndex(state.lyrics, mediaPosition()) : -1);
+    updateProgress();
+    syncStandbyNative();
+  }
+
+  function updateStandbyMode() {
+    const show = standbyQuery.matches;
+    if (!standby || show === standby.active) return;
+    if (show) {
+      const focused = document.activeElement;
+      if (focused && focused.matches && focused.matches('input,textarea')) focused.blur();
+      document.body.classList.add('is-standby');
+      standby.setActive(true);
+      syncStandby();
+    } else {
+      standbyLocked = false;
+      standby.setLocked(false);
+      standby.setActive(false);
+      document.body.classList.remove('is-standby');
+      updatePlayerChrome();
+      updateLyricsActive(true);
+    }
+    syncStandbyNative();
+  }
+
+  function closeStandby() {
+    if (standbyLocked) { showToast('全屏已锁定，点按锁形图标解锁'); return; }
+    nativeCall('orientation', 'portrait');
+  }
+
+  // Locking pins landscape so turning the phone, back and the close button cannot leave the page.
+  // Unlocking hands rotation back to the sensor.
+  function toggleStandbyLock() {
+    standbyLocked = !standbyLocked;
+    standby.setLocked(standbyLocked);
+    nativeCall('orientation', standbyLocked ? 'landscape' : 'auto');
+    showToast(standbyLocked ? '已锁定全屏' : '已解除全屏锁定');
+  }
+
+  function standbyAction(action) {
+    if (action === 'toggle' || action === 'next' || action === 'previous') sendCommand({ type: action });
+    else if (action === 'mode') cyclePlayMode();
+    else if (action === 'like') toggleFavorite();
+    else if (action === 'lock') toggleStandbyLock();
+    else if (action === 'translation') {
+      saveSettings({ lyricsTranslation: state.settings.lyricsTranslation === false });
+      renderLyrics();
+      showToast(state.settings.lyricsTranslation === false ? '仅显示原歌词' : '显示原歌词和中文翻译');
+    }
+    else if (action === 'close') closeStandby();
+  }
+
+  function installStandby() {
+    const root = $('#standby');
+    if (!root || !window.YPMStandby) return;
+    standby = window.YPMStandby.create(root, {
+      setIcon,
+      action: standbyAction,
+      seek: position => sendCommand({ type: 'seek', position })
+    });
+    standby.setLocked(false);
+    setIcon($('#standby-close'), 'close'); setIcon($('#standby-like'), 'heart');
+    setIcon($('#standby-previous'), 'previous'); setIcon($('#standby-next'), 'next');
+    if (standbyQuery.addEventListener) standbyQuery.addEventListener('change', updateStandbyMode);
+    else if (standbyQuery.addListener) standbyQuery.addListener(updateStandbyMode);
+    updateStandbyMode();
   }
 
   function renderQueueWindow(list, dismissOnSelect, signature, force) {
@@ -2611,7 +2715,6 @@
     }
     const signature = queueSignatureValue;
     const changed = !!force || signature !== lastQueueSignature;
-    const previousIndex = lastQueueIndex;
     const indexChanged = state.media.index !== lastQueueIndex;
     if (!changed && !indexChanged) return;
     if (changed) lastQueueSignature = signature;
@@ -2922,7 +3025,7 @@
   let lastProcessedMediaJson = null;
 
   function pollMediaState() {
-    if (!nativeReady() || !window.Native || typeof window.Native.getState !== 'function') return;
+    if (document.hidden || !nativeReady() || !window.Native || typeof window.Native.getState !== 'function') return;
     try {
       const rawState = window.Native.getState();
       if (typeof rawState === 'string' && rawState === lastProcessedMediaJson && !pendingPlayerModes) {
@@ -2944,8 +3047,6 @@
       if (newSuccessfulTrack && state.tab === 'library' && !state.playlist && !state.playlistLoading && !state.playlistError) loadRecentHistory(true, 20);
     } catch (_) { /* Device bridge may be between activity transitions. */ }
   }
-
-  function openSettingsFromPlayer() { openAccount(); }
 
   function onSeek() {
     const slider = $('#seek-slider');
@@ -3421,12 +3522,11 @@
     $('#mini-queue').addEventListener('click',openQueueSheet);
     $('#queue-sheet-close').addEventListener('click',() => closeQueueSheet());
     $('#queue-scrim').addEventListener('click',() => closeQueueSheet());
-    $('#player-close').addEventListener('click',closePlayer); $('#player-scrim').addEventListener('click',closePlayer);
-    $('#player-settings').addEventListener('click',openSettingsFromPlayer);
+    $('#player-scrim').addEventListener('click',closePlayer);
     $('#player-toggle').addEventListener('click',() => sendCommand({type:'toggle'}));
     $('#next-button').addEventListener('click',() => sendCommand({type:'next'}));
     $('#previous-button').addEventListener('click',() => sendCommand({type:'previous'}));
-    $('#mode-button').addEventListener('click',() => setPlayMode(PLAY_MODES[(PLAY_MODES.indexOf(currentPlayMode()) + 1) % PLAY_MODES.length]));
+    $('#mode-button').addEventListener('click',cyclePlayMode);
     $('#player-track-more').addEventListener('click',() => { if (state.media.track) openTrackActions(state.media.track); });
     $$('.view-switch').forEach(button => button.addEventListener('click',() => setPlayerView(button.dataset.playerView)));
     $('#lyrics-translation-toggle').addEventListener('click',toggleLyricsTranslation);
@@ -3455,7 +3555,7 @@
 
   function setupIcons() {
     $$('.tab-icon').forEach(node => setIcon(node,node.dataset.icon));
-    setIcon($('#player-close'),'close'); setIcon($('#player-settings'),'more'); setIcon($('#account-close'),'close');
+    setIcon($('#account-close'),'close');
     setIcon($('#mini-toggle'),'play'); setIcon($('#mini-like'),'heart'); setIcon($('#mini-queue'),'queue'); setIcon($('#player-toggle'),'play');
     setIcon($('#queue-sheet-close'),'close'); setIcon($('#track-actions-close'),'close');
     updateMiniFavoriteButton();
@@ -3465,7 +3565,7 @@
 
   function boot() {
     accountMotion = window.YPMSettingsMotion.create({overlay:$('#account-overlay'),sheet:$('.settings-sheet'),scrim:$('#account-scrim'),onDismiss:closeAccount});
-    setupIcons(); bindEvents(); readSettings(); renderSettingsAccount(); renderTab(); setPlayerView(state.playerView);
+    setupIcons(); bindEvents(); readSettings(); renderSettingsAccount(); renderTab(); setPlayerView(state.playerView); installStandby();
     if (!nativeReady()) setMessage('请在 YesPlayMusic Android 应用中使用。浏览器预览不会伪造账号或播放状态。',false);
     else {
       refreshAuth().then(() => { loadHome(); if (state.tab === 'library') loadLibrary(); });

@@ -55,9 +55,7 @@
       <div class="sheet-grab-area" id="player-grab-area">
         <span class="sheet-grabber"></span>
         <div class="player-topline">
-          <button class="icon-button close-player" id="player-close" type="button" aria-label="收起播放器"></button>
           <span class="player-context">正在播放</span>
-          <button class="icon-button player-more" id="player-settings" type="button" aria-label="播放设置"></button>
         </div>
       </div>
       <div class="player-scroll" id="player-scroll">
@@ -190,10 +188,49 @@
     </section>
   </div>
 
+  <div id="standby" class="standby" role="dialog" aria-label="横屏歌词" hidden>
+    <canvas id="standby-backdrop" class="standby-backdrop" aria-hidden="true"></canvas>
+    <div class="standby-corner">
+      <button id="standby-translation" class="standby-button standby-translation-toggle" data-standby-action="translation" type="button" aria-label="隐藏中文翻译" aria-pressed="true" hidden>译</button>
+      <button id="standby-lock" class="standby-button standby-lock" data-standby-action="lock" type="button" aria-label="锁定全屏" aria-pressed="false"></button>
+      <button id="standby-close" class="standby-button standby-close" data-standby-action="close" type="button" aria-label="退出横屏歌词"></button>
+    </div>
+    <div class="standby-stage">
+      <section class="standby-side">
+        <div class="standby-clock" data-standby-clock aria-hidden="true"></div>
+        <div class="standby-now">
+          <div id="standby-cover" class="standby-cover"></div>
+          <div class="standby-meta">
+            <h2 id="standby-title"></h2>
+            <p id="standby-artist"></p>
+          </div>
+        </div>
+        <div class="standby-progress">
+          <span id="standby-elapsed">0:00</span>
+          <div class="standby-bar"><div id="standby-bar-fill" class="standby-bar-fill"></div></div>
+          <span id="standby-duration">0:00</span>
+        </div>
+        <div class="standby-controls">
+          <button id="standby-like" class="standby-button standby-like" data-standby-action="like" type="button" aria-label="收藏到网易云音乐" aria-pressed="false"></button>
+          <button id="standby-previous" class="standby-button standby-solid" data-standby-action="previous" type="button" aria-label="上一首"></button>
+          <button id="standby-toggle" class="standby-button standby-solid standby-play" data-standby-action="toggle" type="button" aria-label="播放"></button>
+          <button id="standby-next" class="standby-button standby-solid" data-standby-action="next" type="button" aria-label="下一首"></button>
+          <button id="standby-mode" class="standby-button standby-mode" data-standby-action="mode" type="button" aria-label="播放模式"></button>
+        </div>
+      </section>
+      <section id="standby-lyrics" class="standby-lyrics" aria-label="歌词"><div id="standby-lines" class="standby-lines"></div></section>
+    </div>
+    <div class="standby-idle">
+      <div class="standby-idle-clock" data-standby-clock></div>
+      <p>没有正在播放的歌曲</p>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="./lyrics.js"></script>
   <script src="./mini-lyrics.js"></script>
   <script src="./settings-motion.js"></script>
+  <script src="./standby.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

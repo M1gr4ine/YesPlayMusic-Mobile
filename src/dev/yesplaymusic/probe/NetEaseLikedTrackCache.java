@@ -50,29 +50,10 @@ final class NetEaseLikedTrackCache {
         return loaded && likedIds.contains(id);
     }
 
-    synchronized void replace(String expectedUserId, long generation, Set<String> ids, long nowElapsedMs) {
-        if (!NetEaseAuthState.hasPositiveUserId(expectedUserId)) {
-            bindAccount("", generation);
-            return;
-        }
-        bindAccount(expectedUserId, generation);
-        putSnapshot(ids, nowElapsedMs);
-        revision++;
-    }
-
     synchronized boolean replaceIfRevision(String expectedUserId, long generation, long expectedRevision,
                                             Set<String> ids, long nowElapsedMs) {
         if (!matches(expectedUserId, generation) || revision != expectedRevision) return false;
         putSnapshot(ids, nowElapsedMs);
-        revision++;
-        return true;
-    }
-
-    synchronized boolean updateIfCurrent(String expectedUserId, long generation, String id,
-                                         boolean liked, long nowElapsedMs) {
-        if (!NetEaseAuthState.hasPositiveUserId(id)
-                || !isFresh(expectedUserId, generation, nowElapsedMs)) return false;
-        applyOne(id, liked);
         revision++;
         return true;
     }

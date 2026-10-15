@@ -41,3 +41,13 @@ py -3 .\build-apk.py --keystore C:\secure\release.jks --alias upload
 The release APK is written to `dist/YesPlayMusic-Mobile.apk`. The script does not automatically select a debug key for release builds; use your own release signing key. Keep release keystores and passwords outside this repository.
 
 The script recreates only its checked `build/work` temporary directory. It leaves existing output APKs and keystores in place, replacing an APK only when signing to that same output filename.
+
+## Tests
+
+`run-tests.py` runs the page logic tests with Node.js 18+ and the native helper tests on the JVM. The JVM tests compile `src/` against `android.jar`, which only ships `org.json` stubs, so they also need a real [org.json](https://central.sonatype.com/artifact/org.json/json) jar:
+
+```sh
+python3 run-tests.py --json-jar /path/to/json.jar
+```
+
+The Android platform jar is located the same way as for `build-apk.py` (`ANDROID_SDK_ROOT`, `ANDROID_HOME` or `--android-jar`). The jar path can also come from `YPM_JSON_JAR`. Use `--js-only` to run only the Node.js tests.

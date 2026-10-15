@@ -33,12 +33,13 @@
 
     function gestureBlocksMotion() {
       return !!(body && (body.classList.contains('mini-swipe-active')
-        || body.classList.contains('mini-track-in-motion')));
+        || body.classList.contains('mini-track-in-motion')
+        || body.classList.contains('is-standby')));
     }
 
     function shouldPauseMarquee() {
-      return destroyed || reducedMotion || !playing || document.hidden || !hasSize()
-        || gestureBlocksMotion();
+      return destroyed || reducedMotion || !playing || document.hidden || gestureBlocksMotion()
+        || !hasSize();
     }
 
     function syncMarqueePlayback() {

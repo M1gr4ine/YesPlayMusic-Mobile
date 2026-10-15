@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /** Match-only alternate artist names taken from the same provider's metadata. */
 final class ArtistAliases {
@@ -16,6 +17,8 @@ final class ArtistAliases {
     private static final int MAX_ALIAS_LENGTH = 128;
     private static final int MAX_SEARCH_RETRIES = 2;
     private static final String[] ALIAS_FIELDS = {"alias", "alia", "tns", "trans"};
+    private static final Pattern COLLABORATION =
+            Pattern.compile("\\b(feat\\.?|ft\\.?|featuring|with|vs\\.?)\\b|\\s+x\\s+");
 
     private ArtistAliases() {}
 
@@ -26,18 +29,13 @@ final class ArtistAliases {
         if (strict >= 0) return strict;
         if (!isSingleArtistCredit(artist) || !isSingleArtistCredit(candidateArtist)) return -1;
 
-        List<String> left = namesForMatching(artist, artistAliases);
-        List<String> right = namesForMatching(candidateArtist, candidateAliases);
+        Map<String, String> right = namesForMatching(candidateArtist, candidateAliases);
         int best = -1;
-        for (String leftName : left) {
-            String normalizedLeft = QQMatch.normalize(leftName);
-            if (normalizedLeft.isEmpty()) continue;
-            for (String rightName : right) {
-                if (!normalizedLeft.equals(QQMatch.normalize(rightName))) continue;
-                int candidateScore = QQMatch.score(title, leftName, duration,
-                        candidateTitle, rightName, candidateDuration);
-                if (candidateScore > best) best = candidateScore;
-            }
+        for (Map.Entry<String, String> left : namesForMatching(artist, artistAliases).entrySet()) {
+            String rightName = right.get(left.getKey());
+            if (rightName == null) continue;
+            best = Math.max(best, QQMatch.score(title, left.getValue(), duration,
+                    candidateTitle, rightName, candidateDuration));
         }
         return best;
     }
@@ -120,13 +118,14 @@ final class ArtistAliases {
         return values;
     }
 
-    private static List<String> namesForMatching(String canonical, List<String> aliases) {
+    /** Single-credit names keyed by their normalized form, canonical name first. */
+    private static Map<String, String> namesForMatching(String canonical, List<String> aliases) {
         LinkedHashMap<String, String> names = new LinkedHashMap<>();
         addName(names, canonical);
         if (aliases != null) {
             for (String alias : aliases) addName(names, alias);
         }
-        return new ArrayList<>(names.values());
+        return names;
     }
 
     private static void addName(Map<String, String> names, String value) {
@@ -186,8 +185,6 @@ final class ArtistAliases {
             if (c == '/' || c == '\\' || c == ',' || c == '\u3001' || c == '\uFF0C'
                     || c == '&' || c == '\uFF06' || c == ';' || c == '\n' || c == '\r') return false;
         }
-        String lower = clean.toLowerCase(Locale.ROOT);
-        return !lower.matches(".*\\b(feat\\.?|ft\\.?|featuring|with|vs\\.?)\\b.*")
-                && !lower.matches(".*\\s+x\\s+.*");
+        return !COLLABORATION.matcher(clean.toLowerCase(Locale.ROOT)).find();
     }
 }

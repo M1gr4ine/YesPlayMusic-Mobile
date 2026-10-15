@@ -41,7 +41,7 @@ public final class LrcLines {
             List<Long> found = new ArrayList<>();
             while (stamps.find()) found.add(stampMs(stamps) + offset);
             if (found.isEmpty()) continue;
-            String lyric = STAMP.matcher(line).replaceAll("").trim();
+            String lyric = stamps.replaceAll("").trim();
             if (lyric.isEmpty() || TAG.matcher(lyric).matches()) continue;
             for (long time : found) {
                 long at = Math.max(0L, time);

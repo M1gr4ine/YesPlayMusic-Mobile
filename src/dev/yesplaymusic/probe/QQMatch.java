@@ -1,6 +1,8 @@
 package dev.yesplaymusic.probe;
 import java.text.Normalizer;
 import java.util.Locale;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class QQMatch {
@@ -17,6 +19,9 @@ public final class QQMatch {
             "风飒飘师恋爱梦东乐乐声时间语见会来说说传传长开门话电国学体气气岁岁鸟书红绿绿蓝黄云战战樱樱忆独欢戏剧线经经结给终绘绘续续练编听听谁读读变变泪泪辉达远运过还进边边边钟银镜阳阴邻邻际难愿颜颜题飞馆鱼鸣丽黑实实对对归归广广应应恶恶摇摇晚样样步满满烧烧发发发发龙龙缘缘药药觉觉观观译译让让赠轻轻转转铁铁录录默岛岛桥滨滨泽泽斋斋高优宫叶华庆贺谢从从斗斗旧寿圆圆团团围尔弥礼显显头顶顺须领赖赖骑验验惊郁鹰鹤党齿齿龟龟虫萤萤卫装复霸亲触计记许诗试词认诞调谈请论诺谜讲识议护赞赞丰丰贝负货贵买卖卖费资赏质赵迹车轨军轮辞农这连周游遥适选遗乡乡醉释释针铃钢错键锁闪闭闲关关阵陆险险隐隐虽双鸡离灵灵静响页饭饮养余马驱驱骚骚驿驿凤鸦莺鹫龄龄骂罗义习圣闻联职脑脑脸兴举举舰庄庄万叶莲藏处处号补制规视览览约纸级纯细纺统绊络缚织系系缠罚网绮总总绪紧绵纵纵绩树权权历历残杀净净凉浅减测汤温汉洁涩涩湾浓洒为为无烟热灯营营争牵状狱狮现环产产画当叠叠疗愈盗尽监盘真碎确祸禅称种稳稳积窗窃竞笔节范筑简笼粮纪纳纹纷组弦绝绝丝继继缩后里里个们吗么与剑剑带带兽兽";
     private static final Pattern LATIN_TAG = Pattern.compile("\\b(live|remix|instrumental|acoustic|sped up)\\b");
     private static final String[] CJK_TAGS = {"伴奏", "翻唱", "纯音乐", "现场"};
+    private static final Pattern NON_WORD = Pattern.compile("[^\\p{L}\\p{N}]");
+    private static final Pattern ARTIST_SEPARATOR = Pattern.compile("[/、,&，]");
+    private static final Pattern SLASH = Pattern.compile("\\s*/\\s*");
 
     public static String normalize(String text) {
         String folded = Normalizer.normalize(text == null ? "" : text, Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
@@ -26,15 +31,15 @@ public final class QQMatch {
             int index = c < 0x3400 ? -1 : FOLD_FROM.indexOf(c);
             result.append(index < 0 ? c : FOLD_TO.charAt(index));
         }
-        return result.toString().replaceAll("[^\\p{L}\\p{N}]", "");
+        return NON_WORD.matcher(result).replaceAll("");
     }
     private static String version(String value) {
         String text = (value == null ? "" : value).toLowerCase(Locale.ROOT);
-        StringBuilder result = new StringBuilder();
-        java.util.regex.Matcher latin = LATIN_TAG.matcher(text);
-        java.util.TreeSet<String> tags = new java.util.TreeSet<>();
+        Matcher latin = LATIN_TAG.matcher(text);
+        TreeSet<String> tags = new TreeSet<>();
         while (latin.find()) tags.add(latin.group(1));
         for (String tag : CJK_TAGS) if (text.contains(tag)) tags.add("现场".equals(tag) ? "live" : tag);
+        StringBuilder result = new StringBuilder();
         for (String tag : tags) result.append(tag).append('|');
         return result.toString();
     }
@@ -48,7 +53,10 @@ public final class QQMatch {
             if (x.equals(y) || x.contains(y) || y.contains(x)) score += 60;
             else {
                 boolean shared = false;
-                for (String part : artist.split("[/、,&，]")) { String n = normalize(part); if (n.length() >= 2 && y.contains(n)) shared = true; }
+                for (String part : ARTIST_SEPARATOR.split(artist)) {
+                    String n = normalize(part);
+                    if (n.length() >= 2 && y.contains(n)) { shared = true; break; }
+                }
                 if (!shared) return -1;
                 score += 40;
             }
@@ -63,7 +71,7 @@ public final class QQMatch {
 
     /** UNM search keyword: the song name followed by every credited artist. */
     public static String keyword(String title, String artist) {
-        String names = (artist == null ? "" : artist).trim().replaceAll("\\s*/\\s*", " ");
+        String names = SLASH.matcher(artist == null ? "" : artist.trim()).replaceAll(" ");
         String name = title == null ? "" : title.trim();
         return names.isEmpty() ? name : name + " " + names;
     }

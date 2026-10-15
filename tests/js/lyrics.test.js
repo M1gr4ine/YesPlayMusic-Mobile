@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseLrc, activeIndex, timestampMs } = require('../assets/lyrics.js');
+const { parseLrc, activeIndex, timestampMs } = require('../../assets/lyrics.js');
 
 test('parses one, two and three decimal timestamp digits', () => {
   assert.equal(timestampMs('01:02.3'), 62300);

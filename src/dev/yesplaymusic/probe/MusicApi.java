@@ -48,8 +48,6 @@ public final class MusicApi {
     private final Object cookieLock = new Object();
     private final SessionGeneration sessionGeneration = new SessionGeneration();
     private final NetEaseLikedTrackCache likedTrackCache = new NetEaseLikedTrackCache();
-    private String activeQrKey = "";
-    private long activeQrGeneration;
 
     private MusicApi(Context context) {
         appContext = context.getApplicationContext();
@@ -73,9 +71,7 @@ public final class MusicApi {
     /** Native login flows call this with the received Set-Cookie values. Never expose it to WebView JS. */
     public void setCookie(String cookie) {
         synchronized (cookieLock) {
-            activeQrKey = "";
-            activeQrGeneration = sessionGeneration.advance();
-            likedTrackCache.clear();
+            advanceSessionGeneration();
             String clean = cleanCookieHeader(cookie);
             if (clean.isEmpty()) {
                 authStore.clear("netease");
@@ -106,12 +102,9 @@ public final class MusicApi {
         if ("ownedPlaylists".equals(method)) return ownedPlaylists();
         if ("playlistAddTrack".equals(method)) return playlistAddTrack(input);
         if ("matchTrack".equals(method)) return matchTrack(input);
-        if ("qrKey".equals(method)) return qrKey();
-        if ("qrCheck".equals(method)) return qrCheck(input);
         if ("sendCaptcha".equals(method)) return sendCaptcha(input);
         if ("loginCaptcha".equals(method)) return loginCaptcha(input);
         if ("lyrics".equals(method)) return lyrics(input);
-        if ("songDetails".equals(method)) return songDetails(input);
         if ("logout".equals(method)) return logout();
         throw new IllegalArgumentException("Unknown NetEase method: " + method);
     }
@@ -733,43 +726,6 @@ public final class MusicApi {
         }
     }
 
-    private JSONObject qrKey() throws Exception {
-        long generation = advanceSessionGeneration();
-        JSONObject params = new JSONObject();
-        params.put("type", 3);
-        JSONObject result = requestEapi("/api/login/qrcode/unikey", params, generation);
-        JSONObject data = result.optJSONObject("data");
-        if (data != null) {
-            String key = data.optString("unikey", "");
-            if (!key.isEmpty()) {
-                data.put("qrurl", "https://music.163.com/login?codekey=" + key);
-                synchronized (cookieLock) {
-                    if (sessionGeneration.accepts(generation)) {
-                        activeQrKey = key;
-                        activeQrGeneration = generation;
-                    }
-                }
-            }
-        }
-        return sanitize(result);
-    }
-
-    private JSONObject qrCheck(JSONObject args) throws Exception {
-        String key = args.optString("key", args.optString("unikey", ""));
-        if (key.isEmpty()) throw new IllegalArgumentException("二维码登录已过期，请重新获取");
-        long generation;
-        synchronized (cookieLock) {
-            if (!key.equals(activeQrKey) || !sessionGeneration.accepts(activeQrGeneration)) {
-                throw new IllegalArgumentException("二维码登录已过期，请重新获取");
-            }
-            generation = activeQrGeneration;
-        }
-        JSONObject params = new JSONObject();
-        params.put("key", key);
-        params.put("type", 3);
-        return sanitize(requestEapi("/api/login/qrcode/client/login", params, generation));
-    }
-
     private JSONObject sendCaptcha(JSONObject args) throws Exception {
         String phone = args.optString("phone", "").trim();
         if (phone.isEmpty()) throw new IllegalArgumentException("请输入手机号");
@@ -869,9 +825,7 @@ public final class MusicApi {
 
     private JSONObject logout() throws Exception {
         synchronized (cookieLock) {
-            activeQrKey = "";
-            activeQrGeneration = sessionGeneration.advance();
-            likedTrackCache.clear();
+            advanceSessionGeneration();
             authStore.clear("netease");
         }
         return new JSONObject().put("code", 200).put("loggedOut", true);
@@ -879,10 +833,9 @@ public final class MusicApi {
 
     private long advanceSessionGeneration() {
         synchronized (cookieLock) {
-            activeQrKey = "";
-            activeQrGeneration = sessionGeneration.advance();
+            long generation = sessionGeneration.advance();
             likedTrackCache.clear();
-            return activeQrGeneration;
+            return generation;
         }
     }
 
@@ -1136,16 +1089,8 @@ public final class MusicApi {
             }
             if (!merged.isEmpty()) authStore.put("netease", formatCookies(merged));
             else authStore.clear("netease");
-            if (musicUSessionChanged) {
-                activeQrKey = "";
-                activeQrGeneration = sessionGeneration.advance();
-                likedTrackCache.clear();
-            }
+            if (musicUSessionChanged) advanceSessionGeneration();
         }
-    }
-
-    private static String csrfFromCookie(String cookie) {
-        return parseCookies(cookie).getOrDefault("__csrf", "");
     }
 
     private static LinkedHashMap<String, String> parseCookies(String cookie) {

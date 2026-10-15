@@ -75,12 +75,14 @@ Release APK 需要你自己的签名密钥。请将密钥保存在仓库目录�
 assets/                 移动端页面、样式、交互与播放器动画
 src/                    Android 原生播放、媒体会话、登录和音乐 API
 res/                    Android 图标、通知图标和主题资源
-tests/                  协议与数据逻辑测试
+tests/js/               页面逻辑测试（Node.js 内置测试运行器）
+tests/java/             原生匹配、协议与数据逻辑测试
 docs/BUILDING.md        独立构建指南
 docs/screenshots/       五张手机实机页面截图
 releases/               试用 APK 与 SHA-256 校验文件
 AndroidManifest.xml     Android 权限、组件和版本信息
 build-apk.py            便携 APK 构建脚本
+run-tests.py            一键运行全部测试
 LICENSE                 MIT 许可证
 NOTICE.md               上游来源、协议参考和媒体权利说明
 ```
