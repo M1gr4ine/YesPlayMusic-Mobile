@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#f6f5f1">
   <title>YesPlayMusic</title>
   <link rel="stylesheet" href="./app.css">
+  <link rel="stylesheet" href="./playlist-editor.css">
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -192,13 +193,28 @@
   <div id="standby" class="standby" role="dialog" aria-label="横屏歌词" hidden>
     <canvas id="standby-backdrop" class="standby-backdrop" aria-hidden="true"></canvas>
     <div class="standby-corner">
-      <button id="standby-translation" class="standby-button standby-translation-toggle" data-standby-action="translation" type="button" aria-label="隐藏中文翻译" aria-pressed="true" hidden>译</button>
-      <button id="standby-lock" class="standby-button standby-lock" data-standby-action="lock" type="button" aria-label="锁定全屏" aria-pressed="false"></button>
       <button id="standby-close" class="standby-button standby-close" data-standby-action="close" type="button" aria-label="退出横屏歌词"></button>
     </div>
     <div class="standby-stage">
       <section class="standby-side">
-        <div class="standby-clock" data-standby-clock aria-hidden="true"></div>
+        <div class="standby-header">
+          <div class="standby-clock" data-standby-clock aria-hidden="true"></div>
+          <div class="standby-tools">
+            <div id="standby-battery" class="standby-battery" role="img" aria-label="暂时无法读取电量">
+              <svg viewBox="0 0 30 16" aria-hidden="true">
+                <rect class="battery-outline" x="1" y="1" width="24" height="14" rx="4"/>
+                <path class="battery-terminal" d="M27 5v6"/>
+                <rect id="standby-battery-fill" class="battery-fill" x="3" y="3" width="0" height="10" rx="2"/>
+                <path class="battery-bolt" d="m14 2-5 7h4l-1 5 6-8h-5z"/>
+              </svg>
+              <span id="standby-battery-percent">--%</span>
+            </div>
+            <div class="standby-header-actions">
+              <button id="standby-translation" class="standby-button standby-translation-toggle" data-standby-action="translation" type="button" aria-label="隐藏中文翻译" aria-pressed="true" hidden>译</button>
+              <button id="standby-lock" class="standby-button standby-lock" data-standby-action="lock" type="button" aria-label="锁定全屏" aria-pressed="false"></button>
+            </div>
+          </div>
+        </div>
         <div class="standby-now">
           <div id="standby-cover" class="standby-cover"></div>
           <div class="standby-meta">
@@ -218,12 +234,9 @@
           <button id="standby-next" class="standby-button standby-solid" data-standby-action="next" type="button" aria-label="下一首"></button>
           <button id="standby-mode" class="standby-button standby-mode" data-standby-action="mode" type="button" aria-label="播放模式"></button>
         </div>
+        <div class="standby-idle"><p>没有正在播放的歌曲</p></div>
       </section>
       <section id="standby-lyrics" class="standby-lyrics" aria-label="歌词"><div id="standby-lines" class="standby-lines"></div></section>
-    </div>
-    <div class="standby-idle">
-      <div class="standby-idle-clock" data-standby-clock></div>
-      <p>没有正在播放的歌曲</p>
     </div>
   </div>
 

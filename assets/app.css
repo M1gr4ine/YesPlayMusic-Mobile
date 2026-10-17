@@ -565,8 +565,31 @@ body.is-standby > .sheet-overlay { content-visibility: hidden; }
 .standby-corner { position: absolute; z-index: 2; top: max(6px, 2.5vh); right: max(18px, 3.5vw); display: flex; gap: 4px; }
 .standby.is-locked .standby-close { visibility: hidden; }
 .standby-stage { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.3fr); align-items: center; column-gap: max(28px, 5vw); height: 100%; padding: 0 max(36px, 6vw); }
-.standby-side { display: flex; flex-direction: column; width: 100%; max-width: 360px; }
-.standby-clock { margin-bottom: 4.5vh; font-size: clamp(44px, 18vh, 84px); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.035em; line-height: .9; }
+.standby-side { display: flex; flex-direction: column; width: 100%; max-width: 360px; container-type: inline-size; }
+.standby-header { --standby-clock-size: clamp(28px, min(18vh, calc(15vw - 50px)), 84px); display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: max(62px, calc(var(--standby-clock-size) * .9)); margin-bottom: 4.5vh; }
+.standby-clock { flex: 0 0 auto; font-size: var(--standby-clock-size); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.035em; line-height: .9; }
+@supports (font-size: 1cqw) {
+  .standby-header { --standby-clock-size: clamp(28px, min(18vh, calc((100cqw - 100px) / 2.65)), 84px); }
+}
+.standby-tools { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; min-width: 88px; }
+.standby-header-actions { display: flex; justify-content: flex-end; min-height: 44px; }
+.standby-header-actions .standby-button { opacity: .6; }
+.standby-battery { display: flex; align-items: center; gap: 4px; min-height: 18px; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; opacity: .8; }
+.standby-battery svg { width: 30px; height: 16px; overflow: visible; }
+.standby-battery .battery-outline { fill: none; stroke: currentColor; stroke-width: 1.3; opacity: .6; }
+.standby-battery .battery-terminal { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; opacity: .6; }
+.standby-battery .battery-fill { fill: currentColor; }
+.standby-battery .battery-bolt { display: none; fill: #111; stroke: rgba(255,255,255,.8); stroke-width: .5; }
+.standby-battery.is-charging { color: #84e6a4; }
+.standby-battery.is-charging .battery-bolt { display: block; }
+.standby-battery.is-low { color: #ff817c; }
+@supports (text-box: trim-both cap alphabetic) and (height: 1cap) {
+  .standby-clock { text-box: trim-both cap alphabetic; }
+  .standby-tools { position: relative; height: 1cap; font-size: var(--standby-clock-size); }
+  /* Match the visible numeral overshoot, SVG stroke, and translation border. */
+  .standby-tools .standby-battery { position: absolute; top: -2.35px; left: 10.9px; }
+  .standby-tools .standby-header-actions { position: absolute; bottom: -11.75px; left: 0; }
+}
 .standby-now { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px; }
 .standby-cover { width: clamp(56px, 19vh, 92px); aspect-ratio: 1; overflow: hidden; border-radius: 9px; background: rgba(255,255,255,.08); box-shadow: 0 8px 22px rgba(0,0,0,.4); }
 .standby-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -603,11 +626,12 @@ body.is-standby > .sheet-overlay { content-visibility: hidden; }
 .standby.no-lyrics:not(.is-loading) .standby-stage { grid-template-columns: minmax(0, 1fr); }
 .standby.no-lyrics:not(.is-loading) .standby-lyrics { display: none; }
 .standby.no-lyrics:not(.is-loading) .standby-side { justify-self: center; }
-.standby.no-lyrics:not(.is-loading) .standby-clock { text-align: center; }
-.standby.is-idle .standby-stage { display: none; }
+.standby.is-idle .standby-stage { grid-template-columns: minmax(0,1fr); }
+.standby.is-idle .standby-side { justify-self: center; max-width: min(100%,580px); }
+.standby.is-idle .standby-header { --standby-clock-size: clamp(64px,26vh,124px); justify-content: center; gap: max(16px,3vw); margin-bottom: 3vh; }
+.standby.is-idle .standby-now, .standby.is-idle .standby-progress, .standby.is-idle .standby-controls, .standby.is-idle .standby-lyrics { display: none; }
 .standby-idle { display: none; }
-.standby.is-idle .standby-idle { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3vh; }
-.standby-idle-clock { font-size: clamp(64px, 30vh, 150px); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1; opacity: .92; }
+.standby.is-idle .standby-idle { display: block; text-align: center; }
 .standby-idle p { margin: 0; font-size: 14px; opacity: .5; }
 @media (prefers-reduced-motion: reduce) {
   .standby-backdrop, .standby-lines, .standby-line { transition: none; }

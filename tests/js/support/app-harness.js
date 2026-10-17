@@ -68,31 +68,4 @@ function fakeDocument() {
   };
 }
 
-function fakeClock() {
-  let now = 0;
-  let nextId = 1;
-  const timers = new Map();
-  return {
-    setTimeout(callback, delay) {
-      const id = nextId++;
-      timers.set(id, { due: now + Number(delay || 0), callback });
-      return id;
-    },
-    clearTimeout(id) { timers.delete(id); },
-    tick(milliseconds) {
-      const target = now + milliseconds;
-      for (;;) {
-        let next = null;
-        for (const [id, timer] of timers) if (timer.due <= target && (!next || timer.due < next[1].due)) next = [id, timer];
-        if (!next) break;
-        timers.delete(next[0]);
-        now = next[1].due;
-        next[1].callback();
-      }
-      now = target;
-    },
-    pending() { return timers.size; }
-  };
-}
-
-module.exports = { loadAppFunctions, fakeDocument, fakeClock };
+module.exports = { loadAppFunctions, fakeDocument };

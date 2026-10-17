@@ -16,7 +16,6 @@ final class QQMatchTest {
                 "collaboration order is ignored");
 
         // NetEase keeps traditional / shinjitai forms that QQ lists in simplified Chinese.
-        that(QQMatch.FOLD_FROM.length() == QQMatch.FOLD_TO.length(), "fold table is index-aligned");
         that(QQMatch.score("花", "藤井風", 246500, "花", "藤井风", 246000) > 140, "artist 風 folds to 风");
         that(QQMatch.score("Lemon", "米津玄師", 256000, "Lemon", "米津玄师", 256000) > 140, "artist 師 folds to 师");
         that(QQMatch.score("千本桜", "初音ミク", 244000, "千本樱", "初音ミク", 244000) > 140, "title 桜 folds to 樱");

@@ -9,6 +9,8 @@ public final class AllTests {
         LrcLinesTest.run();
         NetEaseCryptoTest.run();
         NetEaseLikedTrackCacheTest.run();
+        PlaylistEditDeadlineTest.run();
+        PlaylistEditPolicyTest.run();
         PlaylistTrackOrderTest.run();
         QQMatchTest.run();
         RecentPlaybackStoreTest.run();

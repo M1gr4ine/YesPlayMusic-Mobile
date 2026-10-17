@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 public final class MusicApi {
     private static final String MUSIC_HOST = "https://music.163.com";
     private static final String API_HOST = "https://interface.music.163.com";
+    private static final String PLAYLIST_EDIT_API_HOST = "https://interfacepc.music.163.com";
     private static final String ANDROID_APP_VERSION = "8.20.20.231215173437";
     private static final String ANDROID_CHANNEL = "xiaomi";
     private static final String WEAPI_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -104,6 +105,9 @@ public final class MusicApi {
         if ("setLiked".equals(method)) return setLiked(input);
         if ("ownedPlaylists".equals(method)) return ownedPlaylists();
         if ("playlistAddTrack".equals(method)) return playlistAddTrack(input);
+        if ("playlistUpdate".equals(method)) return playlistUpdate(input);
+        if ("playlistRemoveTracks".equals(method)) return playlistRemoveTracks(input);
+        if ("playlistReorder".equals(method)) return playlistReorder(input);
         if ("matchTrack".equals(method)) return matchTrack(input);
         if ("sendCaptcha".equals(method)) return sendCaptcha(input);
         if ("loginCaptcha".equals(method)) return loginCaptcha(input);
@@ -259,6 +263,7 @@ public final class MusicApi {
     }
 
     private static final int MAX_PLAYLIST_TRACKS = 500; // Keep in sync with PlaybackService.MAX_QUEUE_SIZE.
+    private static final int MAX_PROVIDER_PLAYLIST_TRACKS = 100000; // Match the maximum playlist detail request size.
     private static final int SONG_DETAILS_BATCH_SIZE = 100;
     private static final int PLAYLIST_REQUEST_DEADLINE_SECONDS = 22;
 
@@ -645,6 +650,475 @@ public final class MusicApi {
         return playlistResult(code > 0 ? code : 502, true, message);
     }
 
+    private JSONObject playlistUpdate(JSONObject args) throws Exception {
+        try (PlaylistEditDeadline.Scope ignored = PlaylistEditDeadline.open()) {
+            return playlistUpdateInScope(args);
+        } catch (PlaylistEditDeadline.DeadlineExceededException timeout) {
+            return playlistResult(504, false, timeout.getMessage()).put("updated", false)
+                    .put("nameUpdated", false).put("descriptionUpdated", false)
+                    .put("nameVerified", false).put("descriptionVerified", false)
+                    .put("partial", false).put("resultUnknown", false);
+        }
+    }
+
+    private JSONObject playlistUpdateInScope(JSONObject args) throws Exception {
+        String pid = positivePlaylistId(args.optString("pid", ""));
+        boolean updateName = args.has("name");
+        boolean updateDescription = args.has("description");
+        if (!updateName && !updateDescription) {
+            throw new IllegalArgumentException("请至少填写歌单名称或简介");
+        }
+        String name = updateName ? args.optString("name", "").trim() : "";
+        String description = updateDescription ? args.optString("description", "") : "";
+        if (updateName && (name.isEmpty() || name.codePointCount(0, name.length()) > 40)) {
+            throw new IllegalArgumentException("歌单名称需为 1 至 40 个字符");
+        }
+        if (updateDescription && description.codePointCount(0, description.length()) > 1000) {
+            throw new IllegalArgumentException("歌单简介不能超过 1000 个字符");
+        }
+
+        LikeAccount account = accountForLikes();
+        if (!account.loggedIn) return playlistResult(401, false, "请先登录网易云音乐").put("updated", false)
+                .put("nameVerified", false).put("descriptionVerified", false);
+        boolean nameUpdated = false;
+        boolean descriptionUpdated = false;
+        boolean nameAttempted = false;
+        boolean descriptionAttempted = false;
+        boolean nameVerified = false;
+        boolean descriptionVerified = false;
+        String activeStage = "playlist_preflight";
+        try {
+            editablePlaylist(pid, account);
+            if (updateName) {
+                nameAttempted = true;
+                activeStage = "name_submit";
+                JSONObject response = requestEapiAt(PLAYLIST_EDIT_API_HOST,
+                        "/api/playlist/update/name", new JSONObject().put("id", pid).put("name", name),
+                        account.generation);
+                JSONObject failure = editResponseFailure(response, account, "歌单名称修改失败");
+                if (failure != null) return mutationProviderFailure(failure, response, activeStage,
+                        "歌单名称修改").put("updated", false).put("nameUpdated", false)
+                        .put("descriptionUpdated", false).put("nameVerified", false)
+                        .put("descriptionVerified", false).put("partial", false).put("resultUnknown", true);
+                nameUpdated = true;
+            }
+            if (updateDescription) {
+                descriptionAttempted = true;
+                activeStage = "description_submit";
+                JSONObject response = requestEapiAt(PLAYLIST_EDIT_API_HOST,
+                        "/api/playlist/desc/update",
+                        new JSONObject().put("id", pid).put("desc", description), account.generation);
+                JSONObject failure = editResponseFailure(response, account, "歌单简介修改失败");
+                if (failure != null) {
+                    JSONObject result = mutationProviderFailure(failure, response, activeStage,
+                            "歌单简介修改");
+                    if (nameUpdated) {
+                        result.put("message", playlistUpdateAcceptedPrefix(nameUpdated, descriptionUpdated)
+                                + result.optString("message", ""));
+                    }
+                    return result.put("updated", false).put("nameUpdated", nameUpdated)
+                            .put("descriptionUpdated", false).put("nameVerified", false)
+                            .put("descriptionVerified", false)
+                            .put("partial", playlistUpdatePartial(updateName, updateDescription,
+                                    nameUpdated, descriptionUpdated, nameVerified, descriptionVerified))
+                            .put("resultUnknown", nameAttempted || descriptionAttempted);
+                }
+                descriptionUpdated = true;
+            }
+            if (!sessionGeneration.accepts(account.generation)) {
+                return playlistResult(409, false, playlistUpdateSessionChangedMessage(nameUpdated, descriptionUpdated))
+                        .put("updated", false).put("nameUpdated", nameUpdated)
+                        .put("descriptionUpdated", descriptionUpdated).put("nameVerified", false)
+                        .put("descriptionVerified", false).put("partial", playlistUpdatePartial(updateName,
+                                updateDescription, nameUpdated, descriptionUpdated, false, false))
+                        .put("resultUnknown", nameAttempted || descriptionAttempted)
+                        .put("stage", activeStage);
+            }
+            activeStage = "metadata_readback";
+            JSONObject after = editablePlaylist(pid, account);
+            nameVerified = updateName && name.equals(after.optString("name", ""));
+            String savedDescription = after.optString("description", after.optString("desc", ""));
+            descriptionVerified = updateDescription && description.equals(savedDescription);
+            boolean allRequestedVerified = (!updateName || nameVerified) && (!updateDescription || descriptionVerified);
+            if (!allRequestedVerified) {
+                boolean partial = playlistUpdatePartial(updateName, updateDescription, nameUpdated, descriptionUpdated, nameVerified, descriptionVerified);
+                String stage = metadataMismatchStage(updateName, updateDescription, nameVerified, descriptionVerified);
+                return playlistResult(502, true, metadataMismatchMessage(updateName, updateDescription,
+                        nameVerified, descriptionVerified))
+                        .put("updated", false).put("nameUpdated", nameUpdated)
+                        .put("descriptionUpdated", descriptionUpdated).put("nameVerified", nameVerified)
+                        .put("descriptionVerified", descriptionVerified).put("partial", partial).put("stage", stage)
+                        .put("readbackCode", 200).put("resultUnknown", true);
+            }
+            return playlistResult(200, true, null).put("updated", true)
+                    .put("nameUpdated", nameUpdated).put("descriptionUpdated", descriptionUpdated)
+                    .put("nameVerified", nameVerified).put("descriptionVerified", descriptionVerified)
+                    .put("partial", false).put("resultUnknown", false);
+        } catch (PlaylistEditFailure failure) {
+            JSONObject result = failure.result();
+            if ((nameAttempted && !nameVerified) || (descriptionAttempted && !descriptionVerified)) {
+                result.put("message", playlistUpdateFailureMessage(activeStage, failure.code, nameUpdated, descriptionUpdated))
+                        .put("stage", activeStage);
+                if ("metadata_readback".equals(activeStage)) result.put("readbackCode", failure.code);
+            }
+            return result.put("updated", false).put("nameUpdated", nameUpdated)
+                    .put("descriptionUpdated", descriptionUpdated).put("nameVerified", nameVerified)
+                    .put("descriptionVerified", descriptionVerified)
+                    .put("partial", playlistUpdatePartial(updateName, updateDescription, nameUpdated, descriptionUpdated, nameVerified, descriptionVerified))
+                    .put("resultUnknown", (nameAttempted && !nameVerified) || (descriptionAttempted && !descriptionVerified));
+        } catch (PlaylistEditDeadline.DeadlineExceededException timeout) {
+            String message = nameAttempted || descriptionAttempted
+                    ? playlistUpdateFailureMessage(activeStage, -1, nameUpdated, descriptionUpdated) : timeout.getMessage();
+            JSONObject result = playlistResult(504, sessionGeneration.accepts(account.generation), message)
+                    .put("updated", false).put("nameUpdated", nameUpdated)
+                    .put("descriptionUpdated", descriptionUpdated).put("nameVerified", nameVerified)
+                    .put("descriptionVerified", descriptionVerified)
+                    .put("partial", playlistUpdatePartial(updateName, updateDescription, nameUpdated, descriptionUpdated, nameVerified, descriptionVerified))
+                    .put("resultUnknown", (nameAttempted && !nameVerified) || (descriptionAttempted && !descriptionVerified))
+                    .put("stage", activeStage);
+            if (activeStage.endsWith("_submit")) result.put("providerCode", -1);
+            else if ("metadata_readback".equals(activeStage)) result.put("readbackCode", -1);
+            return result;
+        } catch (Exception failure) {
+            if (!sessionGeneration.accepts(account.generation)) {
+                return playlistResult(409, false, playlistUpdateSessionChangedMessage(nameUpdated, descriptionUpdated))
+                        .put("updated", false).put("nameUpdated", nameUpdated)
+                        .put("descriptionUpdated", descriptionUpdated).put("nameVerified", nameVerified)
+                        .put("descriptionVerified", descriptionVerified)
+                        .put("partial", playlistUpdatePartial(updateName, updateDescription, nameUpdated, descriptionUpdated, nameVerified, descriptionVerified))
+                        .put("resultUnknown", (nameAttempted && !nameVerified) || (descriptionAttempted && !descriptionVerified))
+                        .put("stage", activeStage);
+            }
+            JSONObject result = playlistResult(502, true, nameAttempted || descriptionAttempted
+                    ? playlistUpdateFailureMessage(activeStage, -1, nameUpdated, descriptionUpdated) : "歌单修改失败，请重试")
+                    .put("updated", false).put("nameUpdated", nameUpdated)
+                    .put("descriptionUpdated", descriptionUpdated).put("nameVerified", nameVerified)
+                    .put("descriptionVerified", descriptionVerified)
+                    .put("partial", playlistUpdatePartial(updateName, updateDescription, nameUpdated, descriptionUpdated, nameVerified, descriptionVerified))
+                    .put("resultUnknown", (nameAttempted && !nameVerified) || (descriptionAttempted && !descriptionVerified))
+                    .put("stage", activeStage);
+            if (nameAttempted || descriptionAttempted) {
+                if (activeStage.endsWith("_submit")) result.put("providerCode", -1);
+                else if ("metadata_readback".equals(activeStage)) result.put("readbackCode", -1);
+            }
+            return result;
+        }
+    }
+
+    private JSONObject playlistRemoveTracks(JSONObject args) throws Exception {
+        try (PlaylistEditDeadline.Scope ignored = PlaylistEditDeadline.open()) {
+            return playlistRemoveTracksInScope(args);
+        } catch (PlaylistEditDeadline.DeadlineExceededException timeout) {
+            return playlistResult(504, false, timeout.getMessage()).put("removed", false)
+                    .put("resultUnknown", false);
+        }
+    }
+
+    private JSONObject playlistRemoveTracksInScope(JSONObject args) throws Exception {
+        String pid = positivePlaylistId(args.optString("pid", ""));
+        List<String> ids = PlaylistEditPolicy.requirePositiveIds(args.optJSONArray("ids"), MAX_PLAYLIST_TRACKS);
+        LikeAccount account = accountForLikes();
+        if (!account.loggedIn) return playlistResult(401, false, "请先登录网易云音乐").put("removed", false);
+        boolean removalAttempted = false;
+        try {
+            JSONObject before = editablePlaylist(pid, account);
+            List<String> beforeIds;
+            try {
+                beforeIds = PlaylistEditPolicy.completeTrackIds(before, MAX_PROVIDER_PLAYLIST_TRACKS);
+            } catch (IllegalArgumentException incomplete) {
+                return playlistResult(409, true, "无法加载完整歌单曲目")
+                        .put("removed", false);
+            }
+            if (!beforeIds.containsAll(ids)) {
+                return playlistResult(409, true, "所选歌曲已不在该歌单中，请刷新后重试")
+                        .put("removed", false);
+            }
+            JSONArray trackIds = new JSONArray();
+            for (String id : ids) trackIds.put(id);
+            JSONObject params = new JSONObject().put("op", "del").put("pid", pid)
+                    .put("trackIds", trackIds.toString()).put("imme", "true");
+            removalAttempted = true;
+            JSONObject response = requestEapi("/api/playlist/manipulate/tracks", params, account.generation);
+            JSONObject failure = editResponseFailure(response, account, "移除歌曲失败");
+            if (failure != null) return failure.put("message", "网易云音乐未确认歌曲移除结果")
+                    .put("removed", false).put("resultUnknown", true);
+            if (!sessionGeneration.accepts(account.generation)) {
+                return playlistResult(409, false, "登录状态已变化，移除结果未确认，请刷新歌单")
+                        .put("removed", false).put("resultUnknown", true);
+            }
+            JSONObject after = editablePlaylist(pid, account);
+            List<String> afterIds;
+            try {
+                afterIds = PlaylistEditPolicy.completeTrackIds(after, MAX_PROVIDER_PLAYLIST_TRACKS);
+            } catch (IllegalArgumentException incomplete) {
+                return playlistResult(502, true, "网易云音乐未确认歌曲移除结果")
+                        .put("removed", false).put("resultUnknown", true);
+            }
+            if (!PlaylistEditPolicy.removalMatches(beforeIds, ids, afterIds)) {
+                return playlistResult(502, true, "网易云音乐未确认歌曲移除结果")
+                        .put("removed", false).put("resultUnknown", true);
+            }
+            return playlistResult(200, true, null).put("removed", true);
+        } catch (PlaylistEditFailure failure) {
+            JSONObject result = failure.result().put("removed", false);
+            if (removalAttempted) result.put("message", "网易云音乐未确认歌曲移除结果")
+                    .put("resultUnknown", true);
+            return result;
+        } catch (PlaylistEditDeadline.DeadlineExceededException timeout) {
+            return playlistResult(504, sessionGeneration.accepts(account.generation), timeout.getMessage())
+                    .put("removed", false).put("resultUnknown", removalAttempted);
+        } catch (Exception failure) {
+            if (!sessionGeneration.accepts(account.generation)) {
+                return playlistResult(409, false, removalAttempted
+                        ? "登录状态已变化，移除结果未确认，请刷新歌单" : "登录状态已变化，请重试")
+                        .put("removed", false).put("resultUnknown", removalAttempted);
+            }
+            return playlistResult(502, true, removalAttempted
+                    ? "网易云音乐未确认歌曲移除结果" : "移除歌曲失败，请重试")
+                    .put("removed", false).put("resultUnknown", removalAttempted);
+        }
+    }
+
+    private JSONObject playlistReorder(JSONObject args) throws Exception {
+        try (PlaylistEditDeadline.Scope ignored = PlaylistEditDeadline.open()) {
+            return playlistReorderInScope(args);
+        } catch (PlaylistEditDeadline.DeadlineExceededException timeout) {
+            return playlistResult(504, false, timeout.getMessage()).put("reordered", false)
+                    .put("resultUnknown", false);
+        }
+    }
+
+    private JSONObject playlistReorderInScope(JSONObject args) throws Exception {
+        String pid = positivePlaylistId(args.optString("pid", ""));
+        List<String> desiredIds = PlaylistEditPolicy.requirePositiveIds(
+                args.optJSONArray("ids"), MAX_PLAYLIST_TRACKS);
+        LikeAccount account = accountForLikes();
+        if (!account.loggedIn) return playlistResult(401, false, "请先登录网易云音乐").put("reordered", false);
+        boolean reorderAttempted = false;
+        String activeStage = "playlist_preflight";
+        try {
+            JSONObject before = editablePlaylist(pid, account);
+            List<String> currentIds;
+            try {
+                currentIds = PlaylistEditPolicy.completeTrackIds(before, MAX_PLAYLIST_TRACKS);
+            } catch (IllegalArgumentException incomplete) {
+                return playlistResult(409, true, "歌单超过 500 首或无法加载完整曲目，暂不支持排序")
+                        .put("reordered", false);
+            }
+            if (!PlaylistEditPolicy.sameTrackIds(currentIds, desiredIds)) {
+                return playlistResult(409, true, "排序必须包含歌单中的全部歌曲，且每首仅出现一次")
+                        .put("reordered", false);
+            }
+            if (currentIds.equals(desiredIds)) {
+                return playlistResult(200, true, null).put("reordered", true).put("unchanged", true);
+            }
+            StringBuilder ordered = new StringBuilder("[");
+            for (String id : desiredIds) {
+                if (ordered.length() > 1) ordered.append(',');
+                ordered.append(id);
+            }
+            ordered.append(']');
+            reorderAttempted = true;
+            activeStage = "order_submit";
+            JSONObject response = requestEapiAt(PLAYLIST_EDIT_API_HOST,
+                    "/api/playlist/manipulate/tracks",
+                    new JSONObject().put("pid", pid).put("trackIds", ordered.toString()).put("op", "update"),
+                    account.generation);
+            JSONObject failure = editResponseFailure(response, account, "歌单排序失败");
+            if (failure != null) return mutationProviderFailure(failure, response, activeStage,
+                    "歌单排序").put("reordered", false).put("resultUnknown", true);
+            if (!sessionGeneration.accepts(account.generation)) {
+                return playlistResult(409, false, "登录状态已变化，排序结果未确认，请刷新歌单")
+                        .put("reordered", false).put("resultUnknown", true).put("stage", activeStage);
+            }
+            activeStage = "order_readback";
+            JSONObject after = editablePlaylist(pid, account);
+            List<String> savedIds;
+            try {
+                savedIds = PlaylistEditPolicy.completeTrackIds(after, MAX_PLAYLIST_TRACKS);
+            } catch (IllegalArgumentException incomplete) {
+                return playlistResult(502, true, "网易云音乐未确认歌单排序结果（排序回读不完整）")
+                        .put("reordered", false).put("resultUnknown", true).put("stage", activeStage)
+                        .put("readbackCode", 200);
+            }
+            if (!currentPlaylistId(after).equals(pid) || !desiredIds.equals(savedIds)) {
+                return playlistResult(502, true, "网易云音乐未确认歌单排序结果（排序回读不一致）")
+                        .put("reordered", false).put("resultUnknown", true).put("stage", activeStage)
+                        .put("readbackCode", 200);
+            }
+            return playlistResult(200, true, null).put("reordered", true);
+        } catch (PlaylistEditFailure failure) {
+            JSONObject result = failure.result().put("reordered", false);
+            if (reorderAttempted) {
+                result.put("message", "网易云音乐未确认歌单排序结果（" + playlistStageLabel(activeStage)
+                                + "，读取码 " + failure.code + "）")
+                        .put("stage", activeStage).put("readbackCode", failure.code).put("resultUnknown", true);
+            }
+            return result;
+        } catch (PlaylistEditDeadline.DeadlineExceededException timeout) {
+            JSONObject result = playlistResult(504, sessionGeneration.accepts(account.generation),
+                    reorderAttempted ? "网易云音乐未确认歌单排序结果（" + playlistStageLabel(activeStage)
+                            + "，网络或响应异常）" : timeout.getMessage())
+                    .put("reordered", false).put("resultUnknown", reorderAttempted).put("stage", activeStage);
+            if (reorderAttempted) result.put("order_submit".equals(activeStage) ? "providerCode" : "readbackCode", -1);
+            return result;
+        } catch (Exception failure) {
+            if (!sessionGeneration.accepts(account.generation)) {
+                return playlistResult(409, false, reorderAttempted
+                        ? "登录状态已变化，排序结果未确认，请刷新歌单" : "登录状态已变化，请重试")
+                        .put("reordered", false).put("resultUnknown", reorderAttempted).put("stage", activeStage);
+            }
+            JSONObject result = playlistResult(502, true, reorderAttempted
+                    ? "网易云音乐未确认歌单排序结果（" + playlistStageLabel(activeStage) + "，网络或响应异常）"
+                    : "歌单排序失败，请重试")
+                    .put("reordered", false).put("resultUnknown", reorderAttempted).put("stage", activeStage);
+            if (reorderAttempted) result.put("order_submit".equals(activeStage) ? "providerCode" : "readbackCode", -1);
+            return result;
+        }
+    }
+
+    private JSONObject editablePlaylist(String pid, LikeAccount account) throws Exception {
+        if (!sessionGeneration.accepts(account.generation)) {
+            throw new PlaylistEditFailure(409, false, "登录状态已变化，请重试");
+        }
+        JSONObject params = new JSONObject().put("id", pid).put("n", 100000).put("s", 0);
+        JSONObject response = requestEapi("/api/v6/playlist/detail", params, account.generation);
+        if (!sessionGeneration.accepts(account.generation)) {
+            throw new PlaylistEditFailure(409, false, "登录状态已变化，请重试");
+        }
+        int code = response.optInt("code", -1);
+        if (code == 301 || code == 401) throw new PlaylistEditFailure(401, false, "请先登录网易云音乐");
+        JSONObject playlist = response.optJSONObject("playlist");
+        if (code != 200 || playlist == null) throw new PlaylistEditFailure(502, true, "无法读取歌单");
+        if (!PlaylistEditPolicy.isOwnedPlaylist(playlist, account.userId)) {
+            throw new PlaylistEditFailure(403, true, "只能编辑当前账号创建的歌单");
+        }
+        return playlist;
+    }
+
+    private JSONObject editResponseFailure(JSONObject response, LikeAccount account, String fallback) throws Exception {
+        if (!sessionGeneration.accepts(account.generation)) {
+            return playlistResult(409, false, "登录状态已变化，请重试");
+        }
+        int code = response.optInt("code", -1);
+        if (code == 200) return null;
+        if (code == 301 || code == 401) return playlistResult(401, false, "请先登录网易云音乐");
+        String message = response.optString("message", response.optString("msg", ""));
+        if (message.isEmpty() || message.length() > 100) message = fallback;
+        return playlistResult(code > 0 ? code : 502, true, message);
+    }
+
+    private static JSONObject mutationProviderFailure(JSONObject failure, JSONObject response,
+                                                       String stage, String operation) throws JSONException {
+        int providerCode = response.optInt("code", -1);
+        String message = providerCode == 301 || providerCode == 401
+                ? "请先登录网易云音乐（" + playlistStageLabel(stage) + "，错误码 " + providerCode + "）"
+                : "网易云音乐拒绝" + operation + "（" + playlistStageLabel(stage)
+                        + "，错误码 " + providerCode + "）";
+        return failure.put("message", message).put("stage", stage).put("providerCode", providerCode);
+    }
+
+    private static String playlistStageLabel(String stage) {
+        if ("name_submit".equals(stage)) return "名称提交";
+        if ("description_submit".equals(stage)) return "简介提交";
+        if ("order_submit".equals(stage)) return "排序提交";
+        if ("metadata_readback".equals(stage)) return "歌单信息回读";
+        if ("name_readback_mismatch".equals(stage)) return "名称回读";
+        if ("description_readback_mismatch".equals(stage)) return "简介回读";
+        if ("metadata_readback_mismatch".equals(stage)) return "名称和简介回读";
+        if ("order_readback".equals(stage)) return "排序回读";
+        if ("playlist_preflight".equals(stage)) return "歌单权限读取";
+        return "歌单修改";
+    }
+
+    private static String playlistUpdateFailureMessage(String stage, int providerCode,
+                                                        boolean nameUpdated, boolean descriptionUpdated) {
+        String detail = providerCode > 0 ? "错误码 " + providerCode : "网络或响应异常";
+        String accepted = playlistUpdateAcceptedPrefix(nameUpdated, descriptionUpdated);
+        if ("description_submit".equals(stage) && nameUpdated && !descriptionUpdated) {
+            return accepted + "简介提交结果未确认（" + detail + "）";
+        }
+        if ("name_submit".equals(stage) || "description_submit".equals(stage)) {
+            return accepted + "网易云音乐未确认歌单修改结果（"
+                    + playlistStageLabel(stage) + "，" + detail + "）";
+        }
+        if ("metadata_readback".equals(stage)) {
+            String readback = providerCode > 0 ? "读取码 " + providerCode : detail;
+            return accepted + "歌单信息回读失败，修改结果未确认（"
+                    + readback + "）";
+        }
+        return accepted + "歌单修改失败，请重试";
+    }
+
+    private static String playlistUpdateAcceptedPrefix(boolean nameUpdated, boolean descriptionUpdated) {
+        if (nameUpdated && descriptionUpdated) {
+            return "名称和简介提交均已被网易云音乐接受，但尚未回读核实；";
+        }
+        if (nameUpdated) {
+            return "名称提交已被网易云音乐接受，但尚未回读核实；";
+        }
+        if (descriptionUpdated) {
+            return "简介提交已被网易云音乐接受，但尚未回读核实；";
+        }
+        return "";
+    }
+
+    private static String playlistUpdateSessionChangedMessage(boolean nameUpdated, boolean descriptionUpdated) {
+        return playlistUpdateAcceptedPrefix(nameUpdated, descriptionUpdated)
+                + "登录状态已变化，修改结果尚未确认，请刷新歌单";
+    }
+
+    private static boolean playlistUpdatePartial(boolean updateName, boolean updateDescription,
+                                                 boolean nameUpdated, boolean descriptionUpdated,
+                                                 boolean nameVerified, boolean descriptionVerified) {
+        return updateName && updateDescription
+                && ((nameUpdated && !descriptionUpdated) || (nameVerified != descriptionVerified));
+    }
+
+    private static String metadataMismatchStage(boolean updateName, boolean updateDescription,
+                                                boolean nameVerified, boolean descriptionVerified) {
+        if (updateName && !nameVerified && updateDescription && !descriptionVerified) {
+            return "metadata_readback_mismatch";
+        }
+        if (updateName && !nameVerified) return "name_readback_mismatch";
+        return "description_readback_mismatch";
+    }
+
+    private static String metadataMismatchMessage(boolean updateName, boolean updateDescription,
+                                                  boolean nameVerified, boolean descriptionVerified) {
+        if (updateName && !nameVerified && updateDescription && !descriptionVerified) {
+            return "网易云音乐未确认歌单修改结果（名称和简介回读不一致）";
+        }
+        if (updateName && !nameVerified) return "网易云音乐未确认歌单修改结果（名称回读不一致）";
+        return "网易云音乐未确认歌单修改结果（简介回读不一致）";
+    }
+
+    private static String positivePlaylistId(String value) {
+        String id = value == null ? "" : value.trim();
+        if (!NetEaseAuthState.hasPositiveUserId(id)) throw new IllegalArgumentException("歌单 ID 必须为正整数");
+        return id;
+    }
+
+    private static String currentPlaylistId(JSONObject playlist) {
+        return playlist == null ? "" : playlist.optString("id", "");
+    }
+
+    private static final class PlaylistEditFailure extends Exception {
+        final int code;
+        final boolean loggedIn;
+        final String message;
+
+        PlaylistEditFailure(int code, boolean loggedIn, String message) {
+            this.code = code;
+            this.loggedIn = loggedIn;
+            this.message = message;
+        }
+
+        JSONObject result() throws JSONException {
+            return playlistResult(code, loggedIn, message);
+        }
+    }
+
     /** Finds the NetEase version of a QQ catalog song so it can be added to a NetEase playlist. */
     private JSONObject matchTrack(JSONObject args) throws Exception {
         String title = args.optString("title", "").trim();
@@ -784,7 +1258,7 @@ public final class MusicApi {
         if (!captcha.isEmpty()) {
             params.put("captcha", captcha);
         } else {
-            params.put("password", md5Password.isEmpty() ? NetEaseCrypto.md5Text(password) : md5Password);
+            params.put("password", md5Password.isEmpty() ? NetEaseCrypto.md5(password) : md5Password);
         }
         long generation = advanceSessionGeneration();
         JSONObject response = requestEapi("/api/w/login/cellphone", params, generation);
@@ -894,6 +1368,11 @@ public final class MusicApi {
     }
 
     private JSONObject requestEapi(String apiPath, JSONObject params, long requestGeneration) throws Exception {
+        return requestEapiAt(API_HOST, apiPath, params, requestGeneration);
+    }
+
+    private JSONObject requestEapiAt(String host, String apiPath, JSONObject params, long requestGeneration)
+            throws Exception {
         String normalized = NetEaseCrypto.normalizeApiPath(apiPath);
         RequestMetadata metadata;
         synchronized (cookieLock) {
@@ -906,7 +1385,7 @@ public final class MusicApi {
         JSONObject envelope = new JSONObject();
         envelope.put("params", NetEaseCrypto.encryptEApi(normalized, requestParameters));
         String relative = normalized.substring(5);
-        return requestPost(API_HOST + "/eapi/" + relative, form(envelope, false), false,
+        return requestPost(host + "/eapi/" + relative, form(envelope, false), false,
                 requestGeneration, metadata.eapiCookieHeader());
     }
 
@@ -922,10 +1401,12 @@ public final class MusicApi {
                                    String cookieHeader) throws Exception {
         HttpURLConnection connection = null;
         try {
+            PlaylistEditDeadline.checkCurrent();
             if (!sessionGeneration.accepts(requestGeneration)) {
                 throw new IOException("\u767b\u5f55\u72b6\u6001\u5df2\u53d8\u5316\uff0c\u8bf7\u91cd\u8bd5");
             }
             connection = (HttpURLConnection) new URL(endpoint).openConnection();
+            PlaylistEditDeadline.attachCurrent(connection);
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
             connection.setReadTimeout(READ_TIMEOUT_MS);
@@ -939,10 +1420,13 @@ public final class MusicApi {
                     ? requestCookieHeader(weapi) : cookieHeader);
             byte[] request = body.getBytes(StandardCharsets.UTF_8);
             connection.setFixedLengthStreamingMode(request.length);
+            PlaylistEditDeadline.checkCurrent();
             try (OutputStream output = connection.getOutputStream()) {
                 output.write(request);
             }
+            PlaylistEditDeadline.checkCurrent();
             int status = connection.getResponseCode();
+            PlaylistEditDeadline.checkCurrent();
             storeResponseCookies(connection, requestGeneration);
             InputStream input = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
             if (input == null) throw new IOException("网易云接口未返回数据（HTTP " + status + "）");
@@ -950,12 +1434,17 @@ public final class MusicApi {
             try (InputStream stream = input) {
                 bytes = readBounded(stream, MAX_RESPONSE_BYTES);
             }
+            PlaylistEditDeadline.checkCurrent();
             try {
                 return new JSONObject(new String(bytes, StandardCharsets.UTF_8));
             } catch (JSONException parseFailure) {
                 throw new IOException("网易云接口返回无法识别的数据（HTTP " + status + "）");
             }
+        } catch (Exception failure) {
+            PlaylistEditDeadline.checkCurrent();
+            throw failure;
         } finally {
+            PlaylistEditDeadline.detachCurrent(connection);
             if (connection != null) connection.disconnect();
         }
     }

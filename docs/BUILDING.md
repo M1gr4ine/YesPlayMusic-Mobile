@@ -44,6 +44,8 @@ The script recreates only its checked `build/work` temporary directory. It leave
 
 ## Tests
 
+Keep tests focused on observable behavior: lyric parsing, catalog identity, stale asynchronous results, playlist ownership and readback, and request deadlines. UI geometry, keyboard placement, and animations need a browser or device check; avoid full DOM emulators and reflection-based tests of private Java implementation details.
+
 `run-tests.py` runs the page logic tests with Node.js 18+ and the native helper tests on the JVM. The JVM tests compile `src/` against `android.jar`, which only ships `org.json` stubs, so they also need a real [org.json](https://central.sonatype.com/artifact/org.json/json) jar:
 
 ```sh

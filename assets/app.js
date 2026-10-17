@@ -54,6 +54,7 @@
     playlistLoading: false,
     playlistError: false,
     playlistRequestGeneration: 0,
+    playlistEditor: null,
     playlistOriginScrollTop: 0,
     playlistKind: '',
     detailStack: [],
@@ -81,6 +82,7 @@
     searchRequestGeneration: 0,
     authGeneration: 0,
     authMutation: '',
+    accountSessionGeneration: 0,
     favoriteGeneration: 0,
     favorite: { key: '', provider: '', available: false, loggedIn: false, liked: null, loading: false, mutating: false },
     polling: false
@@ -116,6 +118,10 @@
   let seekDragging = false;
   // Native IME visibility from WindowInsets; null until the Android shell reports it.
   let nativeKeyboardVisible = null;
+  let nativeKeyboardInsetDp = 0;
+  let playlistEditorViewportBeforeIme = null;
+  let lastNonKeyboardViewport = null;
+  let playlistEditorVisibilityFramePending = false;
   let mediaQueueCache = { version: undefined, queue: [] };
   let queueSignatureSource = null;
   let queueSignatureValue = '';
@@ -448,14 +454,15 @@
     return new Error('服务暂时不可用，请检查网络后重试。');
   }
 
-  function request(method, args) {
+  function request(method, args, timeoutMs) {
     if (!nativeReady()) return Promise.reject(new Error('请在已安装的 YesPlayMusic 手机应用中使用此功能。'));
     const requestId = `ui-${Date.now()}-${++requestSequence}`;
+    const timeout = Number.isFinite(Number(timeoutMs)) ? Math.max(25000, Math.min(120000, Number(timeoutMs))) : 25000;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(requestId);
         reject(safeFailure());
-      }, 25000);
+      }, timeout);
       pending.set(requestId, { resolve, reject, timer });
       try {
         window.Native.request(requestId, String(method), JSON.stringify(args || {}));
@@ -600,16 +607,45 @@
   function extractPlaylistDetail(response) {
     const playlist = response && response.playlist ? response.playlist : response;
     if (!playlist || typeof playlist !== 'object') return null;
+    const rawTracks = Array.isArray(playlist.tracks) ? playlist.tracks : [];
+    const tracks = rawTracks.map(item => normalizeTrack(item, item.provider || 'netease')).filter(Boolean);
+    const totalTrackCount = Number(playlist.totalTrackCount ?? playlist.trackCount ?? rawTracks.length);
+    const loadedTrackCount = Number(playlist.loadedTrackCount ?? rawTracks.length);
     return {
       id: String(playlist.id || ''), name: String(playlist.name || playlist.title || '歌单'),
       artwork: safeHttpsUrl(playlist.coverImgUrl || playlist.picUrl || playlist.cover || ''),
       creator: playlist.creator && String(playlist.creator.nickname || playlist.creator.name || ''),
+      creatorUserId: String(playlist.creator && playlist.creator.userId != null ? playlist.creator.userId : ''),
+      subscribed: playlist.subscribed === true ? true : (playlist.subscribed === false ? false : null),
+      specialType: Number.isFinite(Number(playlist.specialType)) ? Number(playlist.specialType) : null,
       description: String(playlist.description || ''),
-      total: Number(playlist.totalTrackCount || playlist.trackCount || playlist.tracks?.length || 0),
+      total: Number.isFinite(totalTrackCount) ? totalTrackCount : rawTracks.length,
+      totalTrackCount: Number.isFinite(totalTrackCount) ? totalTrackCount : rawTracks.length,
+      loadedTrackCount: Number.isFinite(loadedTrackCount) ? loadedTrackCount : rawTracks.length,
       truncated: !!playlist.tracksTruncated,
       loadError: String(playlist.tracksLoadError || ''),
-      tracks: (Array.isArray(playlist.tracks) ? playlist.tracks : []).map(item => normalizeTrack(item, item.provider || 'netease')).filter(Boolean)
+      tracks,
+      tracksComplete: playlistTracksComplete({
+        tracks, totalTrackCount, loadedTrackCount,
+        tracksTruncated: !!playlist.tracksTruncated,
+        tracksLoadError: String(playlist.tracksLoadError || ''),
+        rawTrackCount: rawTracks.length
+      })
     };
+  }
+
+  function playlistTracksComplete(playlist) {
+    if (!playlist || typeof playlist !== 'object') return false;
+    const tracks = Array.isArray(playlist.tracks) ? playlist.tracks : [];
+    const rawCount = Number(playlist.rawTrackCount ?? tracks.length);
+    const total = Number(playlist.totalTrackCount ?? playlist.total ?? tracks.length);
+    const loaded = Number(playlist.loadedTrackCount ?? tracks.length);
+    const truncated = playlist.tracksTruncated === undefined ? playlist.truncated : playlist.tracksTruncated;
+    const loadError = String(playlist.tracksLoadError || playlist.loadError || '').trim();
+    return playlist.tracksComplete !== false && !truncated && !loadError
+      && Number.isFinite(rawCount) && Number.isFinite(total) && Number.isFinite(loaded)
+      && rawCount === tracks.length && loaded === tracks.length && total === tracks.length
+      && tracks.every(track => track && /^[1-9]\d{0,23}$/.test(String(track.id || '')));
   }
 
   function displayName() {
@@ -735,6 +771,8 @@
     const nextAccount = isNeteaseLoggedIn(netease) ? (netease.profile || netease.account || netease) : null;
     const nextAccountKey = accountIdentity(nextAccount);
     if (nextAccountKey !== previousAccountKey) {
+      state.accountSessionGeneration = Number(state.accountSessionGeneration || 0) + 1;
+      state.playlistEditor = null;
       state.libraryRequestGeneration += 1;
       state.libraryLoading = false;
       state.library = [];
@@ -894,6 +932,7 @@
   async function logoutProvider(provider, method) {
     if (state.authMutation) return;
     state.authGeneration += 1;
+    if (provider === 'netease') state.accountSessionGeneration = Number(state.accountSessionGeneration || 0) + 1;
     state.authMutation = provider;
     invalidateFavoriteStatus(false);
     renderSettingsAccount();
@@ -919,7 +958,7 @@
     } finally {
       state.authMutation = '';
       renderSettingsAccount();
-      if (provider === 'netease') renderTab();
+      if (provider === 'netease' || state.playlistEditor) renderTab();
       await refreshAuth();
     }
   }
@@ -1252,6 +1291,367 @@
     }
   }
 
+  function playlistCanEdit(playlist) {
+    const target = playlist || state.playlist;
+    const ownerKey = accountIdentity(state.account);
+    return state.playlistKind === 'playlist' && !!target && !!ownerKey
+      && String(target.id || '') === String(state.playlistId || '')
+      && String(target.creatorUserId || '') === ownerKey
+      && target.subscribed === false && Number(target.specialType) !== 5 && !state.authMutation;
+  }
+
+  function playlistEditorCurrent(editor) {
+    const current = editor || state.playlistEditor;
+    return !!current && current === state.playlistEditor && playlistCanEdit(state.playlist)
+      && current.pid === String(state.playlistId || '')
+      && current.ownerKey === accountIdentity(state.account)
+      && current.detailGeneration === state.playlistRequestGeneration
+      && current.accountSessionGeneration === Number(state.accountSessionGeneration || 0);
+  }
+
+  function playlistEditorHasChanges(editor) {
+    const current = editor || state.playlistEditor;
+    if (!current) return false;
+    if (current.mode === 'metadata') return current.name !== String(state.playlist && state.playlist.name || '')
+      || current.description !== String(state.playlist && state.playlist.description || '');
+    if (current.mode === 'removal') return current.selectedIndices.length > 0;
+    if (current.mode === 'reorder') return current.draftTracks.some((row, index) => row.sourceIndex !== index);
+    return false;
+  }
+
+  function beginPlaylistEditor(mode) {
+    if (!playlistCanEdit(state.playlist) || state.playlistEditor) return false;
+    if (mode === 'reorder' && !playlistTracksComplete(state.playlist)) return false;
+    state.playlistEditor = {
+      mode, pid: String(state.playlist.id), ownerKey: accountIdentity(state.account),
+      detailGeneration: state.playlistRequestGeneration,
+      accountSessionGeneration: Number(state.accountSessionGeneration || 0),
+      name: String(state.playlist.name || ''), description: String(state.playlist.description || ''),
+      selectedIndices: [], pendingRemovalReview: false,
+      draftTracks: mode === 'reorder' ? state.playlist.tracks.map((track, sourceIndex) => ({ track, sourceIndex })) : [],
+      saving: '', confirmingDiscard: false, pendingAction: null, error: ''
+    };
+    renderTab();
+    return true;
+  }
+
+  function openPlaylistMetadataEditor() { return beginPlaylistEditor('metadata'); }
+  function openPlaylistRemovalEditor() { return beginPlaylistEditor('removal'); }
+  function openPlaylistReorderEditor() { return beginPlaylistEditor('reorder'); }
+
+  function updatePlaylistMetadataDraft(field, value) {
+    const editor = state.playlistEditor;
+    if (!playlistEditorCurrent(editor) || editor.mode !== 'metadata' || editor.saving) return;
+    if (field === 'name') editor.name = String(value == null ? '' : value);
+    if (field === 'description') editor.description = String(value == null ? '' : value);
+  }
+
+  function selectPlaylistTrack(index, selected) {
+    const editor = state.playlistEditor;
+    const rowIndex = Number(index);
+    if (!playlistEditorCurrent(editor) || editor.mode !== 'removal' || editor.saving
+      || !Number.isInteger(rowIndex) || rowIndex < 0 || rowIndex >= state.playlist.tracks.length) return;
+    const indices = new Set(editor.selectedIndices);
+    if (selected) indices.add(rowIndex); else indices.delete(rowIndex);
+    editor.selectedIndices = Array.from(indices).sort((a, b) => a - b);
+    editor.pendingRemovalReview = false;
+    editor.error = '';
+    renderTab();
+  }
+
+  function reviewPlaylistRemoval() {
+    const editor = state.playlistEditor;
+    if (!playlistEditorCurrent(editor) || editor.mode !== 'removal' || editor.saving || !editor.selectedIndices.length) return;
+    editor.pendingRemovalReview = true;
+    editor.error = '';
+    renderTab();
+  }
+
+  function movePlaylistTrack(index, delta) {
+    const editor = state.playlistEditor;
+    if (!playlistEditorCurrent(editor) || editor.mode !== 'reorder' || editor.saving || !playlistTracksComplete(state.playlist)) return;
+    const from = Number(index); const to = from + Number(delta);
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || to >= editor.draftTracks.length) return;
+    const rows = editor.draftTracks.slice();
+    const [row] = rows.splice(from, 1);
+    rows.splice(to, 0, row);
+    editor.draftTracks = rows;
+    editor.error = '';
+    renderTab();
+  }
+
+  function playlistEditorFailureMessage(response, fallback) {
+    return String(response && (response.message || response.msg) || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 100) || fallback;
+  }
+
+  function playlistEditorMutationStale(editor) {
+    if (state.playlistEditor !== editor) return true;
+    if (state.authMutation) {
+      editor.saving = '';
+      editor.error = '账号状态正在更新，操作结果尚未确认。草稿已保留，请刷新歌单核对后重试。';
+      showToast(editor.error);
+      return true;
+    }
+    if (playlistEditorCurrent(editor)) return false;
+    state.playlistEditor = null;
+    renderTab();
+    return true;
+  }
+
+  function handlePlaylistEditorMutationError(editor, error, fallback) {
+    if (playlistEditorMutationStale(editor)) return;
+    editor.saving = '';
+    editor.error = error && error.message ? String(error.message) : fallback;
+    showToast(editor.error);
+    renderTab();
+  }
+
+  function finishPlaylistEditorMutation(editor, response, flag, successMessage, failureMessage, apply) {
+    if (playlistEditorMutationStale(editor)) return false;
+    if (!response || !apiRequestSucceeded(response) || response.loggedIn !== true || response[flag] !== true) {
+      editor.saving = '';
+      if (editor.mode === 'metadata' && response && response.partial === true) {
+        const nameVerified = response.nameVerified === true;
+        const descriptionVerified = response.descriptionVerified === true;
+        const nameState = nameVerified ? '已核实保存' : '可能已保存，尚未核实';
+        const descriptionState = descriptionVerified ? '已核实保存' : '可能已保存，尚未核实';
+        const outcome = nameVerified || descriptionVerified ? '歌单信息仅部分保存' : '歌单修改结果尚未确认';
+        if (nameVerified) {
+          state.playlist.name = String(editor.name || '').trim();
+          const cached = Array.isArray(state.library) && state.library.find(item => String(item.id) === editor.pid);
+          if (cached) cached.name = state.playlist.name;
+        }
+        if (descriptionVerified) state.playlist.description = String(editor.description || '').trim();
+        if (nameVerified) state.libraryLoaded = false;
+        editor.error = `${outcome}：名称${nameState}，简介${descriptionState}。编辑草稿已保留，请刷新歌单核对后重试。`;
+        showToast(editor.error);
+        renderTab();
+        return false;
+      }
+      editor.error = playlistEditorFailureMessage(response, failureMessage);
+      showToast(editor.error);
+      renderTab();
+      return false;
+    }
+    apply();
+    state.playlistEditor = null;
+    state.libraryLoaded = false;
+    showToast(successMessage);
+    renderTab();
+    return true;
+  }
+
+  async function savePlaylistMetadata() {
+    const editor = state.playlistEditor;
+    if (!playlistEditorCurrent(editor) || editor.mode !== 'metadata' || editor.saving) return;
+    const name = String(editor.name || '').trim(); const description = String(editor.description || '').trim();
+    if (!name) { editor.error = '歌单名称不能为空'; renderTab(); return; }
+    editor.saving = 'metadata'; editor.error = ''; renderTab();
+    try {
+      const response = await request('playlistUpdate', { pid: editor.pid, name, description }, 90000);
+      finishPlaylistEditorMutation(editor, response, 'updated', '歌单信息已保存', '保存歌单信息失败，请重试', () => {
+        state.playlist.name = name; state.playlist.description = description;
+        const cached = Array.isArray(state.library) && state.library.find(item => String(item.id) === editor.pid);
+        if (cached) cached.name = name;
+      });
+    } catch (error) {
+      handlePlaylistEditorMutationError(editor, error, '保存歌单信息失败，请重试');
+    }
+  }
+
+  async function savePlaylistRemoval() {
+    const editor = state.playlistEditor;
+    if (!playlistEditorCurrent(editor) || editor.mode !== 'removal' || editor.saving || !editor.pendingRemovalReview) return;
+    const selected = Array.from(new Set(editor.selectedIndices.map(Number)))
+      .filter(index => Number.isInteger(index) && index >= 0 && index < state.playlist.tracks.length).sort((a, b) => a - b);
+    const ids = selected.map(index => String(state.playlist.tracks[index].id));
+    if (!ids.length || ids.some(id => !/^[1-9]\d{0,23}$/.test(id))) return;
+    editor.saving = 'removal'; editor.error = ''; renderTab();
+    try {
+      const response = await request('playlistRemoveTracks', { pid: editor.pid, ids }, 90000);
+      finishPlaylistEditorMutation(editor, response, 'removed', `已从歌单移除 ${selected.length} 首歌曲`, '移除歌曲失败，请重试', () => {
+        const removed = new Set(selected);
+        state.playlist.tracks = state.playlist.tracks.filter((_, index) => !removed.has(index));
+        state.playlist.total = Math.max(0, Number(state.playlist.total || 0) - selected.length);
+        state.playlist.totalTrackCount = state.playlist.total;
+        const cached = Array.isArray(state.library) && state.library.find(item => String(item.id) === editor.pid);
+        if (cached) cached.count = state.playlist.total;
+        if (state.playlist.tracksComplete) state.playlist.loadedTrackCount = state.playlist.tracks.length;
+      });
+    } catch (error) {
+      handlePlaylistEditorMutationError(editor, error, '移除歌曲失败，请重试');
+    }
+  }
+
+  async function savePlaylistReorder() {
+    const editor = state.playlistEditor;
+    if (!playlistEditorCurrent(editor) || editor.mode !== 'reorder' || editor.saving || !playlistTracksComplete(state.playlist)) return;
+    const ids = editor.draftTracks.map(row => String(row.track && row.track.id || ''));
+    if (ids.length !== state.playlist.tracks.length || ids.some(id => !/^[1-9]\d{0,23}$/.test(id))) return;
+    editor.saving = 'reorder'; editor.error = ''; renderTab();
+    try {
+      const response = await request('playlistReorder', { pid: editor.pid, ids }, 90000);
+      finishPlaylistEditorMutation(editor, response, 'reordered', '歌曲顺序已保存', '保存歌曲顺序失败，请重试', () => {
+        state.playlist.tracks = editor.draftTracks.map(row => state.playlist.tracks[row.sourceIndex]);
+        state.playlist.loadedTrackCount = state.playlist.tracks.length;
+        state.playlist.totalTrackCount = state.playlist.tracks.length;
+        state.playlist.total = state.playlist.tracks.length;
+      });
+    } catch (error) {
+      handlePlaylistEditorMutationError(editor, error, '保存歌曲顺序失败，请重试');
+    }
+  }
+
+  function requestPlaylistEditorExit(action) {
+    const editor = state.playlistEditor;
+    if (!editor) return false;
+    if (editor.saving) { showToast('请等待保存完成'); return true; }
+    if (playlistEditorHasChanges(editor)) {
+      editor.confirmingDiscard = true; editor.pendingAction = action || null; renderTab(); return true;
+    }
+    state.playlistEditor = null; renderTab();
+    continuePlaylistEditorAction(action);
+    return true;
+  }
+
+  function continuePlaylistEditorAction(action) {
+    if (action && action.type === 'back') handleBack();
+    else if (action && action.type === 'tab') changeTab(action.tab, Object.assign({}, action.options || {}, { skipPlaylistEditor: true }));
+    else if (action && action.type === 'detail') openDetail(action.kind, action.id, action.options);
+  }
+
+  function cancelPlaylistEditor() { return requestPlaylistEditorExit(null); }
+
+  function confirmDiscardPlaylistEditor() {
+    const editor = state.playlistEditor;
+    if (!editor || editor.saving) return;
+    const action = editor.pendingAction;
+    state.playlistEditor = null; renderTab();
+    continuePlaylistEditorAction(action);
+  }
+
+  function renderPlaylistEditorActions(root, playlist) {
+    if (state.playlistEditor && !playlistEditorCurrent(state.playlistEditor)) state.playlistEditor = null;
+    if (!playlistCanEdit(playlist) || state.playlistEditor) return;
+    const actions = element('div', 'playlist-editor-actions');
+    const metadata = element('button', 'secondary-button', '编辑歌单信息');
+    metadata.type = 'button'; metadata.addEventListener('click', openPlaylistMetadataEditor);
+    const removal = element('button', 'secondary-button', '移除歌曲');
+    removal.type = 'button'; removal.disabled = !playlist.tracks.length; removal.addEventListener('click', openPlaylistRemovalEditor);
+    const reorder = element('button', 'secondary-button', '调整顺序');
+    reorder.type = 'button'; reorder.disabled = !playlistTracksComplete(playlist); reorder.addEventListener('click', openPlaylistReorderEditor);
+    actions.append(metadata, removal, reorder);
+    if (reorder.disabled) actions.append(element('p', 'playlist-editor-note', '歌单歌曲未完整载入，暂时不能调整顺序。'));
+    root.append(actions);
+  }
+
+  function renderPlaylistDiscardPrompt(root, editor) {
+    if (!editor.confirmingDiscard) return;
+    const prompt = element('section', 'playlist-editor-discard');
+    prompt.setAttribute('role', 'alertdialog'); prompt.setAttribute('aria-label', '放弃这些未保存更改');
+    prompt.append(element('strong', '', '放弃这些未保存更改？'));
+    const actions = element('div', 'playlist-editor-buttons');
+    const keep = element('button', 'secondary-button', '继续编辑');
+    keep.type = 'button'; keep.addEventListener('click', () => { editor.confirmingDiscard = false; editor.pendingAction = null; renderTab(); });
+    const discard = element('button', 'secondary-button danger-button', '放弃更改');
+    discard.type = 'button'; discard.addEventListener('click', confirmDiscardPlaylistEditor);
+    actions.append(keep, discard); prompt.append(actions); root.append(prompt);
+  }
+
+  function renderPlaylistEditorError(root, editor) {
+    if (editor.error) root.append(element('p', 'playlist-editor-error', editor.error));
+  }
+
+  function renderPlaylistEditorButtons(root, editor, label, action, canSave) {
+    const actions = element('div', 'playlist-editor-buttons');
+    const save = element('button', 'primary-action', label);
+    save.type = 'button'; save.disabled = !!editor.saving || !canSave;
+    save.setAttribute('aria-busy', String(!!editor.saving)); save.addEventListener('click', action);
+    const cancel = element('button', 'secondary-button', '取消编辑');
+    cancel.type = 'button'; cancel.disabled = !!editor.saving; cancel.addEventListener('click', cancelPlaylistEditor);
+    actions.append(save, cancel); root.append(actions);
+  }
+
+  function renderPlaylistMetadataEditor(root, editor) {
+    const panel = element('section', 'playlist-editor');
+    panel.setAttribute('aria-label', '编辑歌单信息'); panel.append(element('h3', '', '编辑歌单信息'));
+    const nameLabel = element('label', 'playlist-editor-field'); nameLabel.append(element('span', '', '歌单名称'));
+    const name = element('input', ''); name.type = 'text'; name.value = editor.name; name.disabled = !!editor.saving; name.setAttribute('aria-label', '歌单名称');
+    name.addEventListener('input', () => updatePlaylistMetadataDraft('name', name.value)); nameLabel.append(name);
+    const descriptionLabel = element('label', 'playlist-editor-field'); descriptionLabel.append(element('span', '', '歌单简介'));
+    const description = element('textarea', ''); description.value = editor.description; description.rows = 4; description.disabled = !!editor.saving;
+    description.setAttribute('aria-label', '歌单简介'); description.addEventListener('input', () => updatePlaylistMetadataDraft('description', description.value));
+    descriptionLabel.append(description); panel.append(nameLabel, descriptionLabel);
+    renderPlaylistEditorError(panel, editor); renderPlaylistDiscardPrompt(panel, editor);
+    renderPlaylistEditorButtons(panel, editor, editor.saving ? '正在保存…' : '保存信息', savePlaylistMetadata, !!String(editor.name || '').trim());
+    root.append(panel);
+  }
+
+  function renderPlaylistRemovalEditor(root, editor, playlist) {
+    const panel = element('section', 'playlist-editor'); panel.setAttribute('aria-label', '移除歌曲');
+    panel.append(element('h3', '', editor.pendingRemovalReview ? '确认要移除的歌曲' : '选择要移除的歌曲'));
+    if (!editor.pendingRemovalReview) {
+      const list = element('div', 'playlist-editor-track-list');
+      playlist.tracks.forEach((track, index) => {
+        const label = element('label', 'playlist-editor-track');
+        const checkbox = element('input', ''); checkbox.type = 'checkbox'; checkbox.checked = editor.selectedIndices.includes(index);
+        checkbox.setAttribute('aria-label', `选择《${track.title}》`); checkbox.disabled = !!editor.saving;
+        checkbox.addEventListener('change', () => selectPlaylistTrack(index, checkbox.checked));
+        const copy = element('span', 'playlist-editor-track-copy');
+        copy.append(element('strong', '', track.title), element('span', '', track.artist || track.album || ''));
+        label.append(checkbox, copy); list.append(label);
+      });
+      panel.append(list);
+    } else {
+      const list = element('ul', 'playlist-editor-review-list');
+      editor.selectedIndices.forEach(index => {
+        const track = playlist.tracks[index];
+        if (track) list.append(element('li', '', `${track.title}${track.artist ? ` · ${track.artist}` : ''}`));
+      });
+      panel.append(list);
+      const actions = element('div', 'playlist-editor-buttons');
+      const revise = element('button', 'secondary-button', '返回修改'); revise.type = 'button'; revise.disabled = !!editor.saving;
+      revise.addEventListener('click', () => { editor.pendingRemovalReview = false; renderTab(); });
+      const confirm = element('button', 'primary-action danger-button', `确认移除 ${editor.selectedIndices.length} 首`);
+      confirm.type = 'button'; confirm.disabled = !!editor.saving; confirm.setAttribute('aria-busy', String(!!editor.saving));
+      confirm.addEventListener('click', savePlaylistRemoval);
+      const cancel = element('button', 'secondary-button', '取消编辑'); cancel.type = 'button'; cancel.disabled = !!editor.saving;
+      cancel.addEventListener('click', cancelPlaylistEditor); actions.append(revise, confirm, cancel); panel.append(actions);
+    }
+    renderPlaylistEditorError(panel, editor); renderPlaylistDiscardPrompt(panel, editor);
+    if (!editor.pendingRemovalReview) renderPlaylistEditorButtons(panel, editor, '检查所选歌曲', reviewPlaylistRemoval, !!editor.selectedIndices.length);
+    root.append(panel);
+  }
+
+  function renderPlaylistReorderEditor(root, editor) {
+    const panel = element('section', 'playlist-editor'); panel.setAttribute('aria-label', '调整顺序');
+    panel.append(element('h3', '', '调整顺序'));
+    const list = element('ol', 'playlist-editor-order-list');
+    editor.draftTracks.forEach((row, index) => {
+      const item = element('li', 'playlist-editor-order-row');
+      const title = element('span', 'playlist-editor-track-copy');
+      title.append(element('strong', '', row.track.title), element('span', '', row.track.artist || row.track.album || ''));
+      const controls = element('span', 'playlist-editor-order-controls');
+      const up = element('button', 'secondary-button', '上移'); up.type = 'button'; up.disabled = index === 0 || !!editor.saving;
+      up.setAttribute('aria-label', `将《${row.track.title}》上移`); up.addEventListener('click', () => movePlaylistTrack(index, -1));
+      const down = element('button', 'secondary-button', '下移'); down.type = 'button'; down.disabled = index === editor.draftTracks.length - 1 || !!editor.saving;
+      down.setAttribute('aria-label', `将《${row.track.title}》下移`); down.addEventListener('click', () => movePlaylistTrack(index, 1));
+      controls.append(up, down); item.append(title, controls); list.append(item);
+    });
+    panel.append(list); renderPlaylistEditorError(panel, editor); renderPlaylistDiscardPrompt(panel, editor);
+    renderPlaylistEditorButtons(panel, editor, editor.saving ? '正在保存…' : '保存顺序', savePlaylistReorder, playlistEditorHasChanges(editor));
+    root.append(panel);
+  }
+
+  function renderPlaylistEditor(root, playlist) {
+    const editor = state.playlistEditor;
+    if (!editor) return;
+    if (!playlistEditorCurrent(editor)) { state.playlistEditor = null; return; }
+    if (editor.mode === 'metadata') renderPlaylistMetadataEditor(root, editor);
+    else if (editor.mode === 'removal') renderPlaylistRemovalEditor(root, editor, playlist);
+    else if (editor.mode === 'reorder') renderPlaylistReorderEditor(root, editor);
+  }
+
   function renderPlaylistPage() {
     const root = $('#tab-content');
     const back = element('button','back-button'); back.type='button'; setIcon(back,'back'); back.append(document.createTextNode('返回')); back.addEventListener('click', handleBack); root.append(back);
@@ -1274,6 +1674,8 @@
     const shuffle = element('button','round-action'); shuffle.type='button'; setIcon(shuffle,'shuffle'); shuffle.setAttribute('aria-label','随机播放'); shuffle.addEventListener('click', () => { if (!playlist.tracks.length) return; setShuffle(true, true); playTracks(playlist.tracks, Math.floor(Math.random() * playlist.tracks.length)); }); controls.append(shuffle); root.append(controls);
     root.append(element('p','list-caption',countLabel));
     if (playlist.loadError) root.append(element('p','login-status-line',playlist.loadError));
+    renderPlaylistEditorActions(root, playlist);
+    renderPlaylistEditor(root, playlist);
     if (playlist.tracks.length) root.append(renderSongList(playlist.tracks,{duration:true,actions:true}));
     else root.append(emptyState('歌单里没有歌曲', '音乐平台没有返回可播放曲目。', null, null));
   }
@@ -1301,6 +1703,10 @@
 
   function changeTab(tab, options) {
     if (!['listen','library','search'].includes(tab)) return;
+    if (state.playlistEditor && !(options && options.skipPlaylistEditor)) {
+      requestPlaylistEditorExit({ type: 'tab', tab, options });
+      return;
+    }
     if (!(options && options.skipSavePreviousScroll) && !state.playlist && !state.playlistLoading && !state.playlistError) state.tabScrollTop[state.tab] = $('#tab-content').scrollTop;
     state.playlistRequestGeneration += 1;
     state.playlist = null; state.playlistId = null; state.playlistLoading = false; state.playlistError = false; state.detailStack = [];
@@ -1493,6 +1899,7 @@
 
   async function openRecentHistory(options) {
     const generation = beginDetail('recent', 'recent-history', options);
+    if (generation === null) return;
     const historyGeneration = ++state.recentHistoryRequestGeneration;
     state.recentHistoryLoading = true; state.recentHistoryError = false;
     try {
@@ -1526,6 +1933,7 @@
   async function openPlaylist(id, options) {
     if (!id) return;
     const generation = beginDetail('playlist', id, options);
+    if (generation === null) return;
     try {
       const playlist = extractPlaylistDetail(await request('playlist', { id: String(id) }));
       if (generation !== state.playlistRequestGeneration) return;
@@ -1542,6 +1950,10 @@
 
   // Detail pages stack, so artist → album → artist can be walked back one page at a time.
   function beginDetail(kind, id, options) {
+    if (state.playlistEditor && !(options && options.skipPlaylistEditor)) {
+      requestPlaylistEditorExit({ type: 'detail', kind, id, options });
+      return null;
+    }
     const root = $('#tab-content');
     const detailOpen = !!(state.playlist || state.playlistLoading || state.playlistError);
     if (!(options && options.replace)) {
@@ -1633,6 +2045,7 @@
   async function openAlbum(id, options) {
     if (!/^[1-9]\d{0,23}$/.test(String(id || ''))) return;
     const generation = beginDetail('album', id, options);
+    if (generation === null) return;
     try {
       const response = await request('album', { id: String(id) });
       if (generation !== state.playlistRequestGeneration) return;
@@ -1670,6 +2083,7 @@
   async function openArtist(id, options) {
     if (!/^[1-9]\d{0,23}$/.test(String(id || ''))) return;
     const generation = beginDetail('artist', id, options);
+    if (generation === null) return;
     try {
       const response = await request('artist', { id: String(id) });
       if (generation !== state.playlistRequestGeneration) return;
@@ -1939,6 +2353,10 @@
       else closePlayer();
       return true;
     }
+    if (state.playlistEditor) {
+      requestPlaylistEditorExit({ type: 'back' });
+      return true;
+    }
     if (state.playlist || state.playlistLoading || state.playlistError) {
       if (state.playlistId === 'recent-history' && state.playlistLoading) {
         state.recentHistoryRequestGeneration += 1;
@@ -1964,6 +2382,84 @@
 
   window.YPM.back = handleBack;
 
+  function playlistEditorTextField(target) {
+    return !!(target && target.matches
+      && target.matches('.playlist-editor-field input, .playlist-editor-field textarea'));
+  }
+
+  function keyboardViewportSnapshot() {
+    const viewport = window.visualViewport;
+    return {
+      windowHeight: Math.max(0, Number(window.innerHeight) || 0),
+      visualViewportHeight: viewport ? Math.max(0, Number(viewport.height) || 0) : 0
+    };
+  }
+
+  function handleKeyboardFocus(event) {
+    const target = event && event.target ? event.target : document.activeElement;
+    if (playlistEditorTextField(target)) {
+      if (nativeKeyboardVisible !== true) {
+        playlistEditorViewportBeforeIme = lastNonKeyboardViewport || keyboardViewportSnapshot();
+      }
+    } else if (nativeKeyboardVisible !== true) {
+      playlistEditorViewportBeforeIme = null;
+    }
+    updateKeyboard();
+  }
+
+  function scrollPlaylistEditorFieldIntoView() {
+    const field = document.activeElement;
+    if (!playlistEditorTextField(field)) return false;
+    const scroller = document.querySelector('#tab-content');
+    if (!scroller) return false;
+
+    const viewport = window.visualViewport;
+    const scrollerRect = scroller.getBoundingClientRect();
+    const currentWindowBottom = Math.max(0, Number(window.innerHeight) || 0);
+    const currentVisualTop = viewport ? Math.max(0, Number(viewport.offsetTop) || 0) : 0;
+    const currentVisualBottom = viewport
+      ? currentVisualTop + Math.max(0, Number(viewport.height) || 0)
+      : currentWindowBottom;
+    const currentViewportBottom = currentWindowBottom > 0
+      ? Math.min(currentWindowBottom, currentVisualBottom) : currentVisualBottom;
+    const baseline = playlistEditorViewportBeforeIme || lastNonKeyboardViewport || keyboardViewportSnapshot();
+    const preImeHeight = Math.max(Number(baseline.windowHeight) || 0, Number(baseline.visualViewportHeight) || 0);
+    const imeAdjustedBottom = preImeHeight - Math.max(0, Number(nativeKeyboardInsetDp) || 0);
+    const visibleTop = Math.max(Number(scrollerRect.top) || 0, currentVisualTop);
+    const visibleBottom = Math.min(currentViewportBottom, imeAdjustedBottom, Number(scrollerRect.bottom) || 0);
+    if (!Number.isFinite(visibleBottom) || visibleBottom <= visibleTop) return false;
+
+    const fieldRect = field.getBoundingClientRect();
+    const top = Number(fieldRect.top) || 0;
+    const bottom = Number(fieldRect.bottom) || 0;
+    const fieldHeight = Math.max(0, bottom - top);
+    const margin = 16;
+    const availableHeight = Math.max(0, visibleBottom - visibleTop - margin * 2);
+    let delta = 0;
+    if (fieldHeight > availableHeight) delta = top - (visibleTop + margin);
+    else if (bottom > visibleBottom - margin) delta = bottom - (visibleBottom - margin);
+    else if (top < visibleTop + margin) delta = top - (visibleTop + margin);
+    if (!Number.isFinite(delta) || Math.abs(delta) < 1) return false;
+
+    const nextScrollTop = Math.max(0, (Number(scroller.scrollTop) || 0) + delta);
+    if (nextScrollTop === scroller.scrollTop) return false;
+    scroller.scrollTop = nextScrollTop;
+    return true;
+  }
+
+  function schedulePlaylistEditorFieldVisibility() {
+    if (playlistEditorVisibilityFramePending || !playlistEditorTextField(document.activeElement)) return;
+    playlistEditorVisibilityFramePending = true;
+    requestAnimationFrame(() => {
+      playlistEditorVisibilityFramePending = false;
+      const viewport = window.visualViewport;
+      const keyboardOpen = nativeKeyboardVisible !== null
+        ? nativeKeyboardVisible
+        : !!(viewport && window.innerHeight - viewport.height > 140);
+      if (keyboardOpen) scrollPlaylistEditorFieldIntoView();
+    });
+  }
+
   function updateKeyboard() {
     let keyboardOpen;
     if (nativeKeyboardVisible !== null) keyboardOpen = nativeKeyboardVisible;
@@ -1972,20 +2468,33 @@
       keyboardOpen = !!(viewport && window.innerHeight - viewport.height > 140) || document.activeElement?.id === 'search-input';
     }
     $('#app')?.classList.toggle('keyboard-open',keyboardOpen);
+    if (keyboardOpen) schedulePlaylistEditorFieldVisibility();
+    else lastNonKeyboardViewport = keyboardViewportSnapshot();
   }
 
-  window.YPM.setKeyboard = function (visible) {
+  function setNativeKeyboardState(visible, insetDp) {
     const wasVisible = nativeKeyboardVisible;
-    nativeKeyboardVisible = !!visible;
+    const nextVisible = !!visible;
+    const nextInsetDp = nextVisible ? Math.max(0, Number(insetDp) || 0) : 0;
+    const visibilityChanged = wasVisible !== nextVisible;
+    const insetChanged = nativeKeyboardInsetDp !== nextInsetDp;
+    nativeKeyboardVisible = nextVisible;
+    nativeKeyboardInsetDp = nextInsetDp;
+    if (nextVisible && playlistEditorTextField(document.activeElement) && !playlistEditorViewportBeforeIme) {
+      playlistEditorViewportBeforeIme = lastNonKeyboardViewport || keyboardViewportSnapshot();
+    }
     // Back (or the IME's own hide key) closes the keyboard without blurring the field; drop focus
     // so the tab bar, mini player and tab swipe come back.
-    if (wasVisible && !nativeKeyboardVisible) {
+    if (wasVisible && !nextVisible) {
       const active = document.activeElement;
       if (active && active.matches && active.matches('input,textarea,[contenteditable="true"]')) active.blur();
+      playlistEditorViewportBeforeIme = null;
     }
-    updateKeyboard();
+    if (visibilityChanged || insetChanged) updateKeyboard();
     return true;
-  };
+  }
+
+  window.YPM.setKeyboard = function (visible, insetDp) { return setNativeKeyboardState(visible, insetDp); };
 
   function formatTime(milliseconds) {
     const total = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1000));
@@ -3972,7 +4481,7 @@
     window.addEventListener('native-resume',() => { pollMediaState(); refreshAuth(); });
     if (window.visualViewport) window.visualViewport.addEventListener('resize',updateKeyboard);
     window.addEventListener('resize',updateKeyboard);
-    document.addEventListener('focusin',updateKeyboard);
+    document.addEventListener('focusin',handleKeyboardFocus);
     document.addEventListener('focusout',() => setTimeout(updateKeyboard,0));
     document.addEventListener('keydown',event => {
       if (event.key === 'Escape') handleBack();

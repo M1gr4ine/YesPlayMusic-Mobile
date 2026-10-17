@@ -3,12 +3,16 @@ package dev.yesplaymusic.probe;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
+import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -39,7 +43,7 @@ import java.util.concurrent.Executors;
 /** Trusted packaged UI; audio and provider sessions are owned by native components. */
 public class MainActivity extends Activity {
     private static final String ORIGIN="appassets.androidplatform.net";
-    private static final Set<String> METHODS=new HashSet<>(Arrays.asList("home","search","playlist","album","artist","artistAlbums","songDetail","userPlaylists","loginStatus","sendCaptcha","loginCaptcha","lyrics","logout","qqStatus","qqSearch","qqLyrics","qqLogout","likeStatus","setLiked","recentHistory","ownedPlaylists","playlistAddTrack","matchTrack","cacheInfo","clearCache"));
+    private static final Set<String> METHODS=new HashSet<>(Arrays.asList("home","search","playlist","album","artist","artistAlbums","songDetail","userPlaylists","loginStatus","sendCaptcha","loginCaptcha","lyrics","logout","qqStatus","qqSearch","qqLyrics","qqLogout","likeStatus","setLiked","recentHistory","ownedPlaylists","playlistAddTrack","playlistUpdate","playlistRemoveTracks","playlistReorder","matchTrack","cacheInfo","clearCache"));
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService requests=Executors.newFixedThreadPool(4);
     private WebView web;
@@ -47,9 +51,15 @@ public class MainActivity extends Activity {
     private boolean alive;
     private int topInset,bottomInset;
     private boolean imeVisible;
+    private int imeBottomDp;
     private boolean standby, chromeDark;
     private OrientationEventListener uprightWatcher;
     private boolean waitForUpright;
+    private boolean batteryWatching;
+    private volatile String batteryState = "{\"level\":null,\"charging\":false}";
+    private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) { updateBattery(intent); }
+    };
     @Override public void onCreate(Bundle state){
         super.onCreate(state);alive=true;
         if(Build.VERSION.SDK_INT>=33){systemBack=this::handleBack;getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,systemBack);}
@@ -89,8 +99,18 @@ public class MainActivity extends Activity {
             float density=getResources().getDisplayMetrics().density;
             if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());topInset=Math.round(bars.top/density);bottomInset=Math.round(bars.bottom/density);}
             else{topInset=Math.round(insets.getSystemWindowInsetTop()/density);bottomInset=Math.round(insets.getSystemWindowInsetBottom()/density);}
-            boolean ime=Build.VERSION.SDK_INT>=30?insets.isVisible(WindowInsets.Type.ime()):insets.getSystemWindowInsetBottom()-insets.getStableInsetBottom()>100*density;
-            if(ime!=imeVisible){imeVisible=ime;applyKeyboard();}
+            boolean ime;
+            int imeBottomPixels;
+            if(Build.VERSION.SDK_INT>=30){
+                ime=insets.isVisible(WindowInsets.Type.ime());
+                imeBottomPixels=ime?insets.getInsets(WindowInsets.Type.ime()).bottom:0;
+            }else{
+                imeBottomPixels=Math.max(0,insets.getSystemWindowInsetBottom()-insets.getStableInsetBottom());
+                ime=imeBottomPixels>100*density;
+                if(!ime)imeBottomPixels=0;
+            }
+            int nextImeBottomDp=ime?Math.max(0,Math.round(imeBottomPixels/density)):0;
+            if(ime!=imeVisible||nextImeBottomDp!=imeBottomDp){imeVisible=ime;imeBottomDp=nextImeBottomDp;applyKeyboard();}
             applyInsets();return insets;
         });
         setContentView(web);web.loadUrl("https://"+ORIGIN+"/assets/index.html");
@@ -100,12 +120,40 @@ public class MainActivity extends Activity {
     private static boolean imageHost(String host){if(host==null)return false;host=host.toLowerCase(Locale.ROOT);return host.endsWith(".music.126.net")||host.endsWith(".music.163.com")||host.endsWith(".music.126.com")||host.endsWith(".gtimg.cn")||host.endsWith(".qlogo.cn")||host.endsWith(".qq.com")||host.endsWith(".gtimg.com");}
     private static WebResourceResponse empty(){return new WebResourceResponse("text/plain","UTF-8",new ByteArrayInputStream(new byte[0]));}
     private void applyInsets(){if(web!=null&&alive)web.evaluateJavascript("document.documentElement.style.setProperty('--safe-top','"+topInset+"px');document.documentElement.style.setProperty('--safe-bottom','"+bottomInset+"px');",null);}
-    private void applyKeyboard(){if(web!=null&&alive)web.evaluateJavascript("window.YPM&&window.YPM.setKeyboard&&window.YPM.setKeyboard("+imeVisible+")",null);}
+    private void applyKeyboard(){if(web!=null&&alive)web.evaluateJavascript("window.YPM&&window.YPM.setKeyboard&&window.YPM.setKeyboard("+imeVisible+","+imeBottomDp+")",null);}
     private void response(String id,String result,String error){main.post(()->{if(alive&&web!=null)web.evaluateJavascript("window.YPM&&window.YPM.resolve("+JSONObject.quote(id)+","+(result==null?"null":JSONObject.quote(result))+","+(error==null?"null":JSONObject.quote(error))+");",null);});}
     @Override public void onBackPressed(){handleBack();}
     private void handleBack(){if(!alive)return;if(web!=null)web.evaluateJavascript("window.YPM&&window.YPM.back?window.YPM.back():false",result->{if(alive&&!"true".equals(result))moveTaskToBack(true);});else moveTaskToBack(true);}
-    @Override protected void onResume(){super.onResume();if(waitForUpright)watchUpright(true);if(web!=null){web.onResume();web.evaluateJavascript("window.dispatchEvent(new Event('native-resume'))",null);}}
-    @Override protected void onPause(){super.onPause();watchUpright(false);if(web!=null)web.onPause();}
+    @Override protected void onResume(){super.onResume();watchBattery(true);if(waitForUpright)watchUpright(true);if(web!=null){web.onResume();web.evaluateJavascript("window.dispatchEvent(new Event('native-resume'))",null);}}
+    @Override protected void onPause(){super.onPause();watchBattery(false);watchUpright(false);if(web!=null)web.onPause();}
+    private void watchBattery(boolean watch) {
+        if (watch == batteryWatching) return;
+        if (watch) {
+            // BATTERY_CHANGED is a protected system sticky broadcast; no polling or permission is needed.
+            Intent current = registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            batteryWatching = true;
+            updateBattery(current);
+        } else {
+            unregisterReceiver(batteryReceiver);
+            batteryWatching = false;
+        }
+    }
+    private void updateBattery(Intent intent) {
+        if (intent == null) return;
+        int level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+        int scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+        boolean present = intent.getBooleanExtra(BatteryManager.EXTRA_PRESENT, true);
+        int percent = present && level >= 0 && scale > 0 ? Math.round(level * 100f / scale) : -1;
+        int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+        boolean charging = status == BatteryManager.BATTERY_STATUS_CHARGING
+                || (status == BatteryManager.BATTERY_STATUS_FULL && intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0);
+        String next = "{\"level\":" + (percent >= 0 && percent <= 100 ? Integer.toString(percent) : "null")
+                + ",\"charging\":" + charging + "}";
+        if (next.equals(batteryState)) return;
+        batteryState = next;
+        if (alive && standby && web != null)
+            web.evaluateJavascript("window.dispatchEvent(new CustomEvent('native-battery',{detail:" + next + "}))", null);
+    }
     private void applyChrome(){
         if(standby){
             if(Build.VERSION.SDK_INT>=30){WindowInsetsController bars=getWindow().getInsetsController();if(bars!=null){bars.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);bars.hide(WindowInsets.Type.systemBars());}}
@@ -125,7 +173,7 @@ public class MainActivity extends Activity {
         if(uprightWatcher.canDetectOrientation())uprightWatcher.enable();
         else{waitForUpright=false;setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);}
     }
-    @Override protected void onDestroy(){alive=false;if(Build.VERSION.SDK_INT>=33&&systemBack!=null)getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(systemBack);requests.shutdownNow();if(web!=null){web.removeJavascriptInterface("Native");if(web.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)web.getParent()).removeView(web);web.destroy();web=null;}super.onDestroy();}
+    @Override protected void onDestroy(){watchBattery(false);alive=false;if(Build.VERSION.SDK_INT>=33&&systemBack!=null)getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(systemBack);requests.shutdownNow();if(web!=null){web.removeJavascriptInterface("Native");if(web.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)web.getParent()).removeView(web);web.destroy();web=null;}super.onDestroy();}
     private void clearLoginCookies(String provider, Runnable done) {
         main.post(() -> {
             android.webkit.CookieManager manager=android.webkit.CookieManager.getInstance();
@@ -190,8 +238,21 @@ public class MainActivity extends Activity {
             if(payload==null||payload.length()>700000)return;
             main.post(()->{try{new JSONObject(payload);Intent intent=new Intent(MainActivity.this,PlaybackService.class).putExtra("command","json").putExtra("payload",payload);startForegroundService(intent);}catch(Exception error){Toast.makeText(MainActivity.this,"播放操作失败，请重新打开播放器",Toast.LENGTH_SHORT).show();}});
         }
-        @JavascriptInterface public String getState(){String live=PlaybackService.publishedState();if(live!=null)return live;return getSharedPreferences("player_state",MODE_PRIVATE).getString("json","{\"track\":null,\"queue\":[],\"playing\":false,\"buffering\":false,\"position\":0,\"duration\":0,\"index\":0,\"repeat\":\"all\",\"shuffle\":false,\"volume\":1,\"source\":\"\",\"error\":\"\"}");}
+        @JavascriptInterface public String getState(){
+            String live=PlaybackService.publishedState();
+            if(live!=null)return live;
+            String fallback="{\"track\":null,\"queue\":[],\"playing\":false,\"buffering\":false,\"position\":0,\"duration\":0,\"index\":0,\"repeat\":\"all\",\"shuffle\":false,\"volume\":1,\"source\":\"\",\"error\":\"\"}";
+            String saved=getSharedPreferences("player_state",MODE_PRIVATE).getString("json",fallback);
+            if(saved==null||saved.isEmpty())return fallback;
+            try{
+                JSONObject snapshot=new JSONObject(saved);
+                snapshot.put("playing",false);
+                snapshot.put("buffering",false);
+                return snapshot.toString();
+            }catch(Exception ignored){return fallback;}
+        }
         @JavascriptInterface public String getQueue(){String live=PlaybackService.publishedQueue();return live!=null?live:"{\"version\":-1,\"queue\":[]}";}
+        @JavascriptInterface public String getBattery(){return batteryState;}
         @JavascriptInterface public String getSettings(){try{SharedPreferences values=getSharedPreferences("mobile_settings",MODE_PRIVATE);return new JSONObject().put("sourcePreference",values.getString("sourcePreference","auto")).put("theme",values.getString("theme","system")).put("statusLyrics",values.getBoolean("statusLyrics",true)).put("lyricsTranslation",values.getBoolean("lyricsTranslation",true)).toString();}catch(Exception ignored){return "{}";}}
         @JavascriptInterface public void settings(String json){try{JSONObject input=new JSONObject(json);SharedPreferences.Editor edit=getSharedPreferences("mobile_settings",MODE_PRIVATE).edit();String source=input.optString("sourcePreference"),theme=input.optString("theme");if(Arrays.asList("auto","netease","qq").contains(source))edit.putString("sourcePreference",source);if(Arrays.asList("system","light","dark").contains(theme))edit.putString("theme",theme);if(input.has("statusLyrics"))edit.putBoolean("statusLyrics",input.optBoolean("statusLyrics",true));if(input.has("lyricsTranslation"))edit.putBoolean("lyricsTranslation",input.optBoolean("lyricsTranslation",true));edit.apply();}catch(Exception ignored){}}
         @JavascriptInterface public void login(String provider){if(!"qq".equals(provider)&&!"netease".equals(provider))return;main.post(()->startActivity(new Intent(MainActivity.this,LoginActivity.class).putExtra("provider",provider)));}

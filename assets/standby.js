@@ -29,6 +29,9 @@
       mode: find('standby-mode'),
       lock: find('standby-lock'),
       translation: find('standby-translation'),
+      battery: find('standby-battery'),
+      batteryFill: find('standby-battery-fill'),
+      batteryPercent: find('standby-battery-percent'),
       lyrics: find('standby-lyrics'),
       lines: find('standby-lines')
     };
@@ -53,6 +56,8 @@
     let shownDuration = -1;
     let clockTimer = 0;
     let locked = null;
+    let battery = { level: null, charging: false };
+    let shownBattery = '';
     const playback = {};
 
     function renderClock() {
@@ -65,6 +70,39 @@
     function stopClock() {
       clearTimeout(clockTimer);
       clockTimer = 0;
+    }
+
+    function renderBattery() {
+      if (!active) return;
+      const key = `${battery.level}:${battery.charging}`;
+      if (key === shownBattery) return;
+      shownBattery = key;
+      const known = battery.level !== null;
+      const percent = known ? `${battery.level}%` : '--%';
+      nodes.batteryPercent.textContent = percent;
+      nodes.batteryFill.setAttribute('width', String(known ? battery.level / 5 : 0));
+      nodes.battery.classList.toggle('is-charging', battery.charging);
+      nodes.battery.classList.toggle('is-low', known && battery.level <= 20 && !battery.charging);
+      nodes.battery.setAttribute('aria-label', known
+        ? `电量 ${percent}${battery.charging ? '，正在充电' : ''}` : '暂时无法读取电量');
+    }
+
+    function setBattery(value) {
+      const level = value && value.level;
+      battery = {
+        level: typeof level === 'number' && Number.isFinite(level) && level >= 0 && level <= 100
+          ? Math.round(level) : null,
+        charging: !!(value && value.charging === true)
+      };
+      renderBattery();
+    }
+
+    function refreshBattery() {
+      if (!active) return;
+      try {
+        const native = window.Native;
+        setBattery(native && typeof native.getBattery === 'function' ? JSON.parse(native.getBattery()) : null);
+      } catch (_) { setBattery(null); }
     }
 
     function drawBackdrop(url) {
@@ -142,6 +180,7 @@
         shownSecond = -1;
         shownDuration = -1;
         renderClock();
+        refreshBattery();
         refreshLayout();
       } else {
         stopClock();
@@ -236,6 +275,8 @@
       if (button && !button.disabled) options.action(button.dataset.standbyAction);
     });
     window.addEventListener('resize', refreshLayout);
+    window.addEventListener('native-battery', event => setBattery(event.detail));
+    window.addEventListener('native-resume', refreshBattery);
 
     return {
       get active() { return active; },

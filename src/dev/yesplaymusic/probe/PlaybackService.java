@@ -410,6 +410,7 @@ public final class PlaybackService extends MediaBrowserService
 
     @Override public void onDestroy() {
         destroyed = true;
+        publishedStateJson = null;
         playbackGeneration++;
         cancelNetworkTasks();
         handler.removeCallbacks(progressTick);
@@ -658,7 +659,7 @@ public final class PlaybackService extends MediaBrowserService
     private void prepareResolvedStream(long generation, Resolution resolution) {
         if (generation != playbackGeneration || currentTrack == null) return;
         currentSource = resolution.source;
-        currentTrack = currentTrack.withProviderInfo(resolution.source, resolution.qqMid);
+        currentTrack = currentTrack.withQqMid(resolution.qqMid);
         if (currentIndex >= 0 && currentIndex < queue.size()) {
             queue.set(currentIndex, currentTrack);
             refreshQueue();

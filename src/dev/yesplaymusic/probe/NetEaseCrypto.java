@@ -113,7 +113,7 @@ final class NetEaseCrypto {
         return new String(result);
     }
 
-    private static String md5(String value) throws Exception {
+    static String md5(String value) throws Exception {
         byte[] digest = java.security.MessageDigest.getInstance("MD5")
                 .digest(value.getBytes(StandardCharsets.UTF_8));
         StringBuilder result = new StringBuilder(digest.length * 2);
@@ -134,7 +134,4 @@ final class NetEaseCrypto {
         return new String(result);
     }
 
-    static String md5Text(String value) throws Exception {
-        return md5(value);
-    }
 }

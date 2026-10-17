@@ -68,17 +68,17 @@ final class ArtistAliases {
 
     static List<String> fromArtists(JSONArray artists) {
         if (artists == null || artists.length() == 0) return Collections.emptyList();
-        List<JSONObject> objects = new ArrayList<>();
         Map<String, Boolean> canonicalNames = new LinkedHashMap<>();
         for (int i = 0; i < artists.length(); i++) {
             JSONObject artist = artists.optJSONObject(i);
             if (artist == null) continue;
-            objects.add(artist);
             addCanonical(canonicalNames, artist.optString("name", ""));
         }
 
         LinkedHashMap<String, String> aliases = new LinkedHashMap<>();
-        for (JSONObject artist : objects) {
+        for (int i = 0; i < artists.length(); i++) {
+            JSONObject artist = artists.optJSONObject(i);
+            if (artist == null) continue;
             for (String field : ALIAS_FIELDS) addAliasValues(aliases, canonicalNames, artist.opt(field));
         }
         return immutableValues(aliases);

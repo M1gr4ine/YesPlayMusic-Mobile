@@ -67,7 +67,7 @@ final class Track {
                 clean(value.optString("url", ""), 8192));
     }
 
-    Track withProviderInfo(String actualProvider, String actualQqMid) {
+    Track withQqMid(String actualQqMid) {
         // Actual audio source is published separately as PlaybackService.currentSource.
         // Changing catalog provider here would save a NetEase song to the QQ account.
         String resolvedQqMid = clean(actualQqMid, 256);
