@@ -141,6 +141,9 @@ public final class PlaybackService extends MediaBrowserService
     private float sessionStateSpeed;
     private long noisyPausedAt;
     private Future<?> lyricsTask;
+    private long lyricsGeneration;
+    private long recordedGeneration = -1L;
+    private String lyricsTrackIdentity = "";
     private String lyricsKey = "";
     private LrcLines lyrics = LrcLines.EMPTY;
     /** Lyric line shown as the session title, or -1 to show the song title. */
@@ -151,7 +154,10 @@ public final class PlaybackService extends MediaBrowserService
 
     private final SharedPreferences.OnSharedPreferenceChangeListener settingsListener =
             (prefs, key) -> {
-                if ("statusLyrics".equals(key)) handler.post(this::syncLyricLine);
+                if ("statusLyrics".equals(key)) handler.post(() -> {
+                    if (statusLyricsEnabled()) loadLyricsAsync();
+                    syncLyricLine();
+                });
             };
 
     private final Runnable progressTick = new Runnable() {
@@ -451,7 +457,10 @@ public final class PlaybackService extends MediaBrowserService
                 case "play": {
                     JSONArray requested = command.optJSONArray("queue");
                     int index = command.optInt("index", currentIndex < 0 ? 0 : currentIndex);
-                    if (requested != null && !replaceQueue(requested, index)) return;
+                    if (requested != null) {
+                        if (!replaceQueue(requested, index)) return;
+                        index = currentIndex;
+                    }
                     if (queue.isEmpty()) {
                         lastError = "empty_queue";
                         publishState("empty-queue");
@@ -502,6 +511,7 @@ public final class PlaybackService extends MediaBrowserService
         int mappedIndex = selectFilteredIndex(requested, startIndex, parsed);
         playbackGeneration++;
         cancelNetworkTasks();
+        clearLyrics();
         releasePlayer();
         abandonAudioFocus();
         queue.clear();
@@ -587,7 +597,7 @@ public final class PlaybackService extends MediaBrowserService
         releasePlayer();
         noisyPausedAt = 0L;
         Track nextTrack = queue.get(index);
-        if (currentTrack == null || !currentTrack.id.equals(nextTrack.id)) clearLyrics();
+        if (currentTrack == null || !trackIdentity(currentTrack).equals(trackIdentity(nextTrack))) clearLyrics();
         currentIndex = index;
         syncShuffleCursor(index);
         currentTrack = nextTrack;
@@ -613,6 +623,7 @@ public final class PlaybackService extends MediaBrowserService
         updatePlaybackState();
         updateNotification();
         publishState(event);
+        loadLyricsAsync();
         resolveStreamAsync(requestGeneration);
         loadArtworkAsync(requestGeneration, currentTrack);
         scheduleProgressUpdates();
@@ -629,6 +640,9 @@ public final class PlaybackService extends MediaBrowserService
             String failure = "stream_unavailable";
             try {
                 plan = resolvePlan(track, preference);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
             } catch (StreamException error) {
                 failure = error.code;
             } catch (Exception error) {
@@ -668,17 +682,23 @@ public final class PlaybackService extends MediaBrowserService
                     ? resolveQQAttempts(track) : resolveNeteaseAttempts(track);
             if (!primary.isEmpty()) return new ResolutionPlan(primary, false, null);
             primaryError = "stream_unavailable";
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw interrupted;
         } catch (Exception error) {
             primaryError = classifyErrorCode(error);
             Log.i(TAG, "primary-resolution-fallback primary=" + (preferQqFirst ? "qq" : "netease")
                     + " code=" + primaryError + " type=" + error.getClass().getSimpleName());
         }
-        if (Thread.currentThread().isInterrupted()) throw new StreamException("stream_unavailable");
+        if (Thread.currentThread().isInterrupted()) throw new InterruptedException("playback cancelled");
         try {
             List<Attempt> secondary = preferQqFirst
                     ? resolveNeteaseAttempts(track) : resolveQQAttempts(track);
             if (!secondary.isEmpty()) return new ResolutionPlan(secondary, true, primaryError);
             throw new StreamException(chooseAutoFailureCode(track.provider, primaryError, "stream_unavailable"));
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw interrupted;
         } catch (Exception fallbackError) {
             String secondaryError = classifyErrorCode(fallbackError);
             Log.w(TAG, "secondary-resolution-failed secondary=" + (preferQqFirst ? "netease" : "qq")
@@ -1169,11 +1189,18 @@ public final class PlaybackService extends MediaBrowserService
             }
             if (startedNow && currentTrack != null) {
                 commitVerifiedPlaybackMapping();
-                try {
-                    RecentPlaybackStore.get(getApplicationContext()).record(currentTrack);
-                } catch (RuntimeException error) {
-                    Log.w(TAG, "recent-history-write-failed type="
-                            + error.getClass().getSimpleName());
+                if (recordedGeneration != playbackGeneration) {
+                    recordedGeneration = playbackGeneration;
+                    final Track toRecord = currentTrack;
+                    final Context appContext = getApplicationContext();
+                    lyricsExecutor.submit(() -> {
+                        try {
+                            RecentPlaybackStore.get(appContext).record(toRecord);
+                        } catch (RuntimeException error) {
+                            Log.w(TAG, "recent-history-write-failed type="
+                                    + error.getClass().getSimpleName());
+                        }
+                    });
                 }
             }
             buffering = false;
@@ -1486,50 +1513,186 @@ public final class PlaybackService extends MediaBrowserService
         return settingsPrefs == null || settingsPrefs.getBoolean("statusLyrics", true);
     }
 
+    static final class LyricTarget {
+        final String provider;
+        final String id;
+
+        LyricTarget(String provider, String id) {
+            this.provider = provider;
+            this.id = id;
+        }
+
+        String key() {
+            return provider + ":" + id;
+        }
+
+        JSONObject toJson() throws JSONException {
+            return new JSONObject().put("provider", provider).put("id", id);
+        }
+    }
+
+    private static String trackIdentity(Track track) {
+        return track == null ? "" : (track.provider + ":" + track.id);
+    }
+
+    private static boolean isValidQqSongMid(String value) {
+        String mid = QQSource.validMid(value);
+        return !mid.isEmpty() && !mid.matches("\\d+");
+    }
+
+    /**
+     * Ordered read-only lyric lookup candidates: catalog identity first, followed by any
+     * verified alternate recording identity from the active attempt or v2 verified cache.
+     * Never exposes mediaMid, unverified legacy qqMid, or cross-platform wrong-type IDs.
+     */
+    static List<LyricTarget> buildLyricTargets(
+            Track track,
+            String activeSource,
+            String activeQqMid,
+            String activeNeteaseId,
+            boolean activeQqVerified) {
+        List<LyricTarget> targets = new ArrayList<>(2);
+        if (track == null) return targets;
+        if ("netease".equals(track.provider)) {
+            if (NetEaseAuthState.hasPositiveUserId(track.id)) {
+                addUniqueLyricTarget(targets, "netease", track.id);
+            }
+        } else if ("qq".equals(track.provider)) {
+            String catalogMid = QQSource.validMid(track.effectiveQqMid());
+            if (isValidQqSongMid(catalogMid)) {
+                addUniqueLyricTarget(targets, "qq", catalogMid);
+            }
+        }
+        if ("qq".equals(activeSource) && activeQqVerified && isValidQqSongMid(activeQqMid)) {
+            addUniqueLyricTarget(targets, "qq", QQSource.validMid(activeQqMid));
+        } else if ("netease".equals(activeSource) && NetEaseAuthState.hasPositiveUserId(activeNeteaseId)) {
+            addUniqueLyricTarget(targets, "netease", activeNeteaseId.trim());
+        }
+        if (track.hasVerifiedQqMid() && isValidQqSongMid(track.effectiveQqMid())) {
+            addUniqueLyricTarget(targets, "qq", QQSource.validMid(track.effectiveQqMid()));
+        }
+        return targets;
+    }
+
+    private static void addUniqueLyricTarget(List<LyricTarget> targets, String provider, String id) {
+        for (LyricTarget existing : targets) {
+            if (existing.provider.equals(provider) && existing.id.equals(id)) return;
+        }
+        targets.add(new LyricTarget(provider, id));
+    }
+
+    static JSONArray lyricTargetsJson(List<LyricTarget> targets) throws JSONException {
+        JSONArray array = new JSONArray();
+        if (targets != null) {
+            for (LyricTarget target : targets) array.put(target.toJson());
+        }
+        return array;
+    }
+
+    static JSONObject stripTransientStateFields(JSONObject state) {
+        if (state != null) {
+            state.remove("lyricsTargets");
+            state.remove("playWhenReady");
+        }
+        return state;
+    }
+
+    private List<LyricTarget> currentLyricTargets() {
+        String activeSource = activeAttempt != null ? activeAttempt.source : currentSource;
+        String activeQqMid = activeAttempt != null ? activeAttempt.qqMid : "";
+        String activeNeteaseId = activeAttempt != null ? activeAttempt.neteaseId : "";
+        boolean activeQqVerified = activeAttempt != null && activeAttempt.verifiedQqMatch;
+        return buildLyricTargets(currentTrack, activeSource, activeQqMid, activeNeteaseId, activeQqVerified);
+    }
+
     private void clearLyrics() {
+        lyricsGeneration++;
         if (lyricsTask != null) {
             lyricsTask.cancel(true);
             lyricsTask = null;
         }
         handler.removeCallbacks(lyricTick);
+        lyricsTrackIdentity = "";
         lyricsKey = "";
         lyrics = LrcLines.EMPTY;
         lyricIndex = -1;
     }
 
-    /** Fetches lyrics from the provider that is actually streaming, as the player UI does. */
+    /**
+     * Fetches status-bar lyrics across ordered trusted targets (catalog first, then verified
+     * alternate recording). Keeps already-loaded lyrics across CDN retries and uses a monotonic
+     * generation to prevent stale A->B->A callbacks from overwriting the current track.
+     */
     private void loadLyricsAsync() {
         final Track track = currentTrack;
-        if (track == null) return;
-        final boolean qq = "qq".equals(currentSource) || "qq".equals(track.provider);
-        final String activeQqMid = (activeAttempt != null && !activeAttempt.qqMid.isEmpty())
-                ? activeAttempt.qqMid : track.effectiveQqMid();
-        final String key = (qq ? "qq:" : "netease:") + track.id + ":" + activeQqMid;
-        if (key.equals(lyricsKey)) return;
-        clearLyrics();
-        lyricsKey = key;
+        if (track == null || !statusLyricsEnabled()) return;
+        final String identity = trackIdentity(track);
+        final List<LyricTarget> targets = currentLyricTargets();
+        if (targets.isEmpty()) return;
+        StringBuilder keyBuilder = new StringBuilder(identity);
+        for (LyricTarget target : targets) keyBuilder.append('|').append(target.key());
+        final String nextKey = keyBuilder.toString();
+        if (identity.equals(lyricsTrackIdentity)) {
+            if (!lyrics.isEmpty() || nextKey.equals(lyricsKey)) return;
+        } else {
+            clearLyrics();
+        }
+        if (lyricsTask != null) {
+            lyricsTask.cancel(true);
+            lyricsTask = null;
+        }
+        final long requestGeneration = ++lyricsGeneration;
+        lyricsTrackIdentity = identity;
+        lyricsKey = nextKey;
         updateMetadata();
         updateNotification();
         final Context context = getApplicationContext();
         lyricsTask = lyricsExecutor.submit(() -> {
             LrcLines parsed = LrcLines.EMPTY;
-            try {
-                JSONObject args = new JSONObject().put("id", track.id)
-                        .put("mid", activeQqMid.isEmpty() ? track.id : activeQqMid);
-                JSONObject response = qq ? QQSource.get(context).execute("qqLyrics", args)
-                        : MusicApi.get(context).execute("lyrics", args);
-                JSONObject lrc = response == null ? null : response.optJSONObject("lrc");
-                parsed = LrcLines.parse(lrc != null ? lrc.optString("lyric", "")
-                        : response == null ? "" : response.optString("lyric", ""));
-            } catch (Exception error) {
-                Log.w(TAG, "lyrics-load-failed type=" + error.getClass().getSimpleName());
+            String resolvedTarget = "none";
+            for (LyricTarget target : targets) {
+                if (Thread.currentThread().isInterrupted()) return;
+                try {
+                    JSONObject response;
+                    if ("qq".equals(target.provider)) {
+                        JSONObject args = new JSONObject().put("mid", target.id).put("qqMid", target.id);
+                        response = QQSource.get(context).execute("qqLyrics", args);
+                    } else {
+                        JSONObject args = new JSONObject().put("id", target.id);
+                        response = MusicApi.get(context).execute("lyrics", args);
+                    }
+                    JSONObject lrc = response == null ? null : response.optJSONObject("lrc");
+                    String raw = lrc != null ? lrc.optString("lyric", "")
+                            : (response == null ? "" : response.optString("lyric", ""));
+                    LrcLines candidate = LrcLines.parse(raw);
+                    if (!candidate.isEmpty()) {
+                        parsed = candidate;
+                        resolvedTarget = target.key();
+                        break;
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (Exception error) {
+                    Log.w(TAG, "lyrics-target-failed catalog=" + identity
+                            + " target=" + target.key()
+                            + " type=" + error.getClass().getSimpleName());
+                }
             }
             final LrcLines result = parsed;
+            final String winner = resolvedTarget;
             handler.post(() -> {
-                if (destroyed || !key.equals(lyricsKey)) return;
+                if (destroyed || requestGeneration != lyricsGeneration) {
+                    Log.i(TAG, "lyrics-load-dropped-stale catalog=" + identity + " resolved=" + winner);
+                    return;
+                }
                 lyricsTask = null;
                 lyrics = result;
                 lyricIndex = -1;
+                Log.i(TAG, "lyrics-load-done catalog=" + identity
+                        + " targets=" + targets.size()
+                        + " resolved=" + winner
+                        + " hasLines=" + (!result.isEmpty()));
                 syncLyricLine();
             });
         });
@@ -1620,7 +1783,7 @@ public final class PlaybackService extends MediaBrowserService
     }
 
     private void publishState(String event) {
-        persistState(publishSnapshot(), SystemClock.elapsedRealtime());
+        persistState(publishSnapshot(true), SystemClock.elapsedRealtime());
         Log.i(TAG, "state event=" + event + " index=" + currentIndex
                 + " playing=" + isPlayerPlaying() + " buffering=" + buffering
                 + " source=" + currentSource + " positionMs=" + safePosition());
@@ -1628,17 +1791,20 @@ public final class PlaybackService extends MediaBrowserService
 
     /** Progress ticks refresh the in-memory copy; the saved copy only every few seconds. */
     private void publishProgress() {
-        String fields = publishSnapshot();
         long now = SystemClock.elapsedRealtime();
-        if (now - lastStatePersistAt >= STATE_PERSIST_INTERVAL_MS) persistState(fields, now);
+        boolean shouldPersist = now - lastStatePersistAt >= STATE_PERSIST_INTERVAL_MS;
+        String fields = publishSnapshot(shouldPersist);
+        if (shouldPersist) persistState(fields, now);
     }
 
     /** Publishes the queue before the state that names its version, so readers never see it stale. */
-    private String publishSnapshot() {
+    private String publishSnapshot(boolean prepareSavedFields) {
         queueJson();
-        String fields = buildStateFields();
-        publishedStateJson = fields;
-        return fields;
+        JSONObject liveState = buildStateObject(true);
+        publishedStateJson = liveState.toString();
+        if (!prepareSavedFields) return "";
+        stripTransientStateFields(liveState);
+        return liveState.toString();
     }
 
     private void persistState(String fields, long now) {
@@ -1659,7 +1825,7 @@ public final class PlaybackService extends MediaBrowserService
         return queueJsonCache;
     }
 
-    private String buildStateFields() {
+    private JSONObject buildStateObject(boolean includeTransient) {
         JSONObject state = new JSONObject();
         try {
             state.put("track", currentTrack == null
@@ -1676,10 +1842,14 @@ public final class PlaybackService extends MediaBrowserService
             state.put("source", currentSource == null ? JSONObject.NULL : currentSource);
             state.put("bufferingPercent", bufferingPercent);
             state.put("queueVersion", queueVersion);
+            if (includeTransient) {
+                state.put("playWhenReady", playWhenReady);
+                state.put("lyricsTargets", lyricTargetsJson(currentLyricTargets()));
+            }
             // Lets the UI extrapolate the position between the once-per-second updates.
             state.put("updatedAt", System.currentTimeMillis());
         } catch (JSONException ignored) { }
-        return state.toString();
+        return state;
     }
 
     private void restoreSavedState() {

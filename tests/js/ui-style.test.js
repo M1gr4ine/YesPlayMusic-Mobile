@@ -13,35 +13,30 @@ function createHarness(nativeSettings, systemDark) {
       if (name === 'content') this.content = value;
     }
   };
-  const makeChoiceButton = (attr, value) => ({
-    dataset: { [attr]: value },
-    selected: false,
-    ariaChecked: '',
-    classList: {
-      toggle(name, flag) {
-        if (name === 'is-selected') this.selected = !!flag;
+  const makeChoiceButton = (attr, value) => {
+    const btn = {
+      dataset: { [attr]: value },
+      selected: false,
+      ariaChecked: '',
+      classList: {
+        toggle(name, flag) {
+          if (name === 'is-selected') btn.selected = !!flag;
+        }
+      },
+      setAttribute(name, val) {
+        if (name === 'aria-checked') btn.ariaChecked = val;
       }
-    },
-    setAttribute(name, val) {
-      if (name === 'aria-checked') this.ariaChecked = val;
-    }
-  });
-  // Bind toggle to button object
-  const bindButton = (attr, value) => {
-    const btn = makeChoiceButton(attr, value);
-    btn.classList.toggle = (name, flag) => {
-      if (name === 'is-selected') btn.selected = !!flag;
     };
     return btn;
   };
   const themeButtons = [
-    bindButton('themeChoice', 'system'),
-    bindButton('themeChoice', 'light'),
-    bindButton('themeChoice', 'dark')
+    makeChoiceButton('themeChoice', 'system'),
+    makeChoiceButton('themeChoice', 'light'),
+    makeChoiceButton('themeChoice', 'dark')
   ];
   const uiButtons = [
-    bindButton('uiChoice', 'classic'),
-    bindButton('uiChoice', 'material3')
+    makeChoiceButton('uiChoice', 'classic'),
+    makeChoiceButton('uiChoice', 'material3')
   ];
   const docEl = { dataset: {} };
   const state = {

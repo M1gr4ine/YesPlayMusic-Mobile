@@ -59,7 +59,7 @@ final class ArtistAliases {
         if (shared && conflictingCandidateNames(artist, artistAliases, candidateArtist)) return false;
         boolean single = isSingleArtistCredit(artist);
         boolean crossScript = single && crossScript(artist, candidateArtist);
-        boolean albumMatch = QQMatch.sameRecordingTitle(album, candidateAlbum);
+        boolean albumMatch = QQMatch.knownArtist(album) && QQMatch.sameRecordingTitle(album, candidateAlbum);
         if (albumMatch && (shared || crossScript || (distinctiveAlbum(album) && bilingualCredit(candidateArtist)))) return true;
         return artistQuery && resultRank == 0 && crossScript;
     }

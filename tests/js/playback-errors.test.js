@@ -29,7 +29,7 @@ test('playTracks remaps clicked index when earlier entries are invalid', () => {
 });
 
 test('normalizeMediaState preserves structured error codes and playbackErrorMessage distinguishes causes', () => {
-  const app = loadAppFunctions(['artistNames', 'artistAliasNames', 'artistRefs', 'normalizeTrack', 'mediaQueue', 'normalizeMediaState', 'playbackErrorMessage'], {
+  const app = loadAppFunctions(['artistNames', 'artistAliasNames', 'artistRefs', 'normalizeTrack', 'mediaQueue', 'normalizeLyricTarget', 'normalizeMediaState', 'playbackErrorMessage'], {
     safeHttpsUrl: value => String(value || ''),
     mediaQueueCache: { version: -1, queue: [] },
     window: { Native: {} }
@@ -46,4 +46,13 @@ test('normalizeMediaState preserves structured error codes and playbackErrorMess
   const legacyBool = app.normalizeMediaState({ error: true, queue: [] });
   assert.equal(legacyBool.error, 'stream_unavailable');
   assert.ok(app.playbackErrorMessage(legacyBool.error, 'auto').includes('无法播放'));
+});
+
+test('playToggleState stays in pause state during track-switch buffering and respects playWhenReady=false', () => {
+  const app = loadAppFunctions(['playToggleState'], {});
+  assert.equal(app.playToggleState({ playing: true, buffering: false, playWhenReady: true, error: null }), true);
+  assert.equal(app.playToggleState({ playing: false, buffering: true, playWhenReady: true, error: null }), true);
+  assert.equal(app.playToggleState({ playing: false, buffering: true, playWhenReady: false, error: null }), false);
+  assert.equal(app.playToggleState({ playing: false, buffering: false, playWhenReady: false, error: null }), false);
+  assert.equal(app.playToggleState({ playing: false, buffering: true, playWhenReady: true, error: 'network_error' }), false);
 });

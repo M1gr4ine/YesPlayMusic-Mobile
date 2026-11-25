@@ -32,8 +32,9 @@
         if (time !== null) stamps.push(time + offset);
       }
       if (!stamps.length) continue;
-      const lyric = line.replace(stampPattern, '').trim();
-      if (!lyric || /^\[[a-z]+:/i.test(lyric)) continue;
+      const lyric = line.replace(stampPattern, '').trim()
+        .replace(/^(?:\[(?:ti|ar|al|au|by|offset|re|ve|length|tool):[^\]\r\n]*\]\s*)+/i, '').trim();
+      if (!lyric) continue;
       for (const time of stamps) entries.push({ time: Math.max(0, time), text: lyric });
     }
 

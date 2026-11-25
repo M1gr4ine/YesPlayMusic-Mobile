@@ -133,14 +133,6 @@ public final class MusicApi {
         throw new IllegalArgumentException("Unknown NetEase method: " + method);
     }
 
-    public JSONObject resolveTrackUrl(String id) throws Exception {
-        List<JSONObject> attempts = resolveTrackAttempts(id);
-        if (attempts.isEmpty()) {
-            throw new ResolveException("stream_unavailable", "这首歌当前没有可播放的网易云音源", "empty_attempts");
-        }
-        return attempts.get(0);
-    }
-
     /**
      * Resolves playable NetEase stream attempts for a numeric track ID.
      * Prefers br=350000 (standard FLAC/320k MP3 without hitting Hi-Res >= 400000 tiers),
@@ -180,13 +172,9 @@ public final class MusicApi {
                     || "netease_rate_limited".equals(fallbackError.code)) {
                 throw fallbackError;
             }
-            if (primaryError != null && "trial_unavailable".equals(primaryError.code)) {
-                throw primaryError;
-            }
-            throw primaryError != null ? primaryError : fallbackError;
+            throw primaryError;
         } catch (IOException error) {
-            if (primaryError != null) throw primaryError;
-            throw new ResolveException("network_error", "无法连接网易云音乐服务", error.getClass().getSimpleName());
+            throw primaryError;
         }
     }
 
@@ -429,6 +417,9 @@ public final class MusicApi {
         try {
             JSONObject response = requestWeapi("/api/v1/artist/" + artistId, new JSONObject());
             JSONObject artistObj = response.optJSONObject("artist");
+            if (response.optInt("code", 200) != 200 || artistObj == null) {
+                return java.util.Collections.emptyList();
+            }
             List<String> parsed = extractArtistDetailAliases(artistObj);
             synchronized (artistAliasCache) {
                 artistAliasCache.put(artistId, parsed);
@@ -1852,6 +1843,8 @@ public final class MusicApi {
     }
 
     private static boolean isExpiredCookieAttributes(String[] segments, long nowEpochMillis) {
+        Boolean maxAgeExpired = null;
+        boolean expiresExpired = false;
         for (int i = 1; i < segments.length; i++) {
             String attr = segments[i].trim();
             int eq = attr.indexOf('=');
@@ -1860,15 +1853,16 @@ public final class MusicApi {
             String val = attr.substring(eq + 1).trim();
             if ("max-age".equals(key)) {
                 try {
-                    if (Long.parseLong(val) <= 0L) return true;
+                    maxAgeExpired = Long.parseLong(val) <= 0L;
                 } catch (NumberFormatException ignored) {
                 }
             } else if ("expires".equals(key)) {
                 long expiresAt = parseHttpDate(val);
-                if (expiresAt != Long.MIN_VALUE && expiresAt <= nowEpochMillis) return true;
+                if (expiresAt != Long.MIN_VALUE && expiresAt <= nowEpochMillis) expiresExpired = true;
             }
         }
-        return false;
+        // RFC 6265: Max-Age takes precedence over Expires when both are present.
+        return maxAgeExpired != null ? maxAgeExpired : expiresExpired;
     }
 
     private static long parseHttpDate(String value) {

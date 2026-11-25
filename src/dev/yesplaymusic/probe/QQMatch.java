@@ -115,7 +115,7 @@ public final class QQMatch {
     }
     private static java.util.List<java.util.Set<String>> artistParts(String credit) {
         java.util.List<java.util.Set<String>> parts = new java.util.ArrayList<>();
-        if (credit != null) for (String part : ARTIST_SEPARATOR.split(credit)) {
+        if (credit != null) for (String part : ARTIST_SEPARATOR.split(fold(credit))) {
             java.util.Set<String> names = artistNames(part);
             if (!names.isEmpty()) parts.add(names);
         }

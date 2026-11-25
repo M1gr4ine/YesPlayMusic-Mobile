@@ -36,6 +36,24 @@ test('pairs QQ translations whose timestamps drift and skips "//" placeholders',
   ]);
 });
 
+test('filters known timed metadata while retaining sections and text after tags', () => {
+  const primary = '[ti:Like Him]\n[ar:Artist]\n[00:00.00][ti:Like Him]\n'
+    + '[00:01.00][Intro: spoken]\n[00:02.00][Verse 1]\n[00:03.00][Chorus]\n'
+    + '[00:04.00][note: keep this]\n[00:05.00][AR:Artist][al:Album]Real lyric\n'
+    + '[00:06.00][length:3:45][au:Writer][offset:5][re:App][ve:1][by:Editor]\n[00:07.00][tool:editor]\n'
+    + '[00:08.00][00:09.00][Intro: repeat]';
+  const translated = '[00:01.00][Intro: 翻译]\n[00:05.00][by:Editor]译文\n[00:06.00][ve:1]';
+  assert.deepEqual(parseLrc(primary, translated), [
+    { time: 1000, text: '[Intro: spoken]', translation: '[Intro: 翻译]' },
+    { time: 2000, text: '[Verse 1]', translation: '' },
+    { time: 3000, text: '[Chorus]', translation: '' },
+    { time: 4000, text: '[note: keep this]', translation: '' },
+    { time: 5000, text: 'Real lyric', translation: '译文' },
+    { time: 8000, text: '[Intro: repeat]', translation: '' },
+    { time: 9000, text: '[Intro: repeat]', translation: '' }
+  ]);
+});
+
 test('selects the last lyric at or before the current playback position', () => {
   const lines = parseLrc('[00:02.00]第一行\n[00:05.50]第二行\n[00:09.00]第三行');
   assert.equal(activeIndex(lines, 0), -1);

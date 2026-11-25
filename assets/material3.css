@@ -192,9 +192,21 @@
   outline-offset: 2px;
 }
 
-:root[data-ui="material3"] button:active {
-  transform: scale(.97);
+:root[data-ui="material3"] :where(button):not(:where(.overlay-scrim, .lyric-line, .source-option, .lyrics-translation-toggle, .secondary-transport, .tab-item, .setting-switch, .action-item, .my-playlist-row, .song-row-main, .detail-description, .mini-track)) {
   transition: transform var(--m3-fast-effects-duration) var(--m3-fast-effects-curve);
+}
+
+:root[data-ui="material3"] :where(button):not(:where(.overlay-scrim, .lyric-line, .source-option, .lyrics-translation-toggle, .secondary-transport, .tab-item, .setting-switch, .action-item, .my-playlist-row, .song-row-main, .detail-description, .mini-track)):active {
+  transform: scale(.97);
+}
+
+:root[data-ui="material3"] .overlay-scrim:active,
+:root[data-ui="material3"] .source-option:active {
+  transform: none;
+}
+
+:root[data-ui="material3"] .lyrics-translation-toggle:active {
+  transform: translateY(-50%) scale(.95);
 }
 
 /* Top App Bar (Medium Expressive) */
@@ -287,18 +299,41 @@
 }
 
 :root[data-ui="material3"] .tab-icon {
+  position: relative;
+  isolation: isolate;
   flex: 0 0 32px;
   width: 64px;
   height: 32px;
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: 16px;
   background: transparent;
-  transition:
-    background-color var(--m3-fast-effects-duration) var(--m3-fast-effects-curve),
-    color var(--m3-fast-effects-duration) var(--m3-fast-effects-curve),
-    transform var(--m3-fast-spatial-duration) var(--m3-fast-spatial-curve);
+  transition: color var(--m3-fast-effects-duration) var(--m3-fast-effects-curve);
 }
 
-:root[data-ui="material3"] .tab-item:active .tab-icon {
+:root[data-ui="material3"] .tab-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 16px;
+  background: var(--md-sys-color-secondary-container);
+  opacity: 0;
+  transform: scaleX(0.35);
+  transition:
+    opacity var(--m3-fast-effects-duration) var(--m3-fast-effects-curve),
+    transform var(--m3-fast-effects-duration) var(--m3-fast-effects-curve);
+}
+
+:root[data-ui="material3"] .tab-icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 16px;
+  background: transparent;
+  transition: background-color var(--m3-fast-effects-duration) var(--m3-fast-effects-curve);
+}
+
+:root[data-ui="material3"] .tab-item:active .tab-icon::after {
   background: color-mix(in srgb, var(--md-sys-color-on-surface) 10%, transparent);
 }
 
@@ -308,8 +343,15 @@
 }
 
 :root[data-ui="material3"] .tab-item.is-active .tab-icon {
-  background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
+}
+
+:root[data-ui="material3"] .tab-item.is-active .tab-icon::before {
+  opacity: 1;
+  transform: scaleX(1);
+  transition:
+    transform var(--m3-fast-spatial-duration) var(--m3-fast-spatial-curve),
+    opacity var(--m3-fast-effects-duration) var(--m3-fast-effects-curve);
 }
 
 /* Floating Tonal Mini Player */
@@ -371,13 +413,15 @@
 }
 
 :root[data-ui="material3"] #mini-toggle {
+  /* Use exact half-height (22px) instead of 9999px so fast-spatial overshoot never clamps to 0px. */
   border-radius: 14px;
   background: var(--md-sys-color-secondary-container);
   color: var(--md-sys-color-on-secondary-container);
   transition:
     border-radius var(--m3-fast-spatial-duration) var(--m3-fast-spatial-curve),
     background-color var(--m3-fast-effects-duration) var(--m3-fast-effects-curve),
-    color var(--m3-fast-effects-duration) var(--m3-fast-effects-curve);
+    color var(--m3-fast-effects-duration) var(--m3-fast-effects-curve),
+    transform var(--m3-fast-effects-duration) var(--m3-fast-effects-curve);
 }
 
 :root[data-ui="material3"] #mini-toggle svg {
@@ -386,7 +430,7 @@
 }
 
 :root[data-ui="material3"] #mini-toggle[data-icon="pause"] {
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: 22px;
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
 }
@@ -720,6 +764,7 @@
 }
 
 :root[data-ui="material3"] .secondary-action:disabled {
+  background: transparent;
   border-color: var(--md-sys-color-outline-variant);
   color: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
 }
@@ -1009,9 +1054,10 @@
 }
 
 :root[data-ui="material3"] .play-button {
+  /* Use exact half-size (36px) instead of 9999px so fast-spatial overshoot never clamps to 0px. */
   width: 72px;
   height: 72px;
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: 36px;
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
   box-shadow: var(--md-sys-elevation-2);
@@ -1019,7 +1065,7 @@
     border-radius var(--m3-fast-spatial-duration) var(--m3-fast-spatial-curve),
     background-color var(--m3-fast-effects-duration) var(--m3-fast-effects-curve),
     color var(--m3-fast-effects-duration) var(--m3-fast-effects-curve),
-    transform var(--m3-fast-spatial-duration) var(--m3-fast-spatial-curve);
+    transform var(--m3-fast-effects-duration) var(--m3-fast-effects-curve);
 }
 
 :root[data-ui="material3"] .play-button[data-icon="pause"] {
@@ -1091,13 +1137,24 @@
   content: none;
 }
 
+:root[data-ui="material3"] .lyrics-translation-toggle {
+  isolation: isolate;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+:root[data-ui="material3"] .lyrics-translation-toggle::before {
+  z-index: -1;
+  border-color: var(--md-sys-color-outline);
+  background: transparent;
+}
+
 :root[data-ui="material3"] .lyrics-translation-toggle[aria-pressed="true"] {
   color: var(--md-sys-color-primary);
 }
 
 :root[data-ui="material3"] .lyrics-translation-toggle[aria-pressed="true"]::before {
   border-color: var(--md-sys-color-primary);
-  background: var(--md-sys-color-primary-container);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent);
 }
 
 :root[data-ui="material3"] .lyric-line {
@@ -1233,18 +1290,15 @@
 }
 
 :root[data-ui="material3"] .switch-mark::after {
-  top: 6px;
-  left: 6px;
-  width: 16px;
-  height: 16px;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
   background: var(--md-sys-color-outline);
   box-shadow: none;
+  transform: translateX(0) scale(.667);
   transition:
     transform var(--m3-fast-spatial-duration) var(--m3-fast-spatial-curve),
-    width var(--m3-fast-spatial-duration) var(--m3-fast-spatial-curve),
-    height var(--m3-fast-spatial-duration) var(--m3-fast-spatial-curve),
-    top var(--m3-fast-spatial-duration) var(--m3-fast-spatial-curve),
-    left var(--m3-fast-spatial-duration) var(--m3-fast-spatial-curve),
     background-color var(--m3-fast-effects-duration) var(--m3-fast-effects-curve);
 }
 
@@ -1254,12 +1308,8 @@
 }
 
 :root[data-ui="material3"] .setting-switch[aria-checked="true"] .switch-mark::after {
-  top: 2px;
-  left: 2px;
-  width: 24px;
-  height: 24px;
   background: var(--md-sys-color-on-primary);
-  transform: translateX(20px);
+  transform: translateX(20px) scale(1);
 }
 
 /* M3 Segmented Buttons (UI Style & Appearance Theme Pickers) */
@@ -1402,6 +1452,7 @@
   :root[data-ui="material3"] .play-button {
     width: 60px;
     height: 60px;
+    border-radius: 30px;
   }
   :root[data-ui="material3"] .play-button[data-icon="pause"] {
     border-radius: 18px;

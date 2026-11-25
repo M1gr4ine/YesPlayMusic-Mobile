@@ -14,7 +14,7 @@ public final class LrcLines {
 
     private static final Pattern STAMP = Pattern.compile("\\[(\\d+):(\\d{1,2})(?:[.:](\\d{1,3}))?\\]");
     private static final Pattern OFFSET = Pattern.compile("(?im)^\\[offset:([+-]?\\d+)\\]");
-    private static final Pattern TAG = Pattern.compile("(?i)^\\[[a-z]+:.*");
+    private static final Pattern METADATA = Pattern.compile("(?i)^(?:\\[(?:ti|ar|al|au|by|offset|re|ve|length|tool):[^\\]\\r\\n]*\\]\\s*)+");
 
     private final long[] times;
     private final String[] texts;
@@ -41,8 +41,8 @@ public final class LrcLines {
             List<Long> found = new ArrayList<>();
             while (stamps.find()) found.add(stampMs(stamps) + offset);
             if (found.isEmpty()) continue;
-            String lyric = stamps.replaceAll("").trim();
-            if (lyric.isEmpty() || TAG.matcher(lyric).matches()) continue;
+            String lyric = METADATA.matcher(stamps.replaceAll("").trim()).replaceFirst("").trim();
+            if (lyric.isEmpty()) continue;
             for (long time : found) {
                 long at = Math.max(0L, time);
                 String existing = byTime.get(at);

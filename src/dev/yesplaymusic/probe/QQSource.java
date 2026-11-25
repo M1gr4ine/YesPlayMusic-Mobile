@@ -1,7 +1,6 @@
 package dev.yesplaymusic.probe;
 
 import android.content.Context;
-import android.util.Base64;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
@@ -63,7 +62,11 @@ public final class QQSource {
         Map<String,String> map=new LinkedHashMap<>();
         for(String item:(cookie==null?"":cookie).split(";")){int at=item.indexOf('=');if(at>0)map.put(item.substring(0,at).trim(),item.substring(at+1).trim());} return map;
     }
-    private static String first(Map<String,String> values,String...keys){for(String key:keys){String val=values.get(key);if(val!=null&&!val.isEmpty()&&!val.matches(".*[\\r\\n\\x00-\\x20].*"))return val;}return "";}
+    private static final java.util.regex.Pattern CONTROL_OR_SPACE = java.util.regex.Pattern.compile("[\\r\\n\\x00-\\x20\\x7f]");
+    private static boolean safeCookieValue(String value) {
+        return value != null && !value.isEmpty() && !CONTROL_OR_SPACE.matcher(value).find();
+    }
+    private static String first(Map<String,String> values,String...keys){for(String key:keys){String val=values.get(key);if(safeCookieValue(val))return val;}return "";}
     private static String normalizedUin(String raw) {
         if(raw==null)return "";
         String value=raw.startsWith("o")?raw.substring(1):raw;
@@ -88,7 +91,7 @@ public final class QQSource {
         StringBuilder result=new StringBuilder();
         for(String name:COOKIE_NAMES) {
             String value=values.get(name);
-            if(value!=null&&!value.isEmpty()&&!value.matches(".*[\\r\\n\\x00-\\x20].*")) {
+            if(safeCookieValue(value)) {
                 if(result.length()>0)result.append("; ");result.append(name).append('=').append(value);
             }
         }
@@ -164,9 +167,9 @@ public final class QQSource {
             Object rawKey=result.opt("musickey"), rawToken=result.opt("refresh_token");
             if(!(rawKey instanceof String))return getCookie();
             String newKey=(String)rawKey;
-            if(newKey.isEmpty() || "null".equalsIgnoreCase(newKey) || newKey.matches(".*[\\r\\n\\x00-\\x20].*"))return getCookie();
-            if(result.has("refresh_token") && (!(rawToken instanceof String) || ((String)rawToken).isEmpty()
-                    || "null".equalsIgnoreCase((String)rawToken) || ((String)rawToken).matches(".*[\\r\\n\\x00-\\x20].*")))return getCookie();
+            if(!safeCookieValue(newKey) || "null".equalsIgnoreCase(newKey))return getCookie();
+            if(result.has("refresh_token") && (!(rawToken instanceof String) || !safeCookieValue((String)rawToken)
+                    || "null".equalsIgnoreCase((String)rawToken)))return getCookie();
             long time=result.optLong("musickeyCreateTime");
             if(time<=0 || time>(Long.MAX_VALUE-259200000L)/1000 || time*1000+259200000L<=System.currentTimeMillis()+600000L)return getCookie();
             map.put("qm_keyst",newKey);map.put("qqmusic_key",newKey);map.put("psrf_musickey_createtime",String.valueOf(time));
@@ -229,19 +232,176 @@ public final class QQSource {
             for(int i=0;i<raw.length();i++)songs.put(toTrack(raw.getJSONObject(i)));
             return new JSONObject().put("code",200).put("result",new JSONObject().put("songs",songs).put("songCount",songs.length()));
         }
-        if("qqLyrics".equals(method)){
-            String mid=args.optString("qqMid",args.optString("mid",args.optString("id",""))).replaceFirst("^qq:","");
-            String cookie=freshCookie();JSONObject data;
-            // The legacy lyric endpoint never returns translations; PlayLyricInfo does when trans=1.
-            try{data=request("music.musichallSong.PlayLyricInfo","GetPlayLyricInfo",new JSONObject().put("songMID",mid).put("trans",1).put("roma",0).put("crypt",0).put("qrc",0).put("type",0),cookie);if(data.optString("lyric").isEmpty())throw new Exception("empty lyric");}
-            catch(Exception unavailable){data=getJson("https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid="+URLEncoder.encode(mid,"UTF-8")+"&format=json&nobase64=1",cookie);}
-            return new JSONObject().put("code",200).put("lrc",new JSONObject().put("lyric",lyricText(data.optString("lyric")))).put("tlyric",new JSONObject().put("lyric",lyricText(data.optString("trans"))));
+        if ("qqLyrics".equals(method)) {
+            String key = args.has("qqMid") ? "qqMid" : args.has("mid") ? "mid" : "id";
+            Object mid = args.opt(key);
+            return resolveLyrics(mid instanceof String ? (String) mid : null, new LyricLookup() {
+                @Override public JSONObject modern(String songMid) throws Exception {
+                    JSONObject params = new JSONObject().put("songMID", songMid).put("trans", 1)
+                            .put("roma", 0).put("crypt", 0).put("qrc", 0).put("type", 0);
+                    return request("music.musichallSong.PlayLyricInfo", "GetPlayLyricInfo", params, freshCookie());
+                }
+
+                @Override public JSONObject legacy(String songMid) throws Exception {
+                    String url = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid="
+                            + URLEncoder.encode(songMid, "UTF-8") + "&format=json&nobase64=1";
+                    return getJson(url, getCookie());
+                }
+            });
         }
         throw new Exception("不支持的 QQ 音乐操作");
     }
-    private static String lyricText(String text){
-        if(!text.contains("[")&&!text.contains("&#")){try{text=new String(Base64.decode(text,Base64.DEFAULT),"UTF-8");}catch(Exception ignored){}}
-        return text.replace("&#10;","\n").replace("&#13;","").replace("&#58;",":").replace("&#46;",".").replace("&#32;"," ").replace("&#39;","'").replace("&apos;","'").replace("&quot;","\"").replace("&amp;","&").replace("&lt;","<").replace("&gt;",">");
+    interface LyricLookup {
+        JSONObject modern(String mid) throws Exception;
+        JSONObject legacy(String mid) throws Exception;
+    }
+
+    static JSONObject resolveLyrics(String rawMid, LyricLookup lookup) throws Exception {
+        checkCancelled();
+        String mid = rawMid == null ? "" : rawMid.trim();
+        mid = validMid(mid.startsWith("qq:") ? mid.substring(3) : mid);
+        if (mid.isEmpty() || mid.matches("[0-9]+")) {
+            throw new ResolveException("match_not_found", "invalid_lyric_mid");
+        }
+        try {
+            JSONObject modern = lookup.modern(mid);
+            checkCancelled();
+            JSONObject lyrics = parseLyricResponse(modern, false);
+            checkCancelled();
+            if (!lyrics.getBoolean("nolyric")) return lyrics;
+        } catch (InterruptedException | java.util.concurrent.CancellationException cancelled) {
+            throw cancelled;
+        } catch (Exception unavailable) {
+            // The legacy service can still have the original when PlayLyricInfo fails.
+        }
+        checkCancelled();
+        try {
+            return parseLyricResponse(lookup.legacy(mid), true);
+        } finally {
+            // A cancelled HTTP read can surface as an ordinary connection error.
+            checkCancelled();
+        }
+    }
+
+    private static JSONObject parseLyricResponse(JSONObject data, boolean legacy) throws Exception {
+        if (data == null || (legacy && !data.has("code") && !data.has("retcode"))) {
+            throw new ResolveException("stream_unavailable", "missing_lyric_status");
+        }
+        int code = providerCode(data, "code");
+        int retcode = providerCode(data, "retcode");
+        if (legacy && retcode == -1901 && (code == 0 || code == -1901)) return lyricResult("", "");
+        if (code != 0 || retcode != 0) {
+            throw new ResolveException("stream_unavailable", Integer.toString(code != 0 ? code : retcode));
+        }
+        Object raw = data.opt("lyric");
+        if (raw == null || raw == JSONObject.NULL || (raw instanceof String && ((String) raw).trim().isEmpty())) {
+            return lyricResult("", "");
+        }
+        String original = lyricText(raw);
+        try {
+            if (!LrcLines.parse(original).isEmpty()) return lyricResult(original, lyricText(data.opt("trans")));
+        } catch (NumberFormatException invalidTimestamp) {
+            // A timestamp outside the parser's range cannot be used for playback.
+        }
+        throw new ResolveException("stream_unavailable", "invalid_timed_lyric");
+    }
+
+    private static JSONObject lyricResult(String original, String translation) throws org.json.JSONException {
+        return new JSONObject().put("code", 200).put("nolyric", original.isEmpty())
+                .put("lrc", new JSONObject().put("lyric", original))
+                .put("tlyric", new JSONObject().put("lyric", translation));
+    }
+
+    static String lyricText(Object value) {
+        if (!(value instanceof String)) return "";
+        String text = (String) value;
+        String decoded = decodeLyricBase64(text);
+        return decodeLyricEntities(decoded == null ? text : decoded);
+    }
+
+    private static String decodeLyricBase64(String text) {
+        // Round-trip validation rejects ignored characters, missing or noncanonical padding.
+        if (text.isEmpty() || text.length() % 4 != 0) return null;
+        try {
+            byte[] bytes = java.util.Base64.getDecoder().decode(text);
+            if (!java.util.Base64.getEncoder().encodeToString(bytes).equals(text)) return null;
+            String decoded = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(bytes)).toString();
+            for (int i = 0; i < decoded.length(); i++) {
+                char ch = decoded.charAt(i);
+                if ((Character.isISOControl(ch) && ch != '\n' && ch != '\r' && ch != '\t')
+                        || ch == '\ufffd') return null;
+            }
+            return decoded;
+        } catch (IllegalArgumentException | java.nio.charset.CharacterCodingException invalid) {
+            return null;
+        }
+    }
+
+    private static String decodeLyricEntities(String text) {
+        StringBuilder result = new StringBuilder(text.length());
+        for (int i = 0; i < text.length();) {
+            if (text.charAt(i) == '&') {
+                int end = i + 1;
+                // Bound the scan so malformed text with many ampersands remains linear.
+                while (end < text.length() && end - i <= 32 && text.charAt(end) != ';'
+                        && text.charAt(end) != '&') end++;
+                if (end < text.length() && end - i <= 32 && text.charAt(end) == ';') {
+                    String entity = text.substring(i + 1, end);
+                    String replacement = lyricEntity(entity);
+                    if (replacement != null) {
+                        result.append(replacement);
+                        i = end + 1;
+                        continue;
+                    }
+                }
+            }
+            result.append(text.charAt(i++));
+        }
+        return result.toString();
+    }
+
+    private static String lyricEntity(String entity) {
+        if (entity.startsWith("#")) {
+            int radix = 10, start = 1;
+            if (entity.length() > 2 && (entity.charAt(1) == 'x' || entity.charAt(1) == 'X')) {
+                radix = 16;
+                start = 2;
+            }
+            if (start == entity.length()) return null;
+            for (int i = start; i < entity.length(); i++) {
+                char c = entity.charAt(i);
+                if (!(c >= '0' && c <= '9') && !(radix == 16 &&
+                        ((c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))) return null;
+            }
+            try {
+                int codePoint = Integer.parseInt(entity.substring(start), radix);
+                if (!Character.isValidCodePoint(codePoint) || codePoint == 0 ||
+                        (codePoint >= 0xd800 && codePoint <= 0xdfff)) return null;
+                return new String(Character.toChars(codePoint));
+            } catch (NumberFormatException invalid) {
+                return null;
+            }
+        }
+        switch (entity) {
+            case "amp": case "AMP": return "&";
+            case "lt": case "LT": return "<";
+            case "gt": case "GT": return ">";
+            case "nbsp": return "\u00a0";
+            case "quot": case "QUOT": return "\"";
+            case "apos": return "'";
+            case "lbrack": return "[";
+            case "rbrack": return "]";
+            case "colon": return ":";
+            case "period": return ".";
+            case "sol": return "/";
+            case "num": return "#";
+            case "NewLine": return "\n";
+            case "Tab": return "\t";
+            default: return null;
+        }
     }
     static String validMid(Object value) {
         if (!(value instanceof String)) return "";
@@ -333,9 +493,10 @@ public final class QQSource {
 
     private static boolean hasCompetingCredit(Track target, Track selected, List<SearchHit> hits) {
         for (SearchHit hit : hits) {
+            if (!hit.artistQuery) continue;
             Track other = hit.song;
             if (other.id.equals(selected.id) || other.artist.isEmpty()
-                    || (other.duration > 0 && Math.abs(other.duration - target.duration) > 5000)
+                    || other.duration <= 0 || Math.abs(other.duration - target.duration) > 5000
                     || !QQMatch.sameRecordingTitle(target.title, other.title)) continue;
             if (strictScore(selected, selected.artistAliases, other) < 0) return true;
         }
@@ -387,7 +548,7 @@ public final class QQSource {
         }
         checkCancelled();
         matches = rankCandidates(target, aliases, hits);
-        if (!matches.isEmpty() && "artist_title".equals(matches.get(0).reason)) return matches;
+        if (!matches.isEmpty()) return matches;
         LinkedHashSet<String> queries = new LinkedHashSet<>(
                 ArtistAliases.searchQueries(target.title, target.artist, aliases));
         // The QQ catalogue can credit just the lead performer of a collaboration.
@@ -398,7 +559,7 @@ public final class QQSource {
             checkCancelled();
             addHits(hits, api.search(query), true);
             matches = rankCandidates(target, aliases, hits);
-            if (!matches.isEmpty() && "artist_title".equals(matches.get(0).reason)) return matches;
+            if (!matches.isEmpty()) return matches;
         }
         if (!target.title.trim().equals(primary)) {
             checkCancelled();
@@ -599,18 +760,17 @@ public final class QQSource {
         } catch (ResolveException searchFailure) {
             throw prefer(failure, searchFailure);
         }
-        List<JSONObject> attempts = new ArrayList<>();
         int tried = 0;
         for (Candidate match : matches) {
             if (previous != null && previous.mid.equals(match.mid) && previous.mediaMid.equals(match.mediaMid)) continue;
             if (tried++ >= MAX_PLAYBACK_CANDIDATES) break;
             try {
-                attempts.addAll(streams(match, uin, guid, api));
+                List<JSONObject> granted = streams(match, uin, guid, api);
+                if (!granted.isEmpty()) return granted;
             } catch (ResolveException denied) {
                 failure = prefer(failure, denied);
             }
         }
-        if (!attempts.isEmpty()) return attempts;
         if (failure != null) throw failure;
         throw new ResolveException("match_not_found", "no_verified_recording");
     }
@@ -649,9 +809,5 @@ public final class QQSource {
             }
             throw denied;
         }
-    }
-
-    public JSONObject resolve(JSONObject track) throws Exception {
-        return resolveAttempts(track).get(0);
     }
 }

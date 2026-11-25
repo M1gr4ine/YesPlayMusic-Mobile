@@ -13,6 +13,7 @@ final class PlaybackPolicyTest {
     static void run() throws Exception {
         testSelectFilteredIndexRemapsAfterInvalidRows();
         testChooseAutoFailureCodePrioritizesActionableErrors();
+        testBuildLyricTargetsAndTransientStripping();
     }
 
     private static void testSelectFilteredIndexRemapsAfterInvalidRows() throws Exception {
@@ -45,5 +46,51 @@ final class PlaybackPolicyTest {
                 "trial + QQ rights failure preserves trial reason");
         that("network_error".equals(PlaybackService.chooseAutoFailureCode("qq", "network_error", "stream_unavailable")),
                 "network error is preserved");
+    }
+
+    private static void testBuildLyricTargetsAndTransientStripping() throws Exception {
+        Track neteaseWithLegacyMid = Track.fromJson(new JSONObject()
+                .put("id", "2640855415")
+                .put("provider", "netease")
+                .put("title", "Like Him")
+                .put("artist", "Tyler, The Creator")
+                .put("qqMid", "000wrongLegacy")
+                .put("qqMidVersion", 0));
+
+        // Opening QQ stream with verified activeAttempt exposes [netease catalog, verified qq] and ignores unverified legacy MID.
+        List<PlaybackService.LyricTarget> targets = PlaybackService.buildLyricTargets(
+                neteaseWithLegacyMid, "qq", "001iCu2X0UNowl", "", true);
+        that(targets.size() == 2, "expected 2 ordered lyric targets");
+        that("netease:2640855415".equals(targets.get(0).key()), "catalog NetEase ID comes first");
+        that("qq:001iCu2X0UNowl".equals(targets.get(1).key()), "verified active QQ MID comes second");
+
+        // Unverified active QQ attempt or numeric ID as QQ MID must never be emitted.
+        List<PlaybackService.LyricTarget> unverifiedTargets = PlaybackService.buildLyricTargets(
+                neteaseWithLegacyMid, "qq", "2640855415", "", false);
+        that(unverifiedTargets.size() == 1 && "netease:2640855415".equals(unverifiedTargets.get(0).key()),
+                "numeric or unverified QQ MID is excluded");
+
+        // QQ catalog track bridged to NetEase stream exposes [qq catalog, matched neteaseId].
+        Track qqTrack = Track.fromJson(new JSONObject()
+                .put("id", "qq:001iCu2X0UNowl")
+                .put("provider", "qq")
+                .put("title", "Like Him")
+                .put("artist", "Tyler, The Creator")
+                .put("mediaMid", "003mediaOnlyMid"));
+        List<PlaybackService.LyricTarget> qqBridged = PlaybackService.buildLyricTargets(
+                qqTrack, "netease", "", "2640855415", false);
+        that(qqBridged.size() == 2, "QQ catalog bridged to NetEase has 2 targets");
+        that("qq:001iCu2X0UNowl".equals(qqBridged.get(0).key()), "QQ catalog MID comes first");
+        that("netease:2640855415".equals(qqBridged.get(1).key()), "matched NetEase ID comes second");
+
+        // Transient live-only lyricsTargets must be stripped before saving to SharedPreferences.
+        JSONObject live = new JSONObject()
+                .put("source", "qq")
+                .put("lyricsTargets", PlaybackService.lyricTargetsJson(targets));
+        that(live.has("lyricsTargets") && live.getJSONArray("lyricsTargets").length() == 2,
+                "live state carries lyricsTargets");
+        PlaybackService.stripTransientStateFields(live);
+        that(!live.has("lyricsTargets") && "qq".equals(live.optString("source")),
+                "saved state strips transient lyricsTargets while keeping durable fields");
     }
 }

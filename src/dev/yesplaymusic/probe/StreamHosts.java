@@ -27,7 +27,7 @@ final class StreamHosts {
                     || (url.getPort() != -1 && url.getPort() != 80 && url.getPort() != 443)) {
                 return "";
             }
-            boolean allowed = artwork ? isArtworkHost(host) : isStreamHost(host, source);
+            boolean allowed = artwork ? isArtworkHostNormalized(host) : isStreamHostNormalized(host, source);
             if (!allowed) return "";
             String path = url.getFile();
             if (path == null || path.isEmpty()) path = "/";
@@ -48,23 +48,36 @@ final class StreamHosts {
     }
 
     static boolean isArtworkHost(String host) {
+        String normalized = normalizeHost(host);
+        return !normalized.isEmpty() && isArtworkHostNormalized(normalized);
+    }
+
+    static boolean isStreamHost(String host, String source) {
+        String normalized = normalizeHost(host);
+        return !normalized.isEmpty() && isStreamHostNormalized(normalized, source);
+    }
+
+    private static String normalizeHost(String host) {
+        if (host == null || host.isEmpty()) return "";
+        String normalized = host.toLowerCase(Locale.ROOT);
+        return normalized.endsWith(".") ? normalized.substring(0, normalized.length() - 1) : normalized;
+    }
+
+    private static boolean isArtworkHostNormalized(String host) {
         return domainIs(host, "music.126.net")
                 || domainIs(host, "music.163.com")
                 || domainIs(host, "gtimg.cn");
     }
 
-    static boolean isStreamHost(String host, String source) {
-        if (host == null || host.isEmpty()) return false;
-        String normalized = host.toLowerCase(Locale.ROOT);
-        if (normalized.endsWith(".")) normalized = normalized.substring(0, normalized.length() - 1);
+    private static boolean isStreamHostNormalized(String host, String source) {
         if ("qq".equals(source)) {
-            return domainIs(normalized, "qqmusic.qq.com")
-                    || domainIs(normalized, "tc.qq.com")
-                    || domainIs(normalized, "gtimg.cn")
-                    || domainIs(normalized, "music.qq.com");
+            return domainIs(host, "qqmusic.qq.com")
+                    || domainIs(host, "tc.qq.com")
+                    || domainIs(host, "gtimg.cn")
+                    || domainIs(host, "music.qq.com");
         }
-        return domainIs(normalized, "music.126.net")
-                || domainIs(normalized, "music.163.com");
+        return domainIs(host, "music.126.net")
+                || domainIs(host, "music.163.com");
     }
 
     private static boolean domainIs(String host, String suffix) {

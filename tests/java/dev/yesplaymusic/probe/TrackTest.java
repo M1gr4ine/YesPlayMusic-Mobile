@@ -11,13 +11,16 @@ final class TrackTest {
     static void run() throws Exception {
         Track legacy = Track.fromJson(new JSONObject().put("id", "123456").put("provider", "qq").put("qqMid", "fallbackMid"));
         that("netease".equals(legacy.provider), "numeric catalog IDs migrate to NetEase");
-        Track viaQq = legacy.withQqMid("resolvedMid");
+        Track viaQq = legacy.withVerifiedQqMid("resolvedMid", "resolvedFile");
         that("netease".equals(viaQq.provider) && "123456".equals(viaQq.id), "QQ audio keeps the NetEase catalog identity");
-        that("resolvedMid".equals(viaQq.qqMid), "QQ audio records the resolved MID for lyrics");
+        that("resolvedMid".equals(viaQq.qqMid) && "resolvedFile".equals(viaQq.mediaMid) && viaQq.hasVerifiedQqMid(),
+                "verified QQ audio records song and file MIDs");
+        that(viaQq.withVerifiedQqMid("resolvedMid", "resolvedFile") == viaQq,
+                "repeating the same verified mapping returns this without triggering queue rebuilds");
         that(!viaQq.toJson(false).has("url"), "public metadata excludes the stream URL");
 
         Track direct = Track.fromJson(new JSONObject().put("id", "qq:directMid").put("provider", "netease"));
-        that("qq".equals(direct.provider) && "qq".equals(direct.withQqMid("directMid").provider),
+        that("qq".equals(direct.provider) && "qq".equals(direct.withVerifiedQqMid("directMid", "directFile").provider),
                 "QQ catalog songs stay QQ");
 
         JSONObject metadata = new JSONObject().put("id", "123456").put("qqMid", "songMid")
@@ -36,8 +39,6 @@ final class TrackTest {
         Track cleared = verified.clearQqMid();
         that(cleared.qqMid.isEmpty() && cleared.mediaMid.isEmpty() && !cleared.hasVerifiedQqMid()
                 && "123456".equals(cleared.id), "clearing a NetEase mapping removes its associated file MID");
-        Track stale = verified.withQqMid("otherSong");
-        that(!stale.hasVerifiedQqMid() && stale.mediaMid.isEmpty(), "changing an unverified mapping invalidates its file association");
         Track old = Track.fromJson(new JSONObject().put("id", "5").put("qqMid", "old"));
         that(!old.hasVerifiedQqMid() && old.qqMidVersion == 0, "legacy fallback mappings need verification");
         Track orphanVersion = Track.fromJson(new JSONObject().put("id", "5").put("qqMidVersion", 2));
@@ -57,7 +58,7 @@ final class TrackTest {
         JSONArray aliases = new JSONArray().put("Sakanaction").put("鱼韵");
         Track aliased = Track.fromJson(new JSONObject().put("id", "1372726248").put("provider", "netease")
                 .put("title", "新宝岛").put("artist", "サカナクション").put("artistAliases", aliases));
-        JSONObject published = aliased.withQqMid("resolvedMid").toJson(false);
+        JSONObject published = aliased.withVerifiedQqMid("resolvedMid", "resolvedFile").toJson(false);
         that("サカナクション".equals(published.optString("artist")), "aliases never replace the display artist");
         that(aliases.toString().equals(String.valueOf(published.optJSONArray("artistAliases"))),
                 "aliases survive parsing and source resolution");

@@ -235,7 +235,8 @@ public class MainActivity extends Activity {
             }catch(Exception error){String message=error.getMessage();if(message==null||message.length()>180)message="暂时无法连接音乐服务，请检查网络后重试";response(id,null,message);}});
         }
         @JavascriptInterface public void command(String payload){
-            if(payload==null||payload.length()>700000){
+            if(payload==null)return;
+            if(payload.length()>700000){
                 main.post(()->Toast.makeText(MainActivity.this,"播放列表过大，请精简后重试",Toast.LENGTH_SHORT).show());
                 return;
             }

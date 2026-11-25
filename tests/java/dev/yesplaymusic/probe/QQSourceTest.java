@@ -20,8 +20,9 @@ final class QQSourceTest {
         that(QQSource.sessionCookie(wx).contains("uin=o00999"), "preserve distinct QQ account field");
         that("456".equals(QQSource.credentials("uin=invalid; wxuin=o00456; qm_keyst=test").uin),
                 "invalid primary account falls back to valid alternate");
-        that(QQSource.shouldRetrySearch(new QQSource.ResolveException("stream_unavailable", "2001")),
-                "transient search refusal can be retried");
+        that(!QQSource.credentials("uin=o00123; qqmusic_key=bad\r\nX-Injected:1").loggedIn
+                && QQSource.sessionCookie("uin=o00123; qqmusic_key=bad\r\nX-Injected:1").isEmpty(),
+                "CRLF header injection in cookie values is rejected");
         transientSearch();
         providerCodes();
         filterResults();
@@ -29,6 +30,7 @@ final class QQSourceTest {
         cachedAndNative();
         vkeyAndHosts();
         denialsAndCancellation();
+        lyrics();
     }
 
     private static void transientSearch() throws Exception {
@@ -113,10 +115,13 @@ final class QQSourceTest {
                 .put(song("other4", "otherfile4", "Other Four", "Other", "Other", 236))
                 .put(song("flashing", "flashingfile", "Flashing Lights (Explicit)", "Ye", "Other", 237)));
         api.artistAliases = Arrays.asList("ye");
+        api.results.put("FML", new JSONArray().put(
+                song("bareConflict", "bareFile", "FML", "Random Artist", "Other", 236)));
         List<JSONObject> resolved = QQSource.lookupAttempts(target(), api, "0");
         that("0005toRJ3QqtAx".equals(resolved.get(0).getString("qqMid")), "FML resolves to the intended QQ recording");
         that(api.aliasTracks.size() == 1 && api.aliasTracks.get(0).artistIds.contains("37520"),
                 "official NetEase artist ID reaches alias lookup");
+        that(api.requests.size() == 1, "first playable candidate returns without extra vkey requests");
 
         Fake leadQuery = new Fake();
         leadQuery.results.put("FML Kanye West", api.results.get("FML Kanye West The Weeknd"));
@@ -250,6 +255,220 @@ final class QQSourceTest {
         }
     }
 
+    private static void lyrics() throws Exception {
+        String original = "[00:00.00]Like Him\n[00:12.40]Second line";
+        String translation = "[00:12.40]第二行";
+        LyricFake modern = new LyricFake();
+        modern.modernResult = new JSONObject().put("lyric", original).put("trans", translation);
+        JSONObject result = QQSource.resolveLyrics("qq:000LikeHim", modern);
+        assertLyrics(result, original, translation, "modern timed lyrics and translation");
+        that(modern.modernCalls == 1 && modern.legacyCalls == 0 && "000LikeHim".equals(modern.lastMid),
+                "native prefix is removed before the one modern request");
+
+        modern = new LyricFake();
+        modern.modernResult = new JSONObject().put("lyric", "[00:03.00]Verse\n[00:04.00]Chorus");
+        assertLyrics(QQSource.resolveLyrics("LikeHim", modern), "[00:03.00]Verse\n[00:04.00]Chorus", "",
+                "modern timed original without translation");
+        that(modern.legacyCalls == 0, "missing translation does not discard a timed original");
+
+        modern = new LyricFake();
+        modern.modernResult = new JSONObject().put("retcode", 0).put("code", 0)
+                .put("lyric", "&#91;00&#58;01&#46;00&#93;A &amp; B")
+                .put("trans", "WzAwOjAxLjAwXUhlbGxv");
+        assertLyrics(QQSource.resolveLyrics("LikeHim", modern), "[00:01.00]A & B", "[00:01.00]Hello",
+                "modern sections decode entities and base64");
+        that(modern.legacyCalls == 0, "decoded modern timed lyric avoids fallback");
+
+        LyricFake fallback = new LyricFake();
+        fallback.modernResult = new JSONObject().put("lyric", "[ar:Like Him]");
+        fallback.legacyResult = new JSONObject().put("retcode", 0)
+                .put("lyric", "[00:01.00]Legacy");
+        assertLyrics(QQSource.resolveLyrics("LikeHim", fallback), "[00:01.00]Legacy", "",
+                "metadata alone falls back to timed legacy lyrics");
+        that(fallback.modernCalls == 1 && fallback.legacyCalls == 1, "untimed modern result falls back once");
+
+        for (JSONObject badModern : Arrays.asList(
+                new JSONObject().put("retcode", 1).put("lyric", "[00:01.00]Bad"),
+                new JSONObject().put("code", 1).put("lyric", "[00:01.00]Bad"),
+                new JSONObject().put("retcode", 0).put("code", 1).put("lyric", "[00:01.00]Bad"),
+                new JSONObject().put("retcode", 1).put("code", 0).put("lyric", "[00:01.00]Bad"),
+                new JSONObject().put("retcode", "invalid").put("lyric", "[00:01.00]Bad"))) {
+            fallback = new LyricFake();
+            fallback.modernResult = badModern;
+            fallback.legacyResult = new JSONObject().put("code", 0).put("lyric", "[00:02.00]Good");
+            assertLyrics(QQSource.resolveLyrics("LikeHim", fallback), "[00:02.00]Good", "",
+                    "unsuccessful modern status falls back");
+            that(fallback.legacyCalls == 1, "modern provider status cannot be ignored");
+        }
+
+        fallback = new LyricFake();
+        fallback.modernError = new QQSource.ResolveException("network_error", "fixture");
+        fallback.legacyResult = new JSONObject().put("retcode", 0).put("lyric", "[00:02.00]Recovered");
+        assertLyrics(QQSource.resolveLyrics("LikeHim", fallback), "[00:02.00]Recovered", "",
+                "modern request failure can recover via legacy");
+
+        for (JSONObject empty : Arrays.asList(new JSONObject().put("retcode", -1901),
+                new JSONObject().put("retcode", 0),
+                new JSONObject().put("retcode", 0).put("lyric", JSONObject.NULL),
+                new JSONObject().put("retcode", 0).put("lyric", ""),
+                new JSONObject().put("code", 0).put("lyric", ""))) {
+            fallback = new LyricFake();
+            fallback.modernResult = new JSONObject().put("lyric", "");
+            fallback.legacyResult = empty;
+            result = QQSource.resolveLyrics("LikeHim", fallback);
+            that(result.getInt("code") == 200 && result.optBoolean("nolyric", false)
+                    && result.getJSONObject("lrc").getString("lyric").isEmpty()
+                    && result.getJSONObject("tlyric").getString("lyric").isEmpty(),
+                    "confirmed empty legacy response is marked as no lyrics");
+        }
+
+        for (JSONObject badLegacy : Arrays.asList(new JSONObject(),
+                new JSONObject().put("lyric", "[00:01.00]Missing status"),
+                new JSONObject().put("retcode", "invalid"),
+                new JSONObject().put("retcode", 9),
+                new JSONObject().put("retcode", 0).put("lyric", "[ar:Only metadata]"),
+                new JSONObject().put("retcode", 0).put("lyric", 42),
+                new JSONObject().put("retcode", -1901).put("code", 9),
+                new JSONObject().put("retcode", 0).put("code", 9),
+                new JSONObject().put("retcode", 9).put("code", 0))) {
+            fallback = new LyricFake();
+            fallback.modernResult = new JSONObject().put("lyric", "");
+            fallback.legacyResult = badLegacy;
+            expectLyricError("LikeHim", fallback, "malformed or failed legacy response");
+        }
+        fallback = new LyricFake();
+        fallback.modernResult = new JSONObject().put("lyric", "");
+        fallback.legacyError = new QQSource.ResolveException("network_error", "fixture");
+        try {
+            QQSource.resolveLyrics("LikeHim", fallback);
+            throw new AssertionError("legacy failure after empty modern result must remain an error");
+        } catch (QQSource.ResolveException expected) {
+            that("network_error".equals(expected.code), "legacy network failure retains its typed error");
+        }
+
+        for (String id : Arrays.asList(null, "", "123456789", "qq:2640855415", "qq:", "bad/slash", "null")) {
+            LyricFake invalid = new LyricFake();
+            expectLyricError(id, invalid, "invalid or numeric catalog ID");
+            that(invalid.modernCalls == 0 && invalid.legacyCalls == 0, "invalid ID is rejected before network");
+        }
+
+        LyricFake cancelled = new LyricFake();
+        cancelled.modernInterrupt = true;
+        try {
+            QQSource.resolveLyrics("LikeHim", cancelled);
+            throw new AssertionError("interrupted modern request must propagate");
+        } catch (InterruptedException expected) {
+            that(cancelled.modernCalls == 1 && cancelled.legacyCalls == 0,
+                    "interrupted modern request never invokes legacy");
+        } finally { Thread.interrupted(); }
+
+        cancelled = new LyricFake();
+        cancelled.modernCancel = true;
+        try {
+            QQSource.resolveLyrics("LikeHim", cancelled);
+            throw new AssertionError("cancelled modern request must propagate");
+        } catch (java.util.concurrent.CancellationException expected) {
+            that(cancelled.modernCalls == 1 && cancelled.legacyCalls == 0,
+                    "runtime cancellation never invokes legacy");
+        }
+
+        cancelled = new LyricFake();
+        Thread.currentThread().interrupt();
+        try {
+            QQSource.resolveLyrics("LikeHim", cancelled);
+            throw new AssertionError("active interruption must propagate");
+        } catch (InterruptedException expected) {
+            that(cancelled.modernCalls == 0 && cancelled.legacyCalls == 0,
+                    "active interruption stops before provider requests");
+        } finally { Thread.interrupted(); }
+
+        cancelled = new LyricFake();
+        cancelled.interruptAfterModern = true;
+        try {
+            QQSource.resolveLyrics("LikeHim", cancelled);
+            throw new AssertionError("interruption during modern request must propagate");
+        } catch (InterruptedException expected) {
+            that(cancelled.modernCalls == 1 && cancelled.legacyCalls == 0,
+                    "active interruption after modern prevents fallback");
+        } finally { Thread.interrupted(); }
+
+        cancelled = new LyricFake();
+        cancelled.interruptDuringLegacy = true;
+        try {
+            QQSource.resolveLyrics("LikeHim", cancelled);
+            throw new AssertionError("interruption during a failed legacy read must propagate");
+        } catch (InterruptedException expected) {
+            that(cancelled.legacyCalls == 1, "legacy transport failure preserves pending interruption");
+        } finally { Thread.interrupted(); }
+
+        lyricTextDecoding();
+    }
+
+    private static void lyricTextDecoding() {
+        that("[00:01.00]Hello".equals(QQSource.lyricText("WzAwOjAxLjAwXUhlbGxv")),
+                "base64 UTF-8 lyrics are decoded");
+        that("[00:01.00]你好".equals(QQSource.lyricText("[00:01.00]你好")),
+                "raw Unicode lyrics are preserved");
+        that("Love".equals(QQSource.lyricText("Love")) && "test".equals(QQSource.lyricText("test")),
+                "ambiguous literal words are not corrupted as base64");
+        that("Hello".equals(QQSource.lyricText("SGVsbG8=")) && "A".equals(QQSource.lyricText("QQ==")),
+                "canonical UTF-8 base64 also covers single-word and single-character lyrics");
+        that("QR==".equals(QQSource.lyricText("QR==")), "base64 with nonzero padding bits is preserved");
+        that("&#xD800;".equals(QQSource.lyricText("&#xD800;")) && "&#x110000;".equals(QQSource.lyricText("&#x110000;")),
+                "out-of-range code points and lone surrogates are preserved");
+        that("&#91;".equals(QQSource.lyricText("&amp;#91;")), "entity decoding is single pass");
+        that("/w==".equals(QQSource.lyricText("/w==")), "invalid UTF-8 base64 is not decoded lossily");
+        that("[00:01.00]A & B\nC".equals(QQSource.lyricText("&#91;00&#58;01&#46;00&#93;A &amp; B&#10;C")),
+                "decimal and named HTML entities decode in lyrics");
+        that("[00:01.00]Hi".equals(QQSource.lyricText("&#x5b;00&#x3a;01&#x2e;00&#x5d;Hi")),
+                "hexadecimal HTML entities decode in lyrics");
+        that("".equals(QQSource.lyricText(null)) && "".equals(QQSource.lyricText(JSONObject.NULL))
+                && "".equals(QQSource.lyricText(42)), "non-string lyric values are rejected");
+    }
+
+    private static void assertLyrics(JSONObject response, String original, String translation, String label) throws Exception {
+        that(response.getInt("code") == 200 && !response.optBoolean("nolyric", false)
+                && original.equals(response.getJSONObject("lrc").getString("lyric"))
+                && translation.equals(response.getJSONObject("tlyric").getString("lyric")), label);
+    }
+
+    private static void expectLyricError(String mid, LyricFake api, String label) throws Exception {
+        try {
+            QQSource.resolveLyrics(mid, api);
+            throw new AssertionError(label + " must be reported as an error");
+        } catch (QQSource.ResolveException expected) {
+            that(expected.code != null && !expected.code.isEmpty(), label + " has a typed error");
+        }
+    }
+
+    private static final class LyricFake implements QQSource.LyricLookup {
+        JSONObject modernResult = new JSONObject(), legacyResult = new JSONObject();
+        QQSource.ResolveException modernError, legacyError;
+        boolean modernInterrupt, modernCancel, interruptAfterModern, interruptDuringLegacy;
+        int modernCalls, legacyCalls;
+        String lastMid;
+
+        public JSONObject modern(String mid) throws Exception {
+            modernCalls++;
+            lastMid = mid;
+            if (modernInterrupt) throw new InterruptedException("fixture");
+            if (modernCancel) throw new java.util.concurrent.CancellationException("fixture");
+            if (interruptAfterModern) Thread.currentThread().interrupt();
+            if (modernError != null) throw modernError;
+            return modernResult;
+        }
+
+        public JSONObject legacy(String mid) throws Exception {
+            legacyCalls++;
+            lastMid = mid;
+            if (interruptDuringLegacy) {
+                Thread.currentThread().interrupt();
+                throw new QQSource.ResolveException("network_error", "fixture");
+            }
+            if (legacyError != null) throw legacyError;
+            return legacyResult;
+        }
+    }
     private static final class Fake implements QQSource.Lookup {
         final Map<String, JSONArray> results = new LinkedHashMap<>();
         final Map<String, JSONObject> details = new LinkedHashMap<>();

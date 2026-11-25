@@ -123,18 +123,19 @@ final class Track {
         return !effectiveQqMid().isEmpty() && qqMidVersion == CURRENT_QQ_MATCH_VERSION;
     }
 
-    Track withQqMid(String actualQqMid) {
-        String mid = clean(actualQqMid, 256);
-        if (mid.isEmpty() || mid.equals(qqMid)) return this;
-        if (id.startsWith("qq:")) return this;
-        return copy(mid, "", 0);
-    }
-
     Track withVerifiedQqMid(String actualQqMid, String actualMediaMid) {
         String mid = clean(actualQqMid, 256);
         if (mid.isEmpty()) return this;
-        if (id.startsWith("qq:") && !mid.equals(effectiveQqMid())) return copy(effectiveQqMid(), "", 0);
-        return copy(mid, clean(actualMediaMid, 256), CURRENT_QQ_MATCH_VERSION);
+        if (id.startsWith("qq:") && !mid.equals(effectiveQqMid())) {
+            String catalogMid = effectiveQqMid();
+            if (catalogMid.equals(qqMid) && mediaMid.isEmpty() && qqMidVersion == 0) return this;
+            return copy(catalogMid, "", 0);
+        }
+        String fileMid = clean(actualMediaMid, 256);
+        if (mid.equals(qqMid) && fileMid.equals(mediaMid) && qqMidVersion == CURRENT_QQ_MATCH_VERSION) {
+            return this;
+        }
+        return copy(mid, fileMid, CURRENT_QQ_MATCH_VERSION);
     }
 
     Track clearQqMid() {

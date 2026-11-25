@@ -93,7 +93,17 @@
   let lastQueueSignature = '';
   let lastQueueIndex = null;
   let lastTrackSignature = '';
-  let lastLyricsKey = '';
+  let lastAvatarSignature = '';
+  let lyricsSession = {
+    trackIdentity: '',
+    inFlight: false,
+    resolvedKey: '',
+    hasLines: false,
+    hasTranslation: false,
+    retriedError: false,
+    tried: new Map(),
+    retryTimer: 0
+  };
   const springAnimations = new WeakMap();
   const tabOrder = ['listen', 'library', 'search'];
   let tabTransitionGeneration = 0;
@@ -914,34 +924,37 @@
     if (state.authMutation === 'netease') $('#netease-logout').textContent = '正在退出…';
     else $('#netease-logout').textContent = '退出网易云账号';
     const avatarUrl = profile && safeHttpsUrl(profile.avatarUrl || profile.avatar);
-    avatar.replaceChildren();
-    if (avatarUrl) {
-      const image = document.createElement('img');
-      image.alt = '';
-      image.referrerPolicy = 'no-referrer';
-      image.src = avatarUrl;
-      image.onerror = () => setIcon(avatar, 'music');
-      avatar.append(image);
-    } else setIcon(avatar, 'music');
-    if (miniMark) {
-      miniMark.replaceChildren();
-      if (profile && avatarUrl) {
+    const initial = profile ? displayName().trim().slice(0, 1) : '';
+    const avatarSignature = `${profile ? '1' : '0'}|${avatarUrl || ''}|${initial}`;
+    if (avatarSignature !== lastAvatarSignature) {
+      lastAvatarSignature = avatarSignature;
+      avatar.replaceChildren();
+      if (avatarUrl) {
         const image = document.createElement('img');
         image.alt = '';
         image.referrerPolicy = 'no-referrer';
         image.src = avatarUrl;
-        image.onerror = () => {
-          if (!miniMark.contains(image)) return;
-          const initial = displayName().trim().slice(0, 1);
+        image.onerror = () => setIcon(avatar, 'music');
+        avatar.append(image);
+      } else setIcon(avatar, 'music');
+      if (miniMark) {
+        miniMark.replaceChildren();
+        if (profile && avatarUrl) {
+          const image = document.createElement('img');
+          image.alt = '';
+          image.referrerPolicy = 'no-referrer';
+          image.src = avatarUrl;
+          image.onerror = () => {
+            if (!miniMark.contains(image)) return;
+            if (initial) miniMark.textContent = initial;
+            else setIcon(miniMark, 'music');
+          };
+          miniMark.append(image);
+        } else if (profile) {
           if (initial) miniMark.textContent = initial;
           else setIcon(miniMark, 'music');
-        };
-        miniMark.append(image);
-      } else if (profile) {
-        const initial = displayName().trim().slice(0, 1);
-        if (initial) miniMark.textContent = initial;
-        else setIcon(miniMark, 'music');
-      } else setIcon(miniMark, 'music');
+        } else setIcon(miniMark, 'music');
+      }
     }
     $$('.source-option').forEach(button => button.setAttribute('aria-checked', String(button.dataset.source === state.settings.sourcePreference)));
     $('#status-lyrics').setAttribute('aria-checked', String(state.settings.statusLyrics !== false));
@@ -960,7 +973,6 @@
     $('#qq-source-detail').textContent = qqExpired
       ? 'QQ 登录凭据已过期，请重新登录以恢复 QQ 音源'
       : (qqLoggedIn ? '已连接账号，可搜索并尝试 QQ 音源' : '支持 QQ 搜索；登录后使用账号可播放曲目');
-    applyTheme();
   }
 
   async function logoutProvider(provider, method) {
@@ -2597,8 +2609,9 @@
     const text = lyricText || (track ? (track.artist || track.album || 'YesPlayMusic') : '');
     if (!miniLyricsController && window.YPMMiniLyrics) miniLyricsController = window.YPMMiniLyrics.create(host);
     if (miniLyricsController) {
+      const lyricsIdentity = lyricsSession.resolvedKey || lyricsSession.trackIdentity;
       miniLyricsController.update({
-        key: `${track ? `${track.provider}:${track.id}` : ''}:${lastLyricsKey}:${lyricText ? active : 'fallback'}`,
+        key: `${track ? `${track.provider}:${track.id}` : ''}:${lyricsIdentity}:${lyricText ? active : 'fallback'}`,
         text, lyric: !!lyricText, playing: !!track && state.media.playing && !state.media.buffering
       });
     } else if (host.textContent !== text) host.textContent = text;
@@ -2635,6 +2648,10 @@
       default:
         return '当前歌曲无法播放，请试试列表中的其他歌曲。';
     }
+  }
+
+  function playToggleState(media) {
+    return !!(media && (media.playing || (media.buffering && media.playWhenReady !== false && !media.error)));
   }
 
   function updatePlayerChrome() {
@@ -2678,10 +2695,11 @@
       updateArt($('#player-artwork'), track.artwork, 360);
       if (favoriteTrackKey(track) !== state.favorite.key) loadFavoriteStatus(track);
     }
-    setToggleIcon($('#mini-toggle'), state.media.playing ? 'pause' : 'play');
+    const showPause = playToggleState(state.media);
+    setToggleIcon($('#mini-toggle'), showPause ? 'pause' : 'play');
     updateMiniFavoriteButton();
-    setToggleIcon($('#player-toggle'), state.media.playing ? 'pause' : 'play');
-    $('#player-toggle').setAttribute('aria-label', state.media.playing ? '暂停' : '播放');
+    setToggleIcon($('#player-toggle'), showPause ? 'pause' : 'play');
+    $('#player-toggle').setAttribute('aria-label', showPause ? '暂停' : '播放');
     updateProgress();
     const mode = currentPlayMode();
     const modeButton = $('#mode-button');
@@ -3444,34 +3462,169 @@
     return window.YPMLyrics ? window.YPMLyrics.parseLrc(lrc, translated) : [];
   }
 
+  function normalizeLyricTarget(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const provider = String(raw.provider || '').toLowerCase();
+    const rawId = String(raw.id || '').trim();
+    if (provider === 'netease') {
+      return /^\d{1,20}$/.test(rawId) ? { provider: 'netease', id: rawId } : null;
+    }
+    if (provider === 'qq') {
+      const mid = rawId.replace(/^qq:/i, '').trim();
+      return /^[A-Za-z0-9]{1,128}$/.test(mid) && !/^\d+$/.test(mid) && mid.toLowerCase() !== 'null'
+        ? { provider: 'qq', id: mid } : null;
+    }
+    return null;
+  }
+
+  function resolveLyricsTargets(media) {
+    const targets = [];
+    const seen = new Set();
+    const add = item => {
+      const normalized = normalizeLyricTarget(item);
+      if (!normalized) return;
+      const key = `${normalized.provider}:${normalized.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      targets.push(normalized);
+    };
+    if (media && Array.isArray(media.lyricsTargets)) {
+      media.lyricsTargets.forEach(add);
+    }
+    const track = media && media.track;
+    if (track) {
+      if (track.provider === 'netease') add({ provider: 'netease', id: track.id });
+      else if (track.provider === 'qq') add({ provider: 'qq', id: track.id });
+      if (track.qqMid && Number(track.qqMidVersion) >= 2) {
+        add({ provider: 'qq', id: track.qqMid });
+      }
+    }
+    return targets;
+  }
+
+  function lyricsTimelinesCompatible(existing, candidate) {
+    if (!Array.isArray(existing) || !existing.length || !Array.isArray(candidate) || !candidate.length) return false;
+    const countMin = Math.min(existing.length, candidate.length);
+    const countMax = Math.max(existing.length, candidate.length);
+    if (countMax >= 4 && countMin / countMax < 0.45) return false;
+    const lastA = Number(existing[existing.length - 1].time) || 0;
+    const lastB = Number(candidate[candidate.length - 1].time) || 0;
+    return Math.abs(lastA - lastB) <= 15000;
+  }
+
+  function resetLyricsSession(trackIdentity) {
+    if (lyricsSession.retryTimer) clearTimeout(lyricsSession.retryTimer);
+    lyricsSession = {
+      trackIdentity: trackIdentity || '',
+      inFlight: false,
+      resolvedKey: '',
+      hasLines: false,
+      hasTranslation: false,
+      retriedError: false,
+      tried: new Map(),
+      retryTimer: 0
+    };
+  }
+
+  function requestLyricTarget(target, backgroundTranslationOnly) {
+    const targetKey = `${target.provider}:${target.id}`;
+    const generation = state.lyricsGeneration;
+    lyricsSession.inFlight = true;
+    const method = target.provider === 'qq' ? 'qqLyrics' : 'lyrics';
+    const args = target.provider === 'qq'
+      ? { mid: target.id, qqMid: target.id, provider: 'qq' }
+      : { id: target.id, provider: 'netease' };
+    request(method, args)
+      .then(response => {
+        if (generation !== state.lyricsGeneration) return;
+        lyricsSession.inFlight = false;
+        const parsed = lyricsText(response);
+        const hasLines = parsed.length > 0;
+        const hasTranslation = parsed.some(line => !!line.translation);
+        lyricsSession.tried.set(targetKey, hasLines ? 'ok' : 'empty');
+        if (!backgroundTranslationOnly) {
+          if (hasLines) {
+            lyricsSession.resolvedKey = targetKey;
+            lyricsSession.hasLines = true;
+            lyricsSession.hasTranslation = hasTranslation;
+            state.lyrics = parsed;
+            state.lyricsLoading = false;
+            state.lyricsIndex = -2;
+            renderLyrics();
+          }
+        } else if (hasLines && hasTranslation && lyricsTimelinesCompatible(state.lyrics, parsed)) {
+          lyricsSession.resolvedKey = targetKey;
+          lyricsSession.hasTranslation = true;
+          state.lyrics = parsed;
+          state.lyricsIndex = -2;
+          renderLyrics();
+        }
+        fetchLyricsForCurrent();
+      })
+      .catch(() => {
+        if (generation !== state.lyricsGeneration) return;
+        lyricsSession.inFlight = false;
+        lyricsSession.tried.set(targetKey, 'error');
+        fetchLyricsForCurrent();
+      });
+  }
+
   function fetchLyricsForCurrent() {
     const track = state.media.track;
-    const provider = String(state.media.source || track && track.provider || '').toLowerCase().includes('qq') ? 'qq' : (track && track.provider || 'netease');
-    const key = track ? `${provider}:${track.id}:${track.qqMid || ''}` : '';
-    if (!key) {
-      if (lastLyricsKey || state.lyricsLoading || state.lyrics.length) {
-        lastLyricsKey = '';
+    const identity = track ? `${track.provider || 'netease'}:${track.id}` : '';
+    if (!identity) {
+      if (lyricsSession.trackIdentity || state.lyricsLoading || state.lyrics.length) {
+        resetLyricsSession('');
         state.lyricsGeneration += 1;
         state.lyrics = []; state.lyricsIndex = -2; state.lyricsLoading = false;
         renderLyrics();
       }
       return;
     }
-    if (key === lastLyricsKey) return;
-    lastLyricsKey = key;
-    const generation = ++state.lyricsGeneration;
-    state.lyrics = []; state.lyricsIndex = -2; state.lyricsLoading = true;
-    renderLyrics();
-    const method = provider === 'qq' ? 'qqLyrics' : 'lyrics';
-    request(method, { id: String(track.id), mid: track.qqMid || track.id, provider })
-      .then(response => {
-        if (generation !== state.lyricsGeneration) return;
-        state.lyrics = lyricsText(response); state.lyricsLoading = false; state.lyricsIndex = -2; renderLyrics();
-      })
-      .catch(() => {
-        if (generation !== state.lyricsGeneration) return;
-        state.lyrics = []; state.lyricsLoading = false; state.lyricsIndex = -2; renderLyrics();
+    if (identity !== lyricsSession.trackIdentity) {
+      resetLyricsSession(identity);
+      state.lyricsGeneration += 1;
+      state.lyrics = []; state.lyricsIndex = -2; state.lyricsLoading = true;
+      renderLyrics();
+    }
+    if (lyricsSession.inFlight || (lyricsSession.hasLines && lyricsSession.hasTranslation)) return;
+    const targets = resolveLyricsTargets(state.media);
+    if (!lyricsSession.hasLines) {
+      const nextTarget = targets.find(item => !lyricsSession.tried.has(`${item.provider}:${item.id}`));
+      if (nextTarget) {
+        if (lyricsSession.retryTimer) {
+          clearTimeout(lyricsSession.retryTimer);
+          lyricsSession.retryTimer = 0;
+        }
+        requestLyricTarget(nextTarget, false);
+        return;
+      }
+      if (state.lyricsLoading) {
+        state.lyricsLoading = false;
+        renderLyrics();
+      }
+      const hadError = Array.from(lyricsSession.tried.values()).includes('error');
+      if (hadError && !lyricsSession.retriedError && !lyricsSession.retryTimer) {
+        const generation = state.lyricsGeneration;
+        lyricsSession.retryTimer = setTimeout(() => {
+          if (generation !== state.lyricsGeneration) return;
+          lyricsSession.retryTimer = 0;
+          lyricsSession.retriedError = true;
+          for (const [key, status] of Array.from(lyricsSession.tried.entries())) {
+            if (status === 'error') lyricsSession.tried.delete(key);
+          }
+          fetchLyricsForCurrent();
+        }, 1200);
+      }
+      return;
+    }
+    if (!lyricsSession.hasTranslation) {
+      const altTarget = targets.find(item => {
+        const key = `${item.provider}:${item.id}`;
+        return key !== lyricsSession.resolvedKey && !lyricsSession.tried.has(key);
       });
+      if (altTarget) requestLyricTarget(altTarget, true);
+    }
   }
 
   function renderLyrics() {
@@ -3515,7 +3668,6 @@
     // Keep the current line where it was instead of letting the list jump.
     const next = $('.lyric-line.is-active', list);
     if (next && offset !== null) list.scrollTop += offsetIn(next) - offset;
-    showToast(state.settings.lyricsTranslation === false ? '仅显示原歌词' : '显示原歌词和中文翻译');
   }
 
   function updateLyricsActive(force) {
@@ -3639,7 +3791,6 @@
     else if (action === 'translation') {
       saveSettings({ lyricsTranslation: state.settings.lyricsTranslation === false });
       renderLyrics();
-      showToast(state.settings.lyricsTranslation === false ? '仅显示原歌词' : '显示原歌词和中文翻译');
     }
     else if (action === 'close') closeStandby();
   }
@@ -4025,8 +4176,10 @@
     return {
       track, queue, index: Number.isFinite(Number(value.index)) ? Number(value.index) : -1,
       playing: !!value.playing, buffering: !!value.buffering,
+      playWhenReady: value.playWhenReady === undefined ? undefined : !!value.playWhenReady,
       position: Math.max(0,Number(value.position)||0), duration: Math.max(0,Number(value.duration)||0),
       source: String(value.source||''), shuffle: !!value.shuffle, repeat: String(value.repeat||'off'),
+      lyricsTargets: Array.isArray(value.lyricsTargets) ? value.lyricsTargets.map(normalizeLyricTarget).filter(Boolean) : [],
       error: typeof value.error === 'string' && value.error.trim()
         ? value.error.trim()
         : (value.error ? 'stream_unavailable' : null), updatedAt: Number(value.updatedAt) || 0
@@ -4048,26 +4201,30 @@
 
   function pollMediaState() {
     if (document.hidden || !nativeReady() || !window.Native || typeof window.Native.getState !== 'function') return;
+    let rawState;
     try {
-      const rawState = window.Native.getState();
-      if (typeof rawState === 'string' && rawState === lastProcessedMediaJson && !pendingPlayerModes) {
-        if (state.media.playing) { updateProgress(); updateLyricsActive(); }
-        return;
-      }
-      const next = normalizeMediaState(parseNativeObject(rawState,{}));
-      applyPendingPlayerModes(next);
-      const oldTrack = state.media.track;
-      const trackKey = next.track && `${next.source}:${next.track.id}:${next.track.provider}`;
-      const oldKey = oldTrack && `${state.media.source}:${oldTrack.id}:${oldTrack.provider}`;
-      const newSuccessfulTrack = !!next.playing && (!state.media.playing || trackKey !== oldKey);
-      const miniTransition = animateMiniTrackHandoff(trackKey);
-      state.media = next;
-      if (trackKey !== oldKey) fetchLyricsForCurrent();
-      updatePlayerChrome();
-      finishMiniTrackHandoff(miniTransition);
-      lastProcessedMediaJson = typeof rawState === 'string' ? rawState : null;
-      if (newSuccessfulTrack && state.tab === 'library' && !state.playlist && !state.playlistLoading && !state.playlistError) loadRecentHistory(true, 20);
-    } catch (_) { /* Device bridge may be between activity transitions. */ }
+      rawState = window.Native.getState();
+    } catch (_) {
+      /* Device bridge may be between activity transitions. */
+      return;
+    }
+    if (typeof rawState === 'string' && rawState === lastProcessedMediaJson && !pendingPlayerModes) {
+      if (state.media.playing) { updateProgress(); updateLyricsActive(); }
+      return;
+    }
+    const next = normalizeMediaState(parseNativeObject(rawState,{}));
+    applyPendingPlayerModes(next);
+    const oldTrack = state.media.track;
+    const trackKey = next.track && `${next.source}:${next.track.id}:${next.track.provider}`;
+    const oldKey = oldTrack && `${state.media.source}:${oldTrack.id}:${oldTrack.provider}`;
+    const newSuccessfulTrack = !!next.playing && (!state.media.playing || trackKey !== oldKey);
+    const miniTransition = animateMiniTrackHandoff(trackKey);
+    state.media = next;
+    fetchLyricsForCurrent();
+    updatePlayerChrome();
+    finishMiniTrackHandoff(miniTransition);
+    lastProcessedMediaJson = typeof rawState === 'string' ? rawState : null;
+    if (newSuccessfulTrack && state.tab === 'library' && !state.playlist && !state.playlistLoading && !state.playlistError) loadRecentHistory(true, 20);
   }
 
   function onSeek() {
@@ -4581,7 +4738,7 @@
   function setupIcons() {
     $$('.tab-icon').forEach(node => setIcon(node,node.dataset.icon));
     setIcon($('#account-close'),'close');
-    setIcon($('#mini-toggle'),'play'); setIcon($('#mini-like'),'heart'); setIcon($('#mini-queue'),'queue'); setIcon($('#player-toggle'),'play');
+    setToggleIcon($('#mini-toggle'),'play'); setIcon($('#mini-like'),'heart'); setIcon($('#mini-queue'),'queue'); setToggleIcon($('#player-toggle'),'play');
     setIcon($('#queue-sheet-close'),'close'); setIcon($('#track-actions-close'),'close');
     updateMiniFavoriteButton();
     setIcon($('#avatar-mark'),'music'); setIcon($('#mini-art'),'music'); setIcon($('#player-artwork'),'music'); setIcon($('#account-avatar'),'music');
