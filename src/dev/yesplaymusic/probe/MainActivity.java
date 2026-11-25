@@ -235,7 +235,10 @@ public class MainActivity extends Activity {
             }catch(Exception error){String message=error.getMessage();if(message==null||message.length()>180)message="暂时无法连接音乐服务，请检查网络后重试";response(id,null,message);}});
         }
         @JavascriptInterface public void command(String payload){
-            if(payload==null||payload.length()>700000)return;
+            if(payload==null||payload.length()>700000){
+                main.post(()->Toast.makeText(MainActivity.this,"播放列表过大，请精简后重试",Toast.LENGTH_SHORT).show());
+                return;
+            }
             main.post(()->{try{new JSONObject(payload);Intent intent=new Intent(MainActivity.this,PlaybackService.class).putExtra("command","json").putExtra("payload",payload);startForegroundService(intent);}catch(Exception error){Toast.makeText(MainActivity.this,"播放操作失败，请重新打开播放器",Toast.LENGTH_SHORT).show();}});
         }
         @JavascriptInterface public String getState(){
@@ -253,8 +256,8 @@ public class MainActivity extends Activity {
         }
         @JavascriptInterface public String getQueue(){String live=PlaybackService.publishedQueue();return live!=null?live:"{\"version\":-1,\"queue\":[]}";}
         @JavascriptInterface public String getBattery(){return batteryState;}
-        @JavascriptInterface public String getSettings(){try{SharedPreferences values=getSharedPreferences("mobile_settings",MODE_PRIVATE);return new JSONObject().put("sourcePreference",values.getString("sourcePreference","auto")).put("theme",values.getString("theme","system")).put("statusLyrics",values.getBoolean("statusLyrics",true)).put("lyricsTranslation",values.getBoolean("lyricsTranslation",true)).toString();}catch(Exception ignored){return "{}";}}
-        @JavascriptInterface public void settings(String json){try{JSONObject input=new JSONObject(json);SharedPreferences.Editor edit=getSharedPreferences("mobile_settings",MODE_PRIVATE).edit();String source=input.optString("sourcePreference"),theme=input.optString("theme");if(Arrays.asList("auto","netease","qq").contains(source))edit.putString("sourcePreference",source);if(Arrays.asList("system","light","dark").contains(theme))edit.putString("theme",theme);if(input.has("statusLyrics"))edit.putBoolean("statusLyrics",input.optBoolean("statusLyrics",true));if(input.has("lyricsTranslation"))edit.putBoolean("lyricsTranslation",input.optBoolean("lyricsTranslation",true));edit.apply();}catch(Exception ignored){}}
+        @JavascriptInterface public String getSettings(){try{SharedPreferences values=getSharedPreferences("mobile_settings",MODE_PRIVATE);return new JSONObject().put("sourcePreference",values.getString("sourcePreference","auto")).put("theme",values.getString("theme","system")).put("uiStyle",values.getString("uiStyle","classic")).put("statusLyrics",values.getBoolean("statusLyrics",true)).put("lyricsTranslation",values.getBoolean("lyricsTranslation",true)).toString();}catch(Exception ignored){return "{}";}}
+        @JavascriptInterface public void settings(String json){try{JSONObject input=new JSONObject(json);SharedPreferences.Editor edit=getSharedPreferences("mobile_settings",MODE_PRIVATE).edit();String source=input.optString("sourcePreference"),theme=input.optString("theme"),uiStyle=input.optString("uiStyle");if(Arrays.asList("auto","netease","qq").contains(source))edit.putString("sourcePreference",source);if(Arrays.asList("system","light","dark").contains(theme))edit.putString("theme",theme);if(Arrays.asList("classic","material3").contains(uiStyle))edit.putString("uiStyle",uiStyle);if(input.has("statusLyrics"))edit.putBoolean("statusLyrics",input.optBoolean("statusLyrics",true));if(input.has("lyricsTranslation"))edit.putBoolean("lyricsTranslation",input.optBoolean("lyricsTranslation",true));edit.apply();}catch(Exception ignored){}}
         @JavascriptInterface public void login(String provider){if(!"qq".equals(provider)&&!"netease".equals(provider))return;main.post(()->startActivity(new Intent(MainActivity.this,LoginActivity.class).putExtra("provider",provider)));}
         @JavascriptInterface public void haptic(){main.post(()->{if(web!=null)web.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK);});}
         @JavascriptInterface public void chrome(boolean dark){main.post(()->{chromeDark=dark;applyChrome();});}

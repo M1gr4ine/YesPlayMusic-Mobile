@@ -61,7 +61,10 @@ final class RecentPlaybackStore {
     }
 
     private List<Entry> readEntriesLocked() {
-        String stored = preferences.getString(PREFS_KEY, "[]");
+        return decode(preferences.getString(PREFS_KEY, "[]"));
+    }
+
+    static List<Entry> decode(String stored) {
         ArrayList<Entry> parsed = new ArrayList<>();
         try {
             JSONArray array = new JSONArray(stored);
@@ -77,7 +80,7 @@ final class RecentPlaybackStore {
                         value.optString("artwork", ""),
                         value.optLong("duration", 0L),
                         value.optString("qqMid", ""),
-                        value.optLong("lastPlayedAt", 0L));
+                        value.optLong("lastPlayedAt", 0L), Track.fromJson(value));
                 if (entry.isValid()) parsed.add(entry);
             }
         } catch (JSONException ignored) {
@@ -94,7 +97,7 @@ final class RecentPlaybackStore {
             else if (track.id != null && track.id.startsWith("qq:")) provider = "qq";
         }
         Entry entry = new Entry(track.id, provider, track.title, track.artist, track.album,
-                track.artwork, track.duration, track.qqMid, playedAt);
+                track.artwork, track.duration, track.qqMid, playedAt, track);
         return entry.isValid() ? entry : null;
     }
 
@@ -141,9 +144,16 @@ final class RecentPlaybackStore {
         final long duration;
         final String qqMid;
         final long lastPlayedAt;
+        private final Track metadata;
 
         Entry(String id, String provider, String title, String artist, String album,
               String artwork, long duration, String qqMid, long lastPlayedAt) {
+            this(id, provider, title, artist, album, artwork, duration, qqMid, lastPlayedAt, null);
+        }
+
+        Entry(String id, String provider, String title, String artist, String album,
+              String artwork, long duration, String qqMid, long lastPlayedAt, Track metadata) {
+            this.metadata = metadata;
             this.id = clean(id, 256);
             this.provider = clean(provider, 32).toLowerCase(java.util.Locale.ROOT);
             this.title = clean(title, 512);
@@ -151,7 +161,7 @@ final class RecentPlaybackStore {
             this.album = clean(album, 512);
             this.artwork = clean(artwork, 2048);
             this.duration = duration < 0L || duration > 24L * 60L * 60L * 1000L ? 0L : duration;
-            this.qqMid = clean(qqMid, 256);
+            this.qqMid = metadata == null ? clean(qqMid, 256) : metadata.effectiveQqMid();
             this.lastPlayedAt = lastPlayedAt;
         }
 
@@ -165,39 +175,18 @@ final class RecentPlaybackStore {
         }
 
         JSONObject toJson() throws JSONException {
-            return new JSONObject(toJsonString());
+            JSONObject value = metadata == null ? new JSONObject() : metadata.toJson(false);
+            return value.put("id", id).put("provider", provider).put("title", title).put("artist", artist)
+                    .put("album", album).put("artwork", artwork).put("duration", duration)
+                    .put("qqMid", qqMid).put("lastPlayedAt", lastPlayedAt);
         }
 
         String toJsonString() {
-            return "{\"id\":" + quote(id)
-                    + ",\"provider\":" + quote(provider)
-                    + ",\"title\":" + quote(title)
-                    + ",\"artist\":" + quote(artist)
-                    + ",\"album\":" + quote(album)
-                    + ",\"artwork\":" + quote(artwork)
-                    + ",\"duration\":" + duration
-                    + ",\"qqMid\":" + quote(qqMid)
-                    + ",\"lastPlayedAt\":" + lastPlayedAt + "}";
-        }
-
-        private static String quote(String value) {
-            StringBuilder out = new StringBuilder(value.length() + 2).append('"');
-            for (int i = 0; i < value.length(); i++) {
-                char c = value.charAt(i);
-                switch (c) {
-                    case '"': out.append("\\\""); break;
-                    case '\\': out.append("\\\\"); break;
-                    case '\b': out.append("\\b"); break;
-                    case '\f': out.append("\\f"); break;
-                    case '\n': out.append("\\n"); break;
-                    case '\r': out.append("\\r"); break;
-                    case '\t': out.append("\\t"); break;
-                    default:
-                        if (c < 0x20) out.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) c));
-                        else out.append(c);
-                }
+            try {
+                return toJson().toString();
+            } catch (JSONException invalid) {
+                throw new IllegalStateException("Invalid recent track metadata", invalid);
             }
-            return out.append('"').toString();
         }
 
         private static String clean(String value, int maxLength) {

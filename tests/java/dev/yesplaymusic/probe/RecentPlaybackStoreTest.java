@@ -31,6 +31,28 @@ final class RecentPlaybackStoreTest {
 
         Track track = Track.fromJson(new JSONObject().put("id", "789").put("title", "Title").put("provider", "netease")
                 .put("url", "https://audio.example/play?signature=fixture-only-secret"));
+        Track mapped = Track.fromJson(new JSONObject().put("id", "789").put("artist", "Artist")
+                .put("artistAliases", new org.json.JSONArray().put("Alias"))
+                .put("artistRefs", new org.json.JSONArray().put(new JSONObject().put("id", "7").put("name", "Artist")))
+                .put("albumId", "42").put("qqMid", "songMid").put("mediaMid", "fileMid").put("qqMidVersion", 2));
+        JSONObject saved = RecentPlaybackStore.fromTrack(mapped, 500L).toJson();
+        List<RecentPlaybackStore.Entry> loaded = RecentPlaybackStore.decode("[" + saved.toString() + "]");
+        that(loaded.size() == 1, "stored history decodes its entry");
+        Track restored = Track.fromJson(loaded.get(0).toJson());
+        that("fileMid".equals(restored.toJson(false).optString("mediaMid"))
+                && restored.toJson(false).optInt("qqMidVersion", 0) == 2, "history preserves verified mapping");
+        that(restored.toJson(false).optJSONArray("artistAliases") != null
+                && restored.toJson(false).optJSONArray("artistRefs") != null
+                && "42".equals(restored.toJson(false).optString("albumId")), "history preserves catalog metadata");
+
+        List<RecentPlaybackStore.Entry> legacyEntries = RecentPlaybackStore.decode(
+                "[{\"id\":\"777\",\"provider\":\"netease\",\"title\":\"Old\",\"lastPlayedAt\":100}]");
+        that(legacyEntries.size() == 1, "legacy history without optional fields decodes");
+        Track legacyRestored = Track.fromJson(legacyEntries.get(0).toJson());
+        that("netease".equals(legacyRestored.provider) && !legacyRestored.hasVerifiedQqMid()
+                && legacyRestored.mediaMid.isEmpty() && legacyRestored.artistIds.isEmpty(),
+                "old history with missing metadata remains readable and unverified");
+
         String persisted = RecentPlaybackStore.fromTrack(track, 500L).toJsonString();
         that(!persisted.contains("\"url\"") && !persisted.contains("fixture-only-secret"), "signed stream URLs are never stored");
     }

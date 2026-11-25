@@ -25,7 +25,14 @@ final class ArtistAliases {
     static int score(String title, String artist, List<String> artistAliases, long duration,
                      String candidateTitle, String candidateArtist, List<String> candidateAliases,
                      long candidateDuration) {
-        int strict = QQMatch.score(title, artist, duration, candidateTitle, candidateArtist, candidateDuration);
+        return score(title, artist, artistAliases, "", duration, candidateTitle, candidateArtist, candidateAliases, "", candidateDuration);
+    }
+
+    static int score(String title, String artist, List<String> artistAliases, String album, long duration,
+                     String candidateTitle, String candidateArtist, List<String> candidateAliases,
+                     String candidateAlbum, long candidateDuration) {
+        if (!QQMatch.knownArtist(artist) || !QQMatch.knownArtist(candidateArtist)) return -1;
+        int strict = QQMatch.score(title, artist, album, duration, candidateTitle, candidateArtist, candidateAlbum, candidateDuration);
         if (strict >= 0) return strict;
         if (!isSingleArtistCredit(artist) || !isSingleArtistCredit(candidateArtist)) return -1;
 
@@ -34,10 +41,80 @@ final class ArtistAliases {
         for (Map.Entry<String, String> left : namesForMatching(artist, artistAliases).entrySet()) {
             String rightName = right.get(left.getKey());
             if (rightName == null) continue;
-            best = Math.max(best, QQMatch.score(title, left.getValue(), duration,
-                    candidateTitle, rightName, candidateDuration));
+            best = Math.max(best, QQMatch.score(title, left.getValue(), album, duration,
+                    candidateTitle, rightName, candidateAlbum, candidateDuration));
         }
         return best;
+    }
+
+    /** Context-dependent fallback. Never call this as an unranked title/duration match. */
+    static boolean bridgeAccepts(String title, String artist, List<String> artistAliases, String album, long duration,
+                                 String candidateTitle, String candidateArtist, List<String> candidateAliases,
+                                 String candidateAlbum, long candidateDuration, boolean artistQuery, int resultRank) {
+        if (!QQMatch.sameRecordingTitle(title, candidateTitle) || duration <= 0 || candidateDuration <= 0
+                || Math.abs(duration - candidateDuration) > QQMatch.UNM_DURATION_MS) return false;
+        if (!QQMatch.knownArtist(artist) || !QQMatch.knownArtist(candidateArtist)) return false;
+        if (!isSingleArtistCredit(candidateArtist)) return false;
+        boolean shared = sharesName(artist, artistAliases, candidateArtist, candidateAliases);
+        if (shared && conflictingCandidateNames(artist, artistAliases, candidateArtist)) return false;
+        boolean single = isSingleArtistCredit(artist);
+        boolean crossScript = single && crossScript(artist, candidateArtist);
+        boolean albumMatch = QQMatch.sameRecordingTitle(album, candidateAlbum);
+        if (albumMatch && (shared || crossScript || (distinctiveAlbum(album) && bilingualCredit(candidateArtist)))) return true;
+        return artistQuery && resultRank == 0 && crossScript;
+    }
+
+    private static boolean distinctiveAlbum(String album) {
+        String value = QQMatch.normalize(album);
+        if (value.length() < 8) return false;
+        return !value.contains("greatesthits") && !value.contains("bestof") && !value.contains("collection")
+                && !value.contains("compilation") && !value.contains("精选") && !value.contains("合辑");
+    }
+
+    private static boolean bilingualCredit(String credit) {
+        java.util.Set<String> names = QQMatch.artistNames(credit);
+        for (String a : names) for (String b : names) if (crossScript(a, b)) return true;
+        return false;
+    }
+
+    private static boolean conflictingCandidateNames(String artist, List<String> aliases, String candidate) {
+        java.util.Set<String> expected = QQMatch.artistNames(artist);
+        if (aliases != null) for (String alias : aliases) if (isSingleArtistCredit(alias)) expected.addAll(QQMatch.artistNames(alias));
+        java.util.Set<String> names = QQMatch.artistNames(candidate);
+        for (String known : names) {
+            if (!expected.contains(known)) continue;
+            for (String other : names) {
+                if (!expected.contains(other) && (scripts(known) & scripts(other)) != 0) return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean sharesName(String left, List<String> leftAliases, String right, List<String> rightAliases) {
+        java.util.Set<String> a = QQMatch.artistNames(left), b = QQMatch.artistNames(right);
+        if (leftAliases != null) for (String alias : leftAliases) if (isSingleArtistCredit(alias)) a.addAll(QQMatch.artistNames(alias));
+        if (rightAliases != null) for (String alias : rightAliases) if (isSingleArtistCredit(alias)) b.addAll(QQMatch.artistNames(alias));
+        a.retainAll(b);
+        return !a.isEmpty();
+    }
+
+    private static boolean crossScript(String left, String right) {
+        int a = scripts(left), b = scripts(right);
+        return a != 0 && b != 0 && (a & b) == 0;
+    }
+
+    private static int scripts(String text) {
+        int mask = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (Character.UnicodeScript.of(c) == Character.UnicodeScript.LATIN) mask |= 1;
+            else if (Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN) mask |= 2;
+            else if (Character.UnicodeScript.of(c) == Character.UnicodeScript.HIRAGANA
+                    || Character.UnicodeScript.of(c) == Character.UnicodeScript.KATAKANA) mask |= 4;
+            else if (Character.UnicodeScript.of(c) == Character.UnicodeScript.HANGUL) mask |= 8;
+        }
+        // Kana distinguishes Japanese from a Chinese rendering even where both contain Han.
+        return (mask & 4) != 0 ? (mask & ~2) : mask;
     }
 
     static List<String> searchQueries(String title, String canonicalArtist, List<String> aliases) {
@@ -131,8 +208,9 @@ final class ArtistAliases {
     private static void addName(Map<String, String> names, String value) {
         String clean = clean(value);
         if (clean.isEmpty() || !isSingleArtistCredit(clean)) return;
-        String normalized = QQMatch.normalize(clean);
-        if (!normalized.isEmpty() && !names.containsKey(normalized)) names.put(normalized, clean);
+        for (String normalized : QQMatch.artistNames(clean)) {
+            if (!names.containsKey(normalized)) names.put(normalized, normalized);
+        }
     }
 
     private static void addCanonical(Map<String, Boolean> names, String value) {

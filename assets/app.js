@@ -30,7 +30,7 @@
 
   const state = {
     tab: 'listen',
-    settings: { sourcePreference: 'auto', theme: 'system', statusLyrics: true, lyricsTranslation: true },
+    settings: { sourcePreference: 'auto', theme: 'system', uiStyle: 'classic', statusLyrics: true, lyricsTranslation: true },
     account: null,
     qqStatus: null,
     home: { playlists: [], songs: [] },
@@ -557,16 +557,22 @@
     const albumObject = raw.album && typeof raw.album === 'object' ? raw.album : raw.al;
     const albumName = typeof raw.album === 'string' ? raw.album : (albumObject && (albumObject.name || albumObject.title || albumObject.albumName)) || raw.albumName || '';
     const artwork = raw.artwork || raw.cover || raw.picUrl || raw.albumPic || raw.albumPicUrl || (albumObject && (albumObject.picUrl || albumObject.cover || albumObject.coverUrl)) || '';
-    let duration = Number(raw.duration ?? raw.dt ?? raw.intervalMs ?? 0);
-    if (duration > 0 && duration < 10000) duration *= 1000;
+    let duration = 0;
+    if (raw.duration != null || raw.dt != null || raw.intervalMs != null) {
+      duration = Number(raw.duration ?? raw.dt ?? raw.intervalMs ?? 0);
+    } else if (raw.interval != null) {
+      duration = Number(raw.interval) * 1000;
+    }
     const result = {
       id: normalizedId, title: String(title), artist: artistNames(raw) || '未知艺术家', album: String(albumName || ''),
       artistAliases: artistAliasNames(raw),
-      artwork: safeHttpsUrl(artwork), duration: Number.isFinite(duration) ? duration : 0,
+      artwork: safeHttpsUrl(artwork), duration: Number.isFinite(duration) && duration > 0 ? duration : 0,
       provider: idProvider || raw.provider || provider || 'netease'
     };
     const qqMid = raw.qqMid || raw.songmid || raw.mid || raw.qq_mid;
     if (qqMid) result.qqMid = String(qqMid);
+    const qqMidVersion = Number(raw.qqMidVersion);
+    if (Number.isInteger(qqMidVersion) && qqMidVersion > 0) result.qqMidVersion = qqMidVersion;
     const mediaMid = raw.media_mid || raw.mediaMid;
     if (mediaMid) result.mediaMid = String(mediaMid);
     if (result.provider === 'netease') {
@@ -793,10 +799,14 @@
   }
 
   function readSettings() {
-    if (!window.Native || typeof window.Native.getSettings !== 'function') return;
+    if (!window.Native || typeof window.Native.getSettings !== 'function') {
+      applyTheme();
+      return;
+    }
     const settings = parseNativeObject(window.Native.getSettings(), {});
     if (['auto', 'netease', 'qq'].includes(settings.sourcePreference)) state.settings.sourcePreference = settings.sourcePreference;
     if (['system', 'light', 'dark'].includes(settings.theme)) state.settings.theme = settings.theme;
+    if (['classic', 'material3'].includes(settings.uiStyle)) state.settings.uiStyle = settings.uiStyle;
     if (typeof settings.statusLyrics === 'boolean') state.settings.statusLyrics = settings.statusLyrics;
     if (typeof settings.lyricsTranslation === 'boolean') state.settings.lyricsTranslation = settings.lyricsTranslation;
     state.searchProvider = state.settings.sourcePreference === 'qq' ? 'qq' : 'netease';
@@ -815,14 +825,32 @@
   }
 
   function applyTheme() {
-    document.documentElement.dataset.theme = state.settings.theme || 'system';
-    $$('.theme-picker button').forEach(button => button.classList.toggle('is-selected', button.dataset.themeChoice === state.settings.theme));
+    const theme = state.settings.theme || 'system';
+    const uiStyle = state.settings.uiStyle === 'material3' ? 'material3' : 'classic';
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.ui = uiStyle;
+    $$('.theme-picker button[data-theme-choice]').forEach(button => {
+      const selected = button.dataset.themeChoice === theme;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-checked', String(selected));
+    });
+    $$('.ui-style-picker button[data-ui-choice]').forEach(button => {
+      const selected = button.dataset.uiChoice === uiStyle;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-checked', String(selected));
+    });
     syncSystemChrome();
   }
 
   function syncSystemChrome() {
+    const dark = state.settings.theme === 'dark'
+      || (state.settings.theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const metaTheme = $('meta[name="theme-color"]');
+    if (metaTheme) {
+      const material3 = state.settings.uiStyle === 'material3';
+      metaTheme.setAttribute('content', material3 ? (dark ? '#121318' : '#fbf8ff') : (dark ? '#121211' : '#f6f5f1'));
+    }
     if (!window.Native || typeof window.Native.chrome !== 'function') return;
-    const dark = state.settings.theme === 'dark' || (state.settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     try { window.Native.chrome(!!dark); } catch (_) {}
   }
 
@@ -917,15 +945,21 @@
     }
     $$('.source-option').forEach(button => button.setAttribute('aria-checked', String(button.dataset.source === state.settings.sourcePreference)));
     $('#status-lyrics').setAttribute('aria-checked', String(state.settings.statusLyrics !== false));
-    const qqLoggedIn = !!(state.qqStatus && state.qqStatus.loggedIn);
-    $('#qq-account-status').textContent = state.qqStatus ? (qqLoggedIn ? '已连接 QQ 音乐' : '未登录 QQ 音乐') : '暂时无法读取 QQ 登录状态';
-    $('#qq-login').textContent = qqLoggedIn ? '已登录' : 'QQ 登录';
+    const qqAuthState = state.qqStatus && typeof state.qqStatus.authState === 'string' ? state.qqStatus.authState : '';
+    const qqExpired = qqAuthState === 'expired';
+    const qqLoggedIn = !!(state.qqStatus && state.qqStatus.loggedIn) && !qqExpired;
+    $('#qq-account-status').textContent = state.qqStatus
+      ? (qqExpired ? 'QQ 音乐登录已过期，请重新登录' : (qqLoggedIn ? '已连接 QQ 音乐' : '未登录 QQ 音乐'))
+      : '暂时无法读取 QQ 登录状态';
+    $('#qq-login').textContent = qqExpired ? '重新登录' : (qqLoggedIn ? '已登录' : 'QQ 登录');
     $('#qq-login').disabled = qqLoggedIn || state.authMutation === 'qq';
     const qqLogout = $('#qq-logout');
-    qqLogout.hidden = !qqLoggedIn;
+    qqLogout.hidden = !(qqLoggedIn || qqExpired);
     qqLogout.disabled = state.authMutation === 'qq';
     qqLogout.textContent = state.authMutation === 'qq' ? '正在退出…' : '退出 QQ 音乐账号';
-    $('#qq-source-detail').textContent = qqLoggedIn ? '已连接账号，可搜索并尝试 QQ 音源' : '支持 QQ 搜索；登录后使用账号可播放曲目';
+    $('#qq-source-detail').textContent = qqExpired
+      ? 'QQ 登录凭据已过期，请重新登录以恢复 QQ 音源'
+      : (qqLoggedIn ? '已连接账号，可搜索并尝试 QQ 音源' : '支持 QQ 搜索；登录后使用账号可播放曲目');
     applyTheme();
   }
 
@@ -2242,9 +2276,19 @@
   }
 
   function playTracks(tracks, index) {
-    const queue = Array.isArray(tracks) ? tracks.map(track => normalizeTrack(track, track.provider)).filter(Boolean) : [];
+    const list = Array.isArray(tracks) ? tracks : [];
+    const rawIndex = Math.max(0, Number(index) || 0);
+    const queue = [];
+    let targetIndex = -1;
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      const normalized = normalizeTrack(item, item && item.provider);
+      if (!normalized) continue;
+      if (targetIndex < 0 && i >= rawIndex) targetIndex = queue.length;
+      queue.push(normalized);
+    }
     if (!queue.length) { showToast('这组歌曲暂时没有可播放曲目'); return; }
-    const targetIndex = Math.max(0, Math.min(queue.length - 1, Number(index) || 0));
+    if (targetIndex < 0) targetIndex = 0;
     if (!nativeReady()) { showToast('请在手机应用中开始播放'); return; }
     try {
       window.Native.command(JSON.stringify({ type: 'play', queue, index: targetIndex }));
@@ -2560,11 +2604,46 @@
     } else if (host.textContent !== text) host.textContent = text;
   }
 
+  function playbackErrorMessage(code, preference) {
+    switch (String(code || '')) {
+      case 'match_not_found':
+        return '未找到同一版本的音源（已拦截不匹配歌曲），可在曲库中搜索其他版本。';
+      case 'trial_unavailable':
+        return preference === 'netease'
+          ? '该曲目在网易云仅提供试听片段，可切换自动音源尝试 QQ。'
+          : '该曲目当前仅提供试听片段，且备用音源暂不可用。';
+      case 'qq_auth_required':
+        return '需要登录 QQ 音乐账号才能播放 QQ 音源，请在设置中登录。';
+      case 'qq_auth_expired':
+        return 'QQ 音乐登录状态已失效，请在设置中重新登录 QQ 音乐。';
+      case 'qq_region_locked':
+        return 'QQ 音源受地区或版权限制（104003），请检查当前网络环境。';
+      case 'qq_rights_unavailable':
+        return 'QQ 音乐未返回可播放地址，请确认歌曲权益或切换音源。';
+      case 'netease_auth_expired':
+        return '网易云音乐登录状态已失效，请在设置中重新登录。';
+      case 'netease_rate_limited':
+        return '音乐服务请求受限或触发风控，请稍后再试。';
+      case 'netease_id_mismatch':
+        return '网易云返回了不匹配的歌曲信息，已拦截错歌播放，请重试。';
+      case 'network_error':
+        return '网络连接异常或请求超时，请检查网络后重试。';
+      case 'player_error':
+        return '音频流加载失败，请重试或切换其他音源。';
+      case 'queue_too_large':
+        return '播放列表超过上限，请精简后再试。';
+      default:
+        return '当前歌曲无法播放，请试试列表中的其他歌曲。';
+    }
+  }
+
   function updatePlayerChrome() {
     const track = state.media.track;
     if (state.media.error) {
-      const errorKey = track ? JSON.stringify([track.provider, track.id]) : 'no-track';
-      setMessage('当前歌曲无法播放，请试试列表中的其他歌曲。', true, errorKey);
+      const errorKey = track
+        ? JSON.stringify([track.provider, track.id, state.media.error])
+        : `no-track:${state.media.error}`;
+      setMessage(playbackErrorMessage(state.media.error, state.settings.sourcePreference), true, errorKey);
     } else {
       clearErrorMessage();
     }
@@ -2684,6 +2763,7 @@
     const args = {
       title,
       artist: artist === '\u672a\u77e5\u827a\u672f\u5bb6' ? '' : artist,
+      album: String(track.album || ''),
       artistAliases: Array.isArray(track.artistAliases) ? track.artistAliases : [],
       duration: Math.max(0, Math.floor(Number(track.duration) || 0))
     };
@@ -3028,7 +3108,8 @@
     }
     const artist = track.artist === '未知艺术家' ? '' : String(track.artist || '');
     const response = await request('matchTrack', {
-      title: String(track.title || ''), artist, artistAliases: Array.isArray(track.artistAliases) ? track.artistAliases : [],
+      title: String(track.title || ''), artist, album: String(track.album || ''),
+      artistAliases: Array.isArray(track.artistAliases) ? track.artistAliases : [],
       duration: Math.max(0, Math.floor(Number(track.duration) || 0))
     });
     if (!response || !apiRequestSucceeded(response)) throw safeFailure();
@@ -3648,7 +3729,9 @@
     const queue = state.media.queue || [];
     if (queue !== queueSignatureSource) {
       queueSignatureSource = queue;
-      queueSignatureValue = queue.map(track => track && track.id != null ? `${track.provider || 'netease'}:${String(track.id)}` : '').join('|');
+      queueSignatureValue = queue.map(track => track && track.id != null
+        ? `${track.provider || 'netease'}:${String(track.id)}:${track.title || ''}:${track.artist || ''}`
+        : '').join('|');
     }
     const signature = queueSignatureValue;
     const changed = !!force || signature !== lastQueueSignature;
@@ -3944,7 +4027,9 @@
       playing: !!value.playing, buffering: !!value.buffering,
       position: Math.max(0,Number(value.position)||0), duration: Math.max(0,Number(value.duration)||0),
       source: String(value.source||''), shuffle: !!value.shuffle, repeat: String(value.repeat||'off'),
-      error: value.error ? true : null, updatedAt: Number(value.updatedAt) || 0
+      error: typeof value.error === 'string' && value.error.trim()
+        ? value.error.trim()
+        : (value.error ? 'stream_unavailable' : null), updatedAt: Number(value.updatedAt) || 0
     };
   }
 
@@ -4443,7 +4528,8 @@
     $('#netease-logout').addEventListener('click',() => logoutProvider('netease','logout'));
     $('#clear-cache').addEventListener('click',clearCache);
     $$('.source-option').forEach(button => button.addEventListener('click',() => saveSettings({sourcePreference:button.dataset.source})));
-    $$('.theme-picker button').forEach(button => button.addEventListener('click',() => saveSettings({theme:button.dataset.themeChoice})));
+    $$('.theme-picker button[data-theme-choice]').forEach(button => button.addEventListener('click',() => saveSettings({theme:button.dataset.themeChoice})));
+    $$('.ui-style-picker button[data-ui-choice]').forEach(button => button.addEventListener('click',() => saveSettings({uiStyle:button.dataset.uiChoice})));
     $('#status-lyrics').addEventListener('click',() => saveSettings({statusLyrics:state.settings.statusLyrics === false}));
     installMiniSwipe();
     installTabSwipe();

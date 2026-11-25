@@ -125,6 +125,10 @@ public final class PlaybackService extends MediaBrowserService
     private boolean stopped;
     private boolean savedWasPlaying;
     private boolean fallbackAttempted;
+    private boolean neteaseMp3FallbackTried;
+    private String primaryResolveError;
+    private final ArrayList<Attempt> remainingAttempts = new ArrayList<>();
+    private Attempt activeAttempt;
     private Future<?> resolverTask;
     private Future<?> artworkTask;
     private String queueJsonCache;
@@ -436,8 +440,8 @@ public final class PlaybackService extends MediaBrowserService
     }
 
     private void handleJsonCommand(String payload) {
-        if (payload == null || payload.length() > 512 * 1024) {
-            lastError = "invalid_command";
+        if (payload == null || payload.length() > 700_000) {
+            lastError = "queue_too_large";
             publishState("invalid-command");
             return;
         }
@@ -495,10 +499,7 @@ public final class PlaybackService extends MediaBrowserService
             return false;
         }
         ArrayList<Track> parsed = new ArrayList<>();
-        for (int i = 0; i < requested.length(); i++) {
-            Track track = Track.fromJson(requested.optJSONObject(i));
-            if (track != null) parsed.add(track);
-        }
+        int mappedIndex = selectFilteredIndex(requested, startIndex, parsed);
         playbackGeneration++;
         cancelNetworkTasks();
         releasePlayer();
@@ -506,8 +507,7 @@ public final class PlaybackService extends MediaBrowserService
         queue.clear();
         queue.addAll(parsed);
         // The shuffle order is rebuilt around the current song, so select it first.
-        currentIndex = queue.isEmpty() ? -1
-                : startIndex >= 0 && startIndex < queue.size() ? startIndex : 0;
+        currentIndex = queue.isEmpty() ? -1 : mappedIndex;
         currentTrack = queue.isEmpty() ? null : queue.get(currentIndex);
         currentArtwork = null;
         currentArtworkUrl = null;
@@ -518,12 +518,33 @@ public final class PlaybackService extends MediaBrowserService
         buffering = false;
         stopped = false;
         fallbackAttempted = false;
+        neteaseMp3FallbackTried = false;
+        primaryResolveError = null;
+        remainingAttempts.clear();
+        activeAttempt = null;
         lastError = queue.isEmpty() ? "empty_queue" : null;
         rebuildShuffleOrder();
         refreshQueue();
         updateMetadata();
         updatePlaybackState();
         return !queue.isEmpty();
+    }
+
+    /** Parses valid tracks from requested JSON and maps startIndex to the surviving track position. */
+    static int selectFilteredIndex(JSONArray requested, int startIndex, List<Track> out) {
+        int mappedIndex = -1;
+        int clampedStart = startIndex < 0 ? 0 : startIndex;
+        for (int i = 0; i < requested.length(); i++) {
+            Track track = Track.fromJson(requested.optJSONObject(i));
+            if (track == null) continue;
+            int keptPosition = out.size();
+            out.add(track);
+            if (mappedIndex < 0 && i >= clampedStart) {
+                mappedIndex = keptPosition;
+            }
+        }
+        if (out.isEmpty()) return -1;
+        return mappedIndex >= 0 ? mappedIndex : 0;
     }
 
     private void playCurrent(String event) {
@@ -580,6 +601,10 @@ public final class PlaybackService extends MediaBrowserService
         bufferingPercent = 0;
         stopped = false;
         fallbackAttempted = false;
+        neteaseMp3FallbackTried = false;
+        primaryResolveError = null;
+        remainingAttempts.clear();
+        activeAttempt = null;
         lastError = null;
         if (mediaSession != null) mediaSession.setActive(true);
         ensureForeground();
@@ -596,76 +621,164 @@ public final class PlaybackService extends MediaBrowserService
     private void resolveStreamAsync(final long requestGeneration) {
         final Track track = currentTrack;
         final String preference = sourcePreference();
+        Log.i(TAG, "resolve-start id=" + (track == null ? "" : track.id)
+                + " provider=" + (track == null ? "" : track.provider)
+                + " pref=" + preference);
         resolverTask = resolverExecutor.submit(() -> {
-            Resolution result = null;
+            ResolutionPlan plan = null;
             String failure = "stream_unavailable";
             try {
-                result = resolveTrack(track, preference);
+                plan = resolvePlan(track, preference);
             } catch (StreamException error) {
                 failure = error.code;
             } catch (Exception error) {
+                failure = classifyErrorCode(error);
                 Log.w(TAG, "stream-resolution-failed type="
-                        + error.getClass().getSimpleName());
+                        + error.getClass().getSimpleName() + " code=" + failure);
             }
-            final Resolution resolved = result;
+            final ResolutionPlan resolved = plan;
             final String errorCode = failure;
             handler.post(() -> {
                 if (destroyed || requestGeneration != playbackGeneration) return;
                 resolverTask = null;
-                if (resolved == null) failPlayback(errorCode, "resolve-failed");
-                else {
+                if (resolved == null || resolved.attempts.isEmpty()) {
+                    failPlayback(errorCode, "resolve-failed");
+                } else {
                     fallbackAttempted = resolved.usedFallback;
-                    prepareResolvedStream(requestGeneration, resolved);
+                    primaryResolveError = resolved.primaryError;
+                    remainingAttempts.clear();
+                    remainingAttempts.addAll(resolved.attempts);
+                    openNextAttempt(requestGeneration);
                 }
             });
         });
     }
 
-    private Resolution resolveTrack(Track track, String preference) throws Exception {
-        if ("qq".equals(preference)
-                || ("auto".equals(preference) && "qq".equals(track.provider))) {
-            return resolveQQ(track, false);
+    private ResolutionPlan resolvePlan(Track track, String preference) throws Exception {
+        if ("qq".equals(preference)) {
+            return new ResolutionPlan(resolveQQAttempts(track), false, null);
         }
+        if ("netease".equals(preference)) {
+            return new ResolutionPlan(resolveNeteaseAttempts(track), false, null);
+        }
+        boolean preferQqFirst = "qq".equals(track.provider);
+        String primaryError = null;
         try {
-            JSONObject response = MusicApi.get(getApplicationContext())
-                    .resolveTrackUrl(track.id);
-            boolean trial = response != null && response.optBoolean("trial", false);
-            if (response == null || trial) {
-                throw new StreamException(trial ? "trial_unavailable" : "stream_unavailable");
-            }
-            String url = normalizeStreamUrl(response.optString("url", ""), "netease");
-            if (url.isEmpty()) throw new StreamException("stream_unavailable");
-            long duration = positiveDuration(response.optLong("duration", track.duration),
-                    track.duration);
-            return new Resolution(url, "netease", duration, false, "");
+            List<Attempt> primary = preferQqFirst
+                    ? resolveQQAttempts(track) : resolveNeteaseAttempts(track);
+            if (!primary.isEmpty()) return new ResolutionPlan(primary, false, null);
+            primaryError = "stream_unavailable";
         } catch (Exception error) {
-            if (!"auto".equals(preference)) throw error;
-            Log.i(TAG, "netease-resolution-fallback type="
-                    + error.getClass().getSimpleName());
-            return resolveQQ(track, true);
+            primaryError = classifyErrorCode(error);
+            Log.i(TAG, "primary-resolution-fallback primary=" + (preferQqFirst ? "qq" : "netease")
+                    + " code=" + primaryError + " type=" + error.getClass().getSimpleName());
+        }
+        if (Thread.currentThread().isInterrupted()) throw new StreamException("stream_unavailable");
+        try {
+            List<Attempt> secondary = preferQqFirst
+                    ? resolveNeteaseAttempts(track) : resolveQQAttempts(track);
+            if (!secondary.isEmpty()) return new ResolutionPlan(secondary, true, primaryError);
+            throw new StreamException(chooseAutoFailureCode(track.provider, primaryError, "stream_unavailable"));
+        } catch (Exception fallbackError) {
+            String secondaryError = classifyErrorCode(fallbackError);
+            Log.w(TAG, "secondary-resolution-failed secondary=" + (preferQqFirst ? "netease" : "qq")
+                    + " code=" + secondaryError + " type=" + fallbackError.getClass().getSimpleName());
+            throw new StreamException(chooseAutoFailureCode(track.provider, primaryError, secondaryError));
         }
     }
 
-    private Resolution resolveQQ(Track track, boolean fallback) throws Exception {
-        JSONObject response = QQSource.get(getApplicationContext()).resolve(track.toJson(false));
-        if (response == null) throw new StreamException("stream_unavailable");
-        String url = normalizeStreamUrl(response.optString("url", ""), "qq");
-        if (url.isEmpty()) throw new StreamException("stream_unavailable");
-        long duration = positiveDuration(response.optLong("duration", track.duration),
-                track.duration);
-        return new Resolution(url, "qq", duration, fallback, response.optString("qqMid", ""));
+    private List<Attempt> resolveNeteaseAttempts(Track track) throws Exception {
+        MusicApi api = MusicApi.get(getApplicationContext());
+        String targetId = track.id;
+        String matchReason = "native";
+        if ("qq".equals(track.provider) || !NetEaseAuthState.hasPositiveUserId(targetId)) {
+            JSONObject matched = api.matchNeteaseTrack(track);
+            if (matched == null || !matched.optBoolean("matched", false)) {
+                throw new StreamException("match_not_found");
+            }
+            targetId = matched.optString("id", "");
+            if (!NetEaseAuthState.hasPositiveUserId(targetId)) {
+                throw new StreamException("match_not_found");
+            }
+            matchReason = "matched_netease";
+        }
+        List<JSONObject> responses = api.resolveTrackAttempts(targetId);
+        List<Attempt> attempts = new ArrayList<>();
+        for (JSONObject response : responses) {
+            Attempt attempt = attemptFromNetease(response, targetId, track.duration, matchReason);
+            if (attempt != null) attempts.add(attempt);
+        }
+        if (attempts.isEmpty()) throw new StreamException("stream_unavailable");
+        Attempt head = attempts.get(0);
+        Log.i(TAG, "resolve-ok source=netease attempts=" + attempts.size()
+                + " targetId=" + targetId + " host=" + head.host
+                + " quality=" + head.quality + " match=" + head.matchReason);
+        return attempts;
     }
 
-    private void prepareResolvedStream(long generation, Resolution resolution) {
+    private static Attempt attemptFromNetease(JSONObject response, String neteaseId,
+                                              long fallbackDuration, String matchReason) {
+        if (response == null || response.optBoolean("trial", false)) return null;
+        String url = StreamHosts.normalizeStreamUrl(response.optString("url", ""), "netease");
+        if (url.isEmpty()) return null;
+        long duration = positiveDuration(response.optLong("duration", fallbackDuration), fallbackDuration);
+        String type = response.optString("type", "");
+        long br = response.optLong("br", 0L);
+        String quality = type.isEmpty() ? (br > 0 ? (br / 1000L) + "k" : "netease")
+                : (br > 0 ? type + "/" + (br / 1000L) + "k" : type);
+        return new Attempt(url, "netease", duration, "", "", false, neteaseId, quality,
+                type, matchReason, StreamHosts.hostOf(url));
+    }
+
+    private List<Attempt> resolveQQAttempts(Track track) throws Exception {
+        List<JSONObject> responses = QQSource.get(getApplicationContext()).resolveAttempts(track.toJson(false));
+        List<Attempt> attempts = new ArrayList<>();
+        if (responses != null) {
+            for (JSONObject response : responses) {
+                if (response == null || response.optBoolean("trial", false)) continue;
+                String url = StreamHosts.normalizeStreamUrl(response.optString("url", ""), "qq");
+                if (url.isEmpty()) continue;
+                long duration = positiveDuration(response.optLong("duration", track.duration), track.duration);
+                attempts.add(new Attempt(
+                        url,
+                        "qq",
+                        duration,
+                        response.optString("qqMid", ""),
+                        response.optString("mediaMid", ""),
+                        response.optBoolean("verified", true),
+                        "",
+                        response.optString("quality", "qq"),
+                        response.optString("quality", ""),
+                        response.optString("matchReason", "qq"),
+                        StreamHosts.hostOf(url)));
+            }
+        }
+        if (attempts.isEmpty()) throw new StreamException("stream_unavailable");
+        Attempt head = attempts.get(0);
+        Log.i(TAG, "resolve-ok source=qq attempts=" + attempts.size()
+                + " qqMid=" + head.qqMid + " host=" + head.host
+                + " quality=" + head.quality + " match=" + head.matchReason);
+        return attempts;
+    }
+
+    private void openNextAttempt(long generation) {
+        if (destroyed || generation != playbackGeneration || currentTrack == null) return;
+        if (remainingAttempts.isEmpty()) {
+            failPlayback(primaryResolveError != null ? primaryResolveError : "player_error", "attempts-exhausted");
+            return;
+        }
+        Attempt next = remainingAttempts.remove(0);
+        prepareResolvedStream(generation, next);
+    }
+
+    private void prepareResolvedStream(long generation, Attempt attempt) {
         if (generation != playbackGeneration || currentTrack == null) return;
-        currentSource = resolution.source;
-        currentTrack = currentTrack.withQqMid(resolution.qqMid);
-        if (currentIndex >= 0 && currentIndex < queue.size()) {
-            queue.set(currentIndex, currentTrack);
-            refreshQueue();
-        }
-        currentDurationMs = positiveDuration(resolution.durationMs, currentTrack.duration);
+        activeAttempt = attempt;
+        currentSource = attempt.source;
+        currentDurationMs = positiveDuration(attempt.durationMs, currentTrack.duration);
         buffering = true;
+        Log.i(TAG, "attempt-open source=" + attempt.source + " host=" + attempt.host
+                + " quality=" + attempt.quality + " remaining=" + remainingAttempts.size());
         loadLyricsAsync();
         try {
             final MediaPlayer nextPlayer = new MediaPlayer();
@@ -722,14 +835,16 @@ public final class PlaybackService extends MediaBrowserService
                 if (generation == playbackGeneration && player == mp) bufferingPercent = percent;
             });
             Map<String, String> headers = new HashMap<>();
-            headers.put("User-Agent", "YesPlayMusic Android/0.2");
-            nextPlayer.setDataSource(this, Uri.parse(resolution.url), headers);
+            headers.put("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36");
+            headers.put("Referer", "qq".equals(attempt.source) ? "https://y.qq.com/" : "https://music.163.com/");
+            nextPlayer.setDataSource(this, Uri.parse(attempt.url), headers);
             nextPlayer.prepareAsync();
             updateMetadata();
             updatePlaybackState();
             publishState("stream-opening");
         } catch (Exception error) {
-            Log.w(TAG, "stream-open-failed type=" + error.getClass().getSimpleName());
+            Log.w(TAG, "stream-open-failed type=" + error.getClass().getSimpleName()
+                    + " source=" + attempt.source + " host=" + attempt.host);
             handlePlayerError(generation, 0, 0);
         }
     }
@@ -737,41 +852,134 @@ public final class PlaybackService extends MediaBrowserService
     private void handlePlayerError(long generation, int what, int extra) {
         if (generation != playbackGeneration) return;
         long resumeAt = safePosition();
+        String failedSource = activeAttempt != null ? activeAttempt.source : currentSource;
+        String failedHost = activeAttempt != null ? activeAttempt.host : "";
+        String failedQuality = activeAttempt != null ? activeAttempt.quality : "";
         Log.w(TAG, "stream-error what=" + what + " extra=" + extra
-                + " source=" + currentSource + " atMs=" + resumeAt);
+                + " source=" + failedSource + " host=" + failedHost
+                + " quality=" + failedQuality + " remaining=" + remainingAttempts.size()
+                + " atMs=" + resumeAt);
         releasePlayer();
         pendingSeekMs = resumeAt;
         buffering = true;
-        if ("auto".equals(sourcePreference()) && "netease".equals(currentSource)
-                && !fallbackAttempted) {
+
+        if (!remainingAttempts.isEmpty()) {
+            openNextAttempt(generation);
+            return;
+        }
+        if ("netease".equals(failedSource) && activeAttempt != null
+                && !neteaseMp3FallbackTried && activeAttempt.isNonMp3Netease()) {
+            neteaseMp3FallbackTried = true;
+            resolveNeteaseMp3Fallback(generation, activeAttempt.neteaseId);
+            return;
+        }
+        if ("auto".equals(sourcePreference()) && !fallbackAttempted
+                && ("netease".equals(failedSource) || "qq".equals(failedSource))) {
             fallbackAttempted = true;
-            resolveQQFallback(generation);
-        } else failPlayback("stream_unavailable", "stream-error");
+            resolveCrossSourceFallback(generation, failedSource);
+            return;
+        }
+        failPlayback("player_error", "stream-error");
     }
 
-    private void resolveQQFallback(final long generation) {
+    private void resolveNeteaseMp3Fallback(final long generation, final String neteaseId) {
         final Track track = currentTrack;
         resolverTask = resolverExecutor.submit(() -> {
-            Resolution result = null;
-            try { result = resolveQQ(track, true); }
-            catch (Exception error) {
-                Log.w(TAG, "qq-fallback-failed type=" + error.getClass().getSimpleName());
+            Attempt attempt = null;
+            try {
+                JSONObject response = MusicApi.get(getApplicationContext()).resolveTrackMp3Fallback(neteaseId);
+                attempt = attemptFromNetease(response, neteaseId, track == null ? 0L : track.duration, "mp3_fallback");
+            } catch (Exception error) {
+                Log.w(TAG, "netease-mp3-fallback-failed code=" + classifyErrorCode(error));
             }
-            final Resolution resolved = result;
+            final Attempt resolved = attempt;
             handler.post(() -> {
                 if (destroyed || generation != playbackGeneration) return;
                 resolverTask = null;
-                if (resolved == null) failPlayback("stream_unavailable", "qq-fallback-failed");
-                else prepareResolvedStream(generation, resolved);
+                if (resolved != null) {
+                    prepareResolvedStream(generation, resolved);
+                } else if ("auto".equals(sourcePreference()) && !fallbackAttempted) {
+                    fallbackAttempted = true;
+                    resolveCrossSourceFallback(generation, "netease");
+                } else {
+                    failPlayback("player_error", "netease-mp3-fallback-failed");
+                }
             });
         });
         updatePlaybackState();
         updateNotification();
-        publishState("qq-fallback");
+        publishState("netease-mp3-fallback");
+    }
+
+    private void resolveCrossSourceFallback(final long generation, final String failedSource) {
+        final Track track = currentTrack;
+        final boolean targetNetease = "qq".equals(failedSource);
+        resolverTask = resolverExecutor.submit(() -> {
+            List<Attempt> resolved = null;
+            String errorCode = "stream_unavailable";
+            try {
+                resolved = targetNetease ? resolveNeteaseAttempts(track) : resolveQQAttempts(track);
+            } catch (Exception error) {
+                errorCode = classifyErrorCode(error);
+                Log.w(TAG, "cross-source-fallback-failed target=" + (targetNetease ? "netease" : "qq")
+                        + " code=" + errorCode + " type=" + error.getClass().getSimpleName());
+            }
+            final List<Attempt> attempts = resolved;
+            final String failure = errorCode;
+            handler.post(() -> {
+                if (destroyed || generation != playbackGeneration) return;
+                resolverTask = null;
+                if (attempts == null || attempts.isEmpty()) {
+                    String provider = track == null ? "netease" : track.provider;
+                    failPlayback(chooseAutoFailureCode(provider, "player_error", failure), "cross-source-fallback-failed");
+                } else {
+                    remainingAttempts.clear();
+                    remainingAttempts.addAll(attempts);
+                    openNextAttempt(generation);
+                }
+            });
+        });
+        updatePlaybackState();
+        updateNotification();
+        publishState(targetNetease ? "netease-fallback" : "qq-fallback");
+    }
+
+    static String classifyErrorCode(Throwable error) {
+        if (error instanceof StreamException) return ((StreamException) error).code;
+        if (error instanceof MusicApi.ResolveException) return ((MusicApi.ResolveException) error).code;
+        if (error instanceof QQSource.ResolveException) return ((QQSource.ResolveException) error).code;
+        if (error instanceof java.io.IOException) return "network_error";
+        return "stream_unavailable";
+    }
+
+    /** Picks the most actionable user-facing error code when both sources fail in auto mode. */
+    static String chooseAutoFailureCode(String catalogProvider, String primaryCode, String secondaryCode) {
+        String primary = primaryCode == null ? "" : primaryCode;
+        String secondary = secondaryCode == null ? "" : secondaryCode;
+        if ("qq_auth_expired".equals(primary) || "qq_auth_expired".equals(secondary)) return "qq_auth_expired";
+        if ("netease_auth_expired".equals(primary) || "netease_auth_expired".equals(secondary)) return "netease_auth_expired";
+        if ("qq_region_locked".equals(primary) || "qq_region_locked".equals(secondary)) return "qq_region_locked";
+        if ("qq_auth_required".equals(secondary)) return "qq_auth_required";
+        if ("match_not_found".equals(secondary)) return "match_not_found";
+        if ("trial_unavailable".equals(primary)
+                && ("qq_rights_unavailable".equals(secondary) || "stream_unavailable".equals(secondary) || secondary.isEmpty())) {
+            return "trial_unavailable";
+        }
+        if ("qq_rights_unavailable".equals(secondary) || "qq_rights_unavailable".equals(primary)) {
+            return "qq_rights_unavailable";
+        }
+        if ("netease_rate_limited".equals(primary) || "netease_rate_limited".equals(secondary)) {
+            return "netease_rate_limited";
+        }
+        if ("network_error".equals(primary) || "network_error".equals(secondary)) return "network_error";
+        if ("player_error".equals(primary) || "player_error".equals(secondary)) return "player_error";
+        if (!secondary.isEmpty() && !"stream_unavailable".equals(secondary)) return secondary;
+        if (!primary.isEmpty()) return primary;
+        return "stream_unavailable";
     }
 
     private void loadArtworkAsync(final long generation, final Track track) {
-        String safeUrl = normalizeArtworkUrl(track.artwork);
+        String safeUrl = StreamHosts.normalizeArtworkUrl(track.artwork);
         currentArtworkUrl = safeUrl;
         if (safeUrl.isEmpty()) {
             currentArtwork = null;
@@ -817,7 +1025,7 @@ public final class PlaybackService extends MediaBrowserService
                 if (status >= 300 && status < 400) {
                     String location = connection.getHeaderField("Location");
                     if (location == null) return null;
-                    target = normalizeArtworkUrl(new URL(new URL(target), location).toString());
+                    target = StreamHosts.normalizeArtworkUrl(new URL(new URL(target), location).toString());
                     if (target.isEmpty()) return null;
                     continue;
                 }
@@ -960,6 +1168,7 @@ public final class PlaybackService extends MediaBrowserService
                 startedNow = true;
             }
             if (startedNow && currentTrack != null) {
+                commitVerifiedPlaybackMapping();
                 try {
                     RecentPlaybackStore.get(getApplicationContext()).record(currentTrack);
                 } catch (RuntimeException error) {
@@ -976,6 +1185,25 @@ public final class PlaybackService extends MediaBrowserService
         } catch (IllegalStateException error) {
             Log.w(TAG, "player-start-failed");
             handlePlayerError(playbackGeneration, 0, 0);
+        }
+    }
+
+    private void commitVerifiedPlaybackMapping() {
+        if (currentTrack == null) return;
+        Track updated = currentTrack;
+        if ("qq".equals(currentSource) && activeAttempt != null
+                && activeAttempt.verifiedQqMatch && !activeAttempt.qqMid.isEmpty()) {
+            updated = currentTrack.withVerifiedQqMid(activeAttempt.qqMid, activeAttempt.mediaMid);
+        } else if ("netease".equals(currentSource) && "netease".equals(currentTrack.provider)
+                && !currentTrack.qqMid.isEmpty()) {
+            updated = currentTrack.clearQqMid();
+        }
+        if (updated != currentTrack) {
+            currentTrack = updated;
+            if (currentIndex >= 0 && currentIndex < queue.size()) {
+                queue.set(currentIndex, currentTrack);
+                refreshQueue();
+            }
         }
     }
 
@@ -1087,6 +1315,8 @@ public final class PlaybackService extends MediaBrowserService
         pendingSeekMs = safePosition();
         playbackGeneration++;
         cancelNetworkTasks();
+        remainingAttempts.clear();
+        activeAttempt = null;
         playWhenReady = false;
         buffering = false;
         stopped = true;
@@ -1200,7 +1430,7 @@ public final class PlaybackService extends MediaBrowserService
                 .setTitle(track.title)
                 .setSubtitle(track.artist)
                 .setDescription(track.album);
-        String uri = normalizeArtworkUrl(track.artwork);
+        String uri = StreamHosts.normalizeArtworkUrl(track.artwork);
         if (!uri.isEmpty()) description.setIconUri(Uri.parse(uri));
         if (index == currentIndex && currentArtwork != null) {
             description.setIconBitmap(currentArtwork);
@@ -1272,7 +1502,9 @@ public final class PlaybackService extends MediaBrowserService
         final Track track = currentTrack;
         if (track == null) return;
         final boolean qq = "qq".equals(currentSource) || "qq".equals(track.provider);
-        final String key = (qq ? "qq:" : "netease:") + track.id + ":" + track.qqMid;
+        final String activeQqMid = (activeAttempt != null && !activeAttempt.qqMid.isEmpty())
+                ? activeAttempt.qqMid : track.effectiveQqMid();
+        final String key = (qq ? "qq:" : "netease:") + track.id + ":" + activeQqMid;
         if (key.equals(lyricsKey)) return;
         clearLyrics();
         lyricsKey = key;
@@ -1283,7 +1515,7 @@ public final class PlaybackService extends MediaBrowserService
             LrcLines parsed = LrcLines.EMPTY;
             try {
                 JSONObject args = new JSONObject().put("id", track.id)
-                        .put("mid", track.qqMid.isEmpty() ? track.id : track.qqMid);
+                        .put("mid", activeQqMid.isEmpty() ? track.id : activeQqMid);
                 JSONObject response = qq ? QQSource.get(context).execute("qqLyrics", args)
                         : MusicApi.get(context).execute("lyrics", args);
                 JSONObject lrc = response == null ? null : response.optJSONObject("lrc");
@@ -1645,58 +1877,10 @@ public final class PlaybackService extends MediaBrowserService
         return "auto";
     }
 
-    private static String normalizeStreamUrl(String value, String source) {
-        return normalizeProviderUrl(value, source, false);
-    }
-
-    private static String normalizeArtworkUrl(String value) {
-        return normalizeProviderUrl(value, "", true);
-    }
-
-    private static String normalizeProviderUrl(String value, String source, boolean artwork) {
-        if (value == null || value.isEmpty() || value.length() > 8192) return "";
-        try {
-            URL url = new URL(value.trim());
-            String protocol = url.getProtocol().toLowerCase(Locale.ROOT);
-            if (!"https".equals(protocol) && !"http".equals(protocol)) return "";
-            String host = url.getHost().toLowerCase(Locale.ROOT);
-            if (host.endsWith(".")) host = host.substring(0, host.length() - 1);
-            if (host.isEmpty() || url.getUserInfo() != null
-                    || (url.getPort() != -1 && url.getPort() != 80 && url.getPort() != 443)) {
-                return "";
-            }
-            boolean allowed = artwork ? isArtworkHost(host) : isStreamHost(host, source);
-            if (!allowed) return "";
-            String path = url.getFile();
-            if (path == null || path.isEmpty()) path = "/";
-            return "https://" + host + path;
-        } catch (Exception ignored) {
-            return "";
-        }
-    }
-
-    private static boolean isArtworkHost(String host) {
-        return domainIs(host, "music.126.net") || domainIs(host, "music.163.com")
-                || domainIs(host, "gtimg.cn");
-    }
-
-    private static boolean isStreamHost(String host, String source) {
-        if ("qq".equals(source)) {
-            return domainIs(host, "qqmusic.qq.com")
-                    || domainIs(host, "tc.qq.com")
-                    || domainIs(host, "gtimg.cn");
-        }
-        return domainIs(host, "music.126.net") || domainIs(host, "music.163.com");
-    }
-
     private static boolean isBluetoothMediaOutput(int type) {
         return type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
                 || type == AudioDeviceInfo.TYPE_BLE_HEADSET
                 || type == AudioDeviceInfo.TYPE_BLE_SPEAKER;
-    }
-
-    private static boolean domainIs(String host, String suffix) {
-        return host.equals(suffix) || host.endsWith("." + suffix);
     }
 
     private static long positiveDuration(long value, long fallback) {
@@ -1717,18 +1901,50 @@ public final class PlaybackService extends MediaBrowserService
         return "off";
     }
 
-    private static final class Resolution {
+    private static final class ResolutionPlan {
+        final List<Attempt> attempts;
+        final boolean usedFallback;
+        final String primaryError;
+
+        ResolutionPlan(List<Attempt> attempts, boolean usedFallback, String primaryError) {
+            this.attempts = attempts;
+            this.usedFallback = usedFallback;
+            this.primaryError = primaryError;
+        }
+    }
+
+    private static final class Attempt {
         final String url;
         final String source;
         final long durationMs;
-        final boolean usedFallback;
         final String qqMid;
-        Resolution(String url, String source, long durationMs, boolean usedFallback, String qqMid) {
+        final String mediaMid;
+        final boolean verifiedQqMatch;
+        final String neteaseId;
+        final String quality;
+        final String codecType;
+        final String matchReason;
+        final String host;
+
+        Attempt(String url, String source, long durationMs, String qqMid, String mediaMid,
+                boolean verifiedQqMatch, String neteaseId, String quality, String codecType,
+                String matchReason, String host) {
             this.url = url;
             this.source = source;
             this.durationMs = durationMs;
-            this.usedFallback = usedFallback;
             this.qqMid = qqMid == null ? "" : qqMid;
+            this.mediaMid = mediaMid == null ? "" : mediaMid;
+            this.verifiedQqMatch = verifiedQqMatch;
+            this.neteaseId = neteaseId == null ? "" : neteaseId;
+            this.quality = quality == null ? "" : quality;
+            this.codecType = codecType == null ? "" : codecType;
+            this.matchReason = matchReason == null ? "" : matchReason;
+            this.host = host == null ? "" : host;
+        }
+
+        boolean isNonMp3Netease() {
+            return "netease".equals(source) && !neteaseId.isEmpty()
+                    && !"mp3".equalsIgnoreCase(codecType);
         }
     }
 

@@ -406,6 +406,7 @@ button:active { transform: scale(.975); transition: transform 90ms ease-out; }
 .qq-account-row span { color: var(--secondary); font-size: .66rem; }
 .secondary-action { border: 1px solid var(--line); color: var(--ink); background: var(--surface); }
 .theme-picker { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.ui-style-picker { grid-template-columns: repeat(2,1fr); }
 .theme-picker button { min-height: 34px; border: 0; border-radius: 9px; color: var(--secondary); background: transparent; font-size: .7rem; }
 .theme-picker button.is-selected { color: var(--ink); background: var(--surface); box-shadow: 0 2px 8px rgba(20,18,14,.09); font-weight: 650; }
 .logout-button { width: 100%; min-height: 43px; margin-top: 17px; border: 1px solid color-mix(in srgb,var(--accent) 28%,var(--line)); border-radius: 12px; color: var(--accent); background: color-mix(in srgb,var(--accent) 6%,var(--surface)); font-size: .78rem; font-weight: 650; }

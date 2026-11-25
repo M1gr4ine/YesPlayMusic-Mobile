@@ -25,16 +25,39 @@ final class QQMatchTest {
         that(QQMatch.score("Alive", "Artist", 200000, "Alive", "Artist", 200000) > 140, "live inside a word is not a tag");
         that(QQMatch.score("Alive", "Artist", 200000, "Alive (Live)", "Artist", 200000) < 0, "live tag after such a word");
 
-        // UNM select.js port: duration decides, the artist credit is ignored.
-        that(QQMatch.score("First Love", "宇多田ヒカル", 257000, "First Love", "宇多田光", 257000) < 0,
-                "strict match needs the artist");
-        that(QQMatch.unmAccepts("First Love", 257000, "First Love", 257400, false), "UNM accepts by duration");
-        that(QQMatch.unmAccepts("夜に駆ける", 261000, "夜に駆ける (向夜晚奔去)", 261000, true), "UNM accepts a subtitle");
-        that(!QQMatch.unmAccepts("First Love", 257000, "First Love", 263000, false), "UNM rejects a 5 s gap");
-        that(!QQMatch.unmAccepts("First Love", 257000, "First Love (Live)", 257000, false), "UNM keeps the version guard");
-        that(QQMatch.unmAccepts("Song", 200000, "Other Name", 201000, false), "artist query trusts duration alone");
-        that(!QQMatch.unmAccepts("Song", 200000, "Other Name", 201000, true), "title-only query needs a related title");
-        that(!QQMatch.unmAccepts("Song", 0, "Other Name", 201000, false), "unknown duration needs a related title");
+        that(QQMatch.score("花", "Artist", 200000, "花火", "Artist", 200000) < 0, "short CJK title is not a substring");
+        that(QQMatch.score("FML", "Artist", 200000, "My FML Life", "Artist", 200000) < 0, "short Latin title is not a substring");
+        that(QQMatch.score("FML", "Artist", 200000, "FML (Explicit)", "Artist", 200000) >= 140, "explicit metadata preserves identity");
+        that(QQMatch.score("Song", "Ye", 200000, "Song", "Kanye", 200000) < 0, "artist substrings do not match");
+        that(QQMatch.score("FML", "Ye", 236000, "FML (Explicit)", "Ye (侃爷)", 236120) >= 140, "bracketed aliases identify one artist");
+        that(QQMatch.score("Song", "Artist", 200000, "Song (現場)", "Artist", 200000) < 0, "traditional live tag folds first");
+        for (String tag : new String[]{"Cover", "Flip", "Mix", "Edit", "Demo", "DJ", "Slowed", "Nightcore", "Bootleg", "Mashup", "Karaoke", "Unplugged", "Acapella", "翻唱", "伴奏", "純音樂", "演唱會", "清唱", "小樣", "混音", "加速", "降調"}) {
+            that(QQMatch.score("Song", "Artist", 200000, "Song (" + tag + ")", "Artist", 200000) < 0, "version rejected: " + tag);
+        }
+        that(QQMatch.score("Song", "Artist", "Album", 200000, "Song", "Artist", "Album", 200000) == 200, "matching album improves confidence");
+
+        that(QQMatch.score("Song", "", 200000, "Song", "Artist", 200000) < 0, "missing artist cannot identify a recording");
+        that(QQMatch.score("Song", "Unknown Artist", 200000, "Song", "Unknown Artist", 200000) < 0, "unknown placeholder cannot identify a recording");
+        that(QQMatch.score("Song", "A / The Weeknd", 200000, "Song", "B / The Weeknd", 200000) < 0, "a shared guest cannot hide different leads");
+        that(QQMatch.score("Song", "AB / C", 200000, "Song", "A / BC", 200000) < 0, "joined credit strings cannot collide");
+        that(QQMatch.score("Song", "Artist", "Album One", 200000, "Song", "Artist", "Album One", 200000)
+                > QQMatch.score("Song", "Artist", "Album One", 200000, "Song", "Artist", "Album Two", 200000), "album evidence distinguishes candidates");
+        that(QQMatch.score("Song", "Artist", 200000, "Song (Remastered Version)", "Artist", 200000) >= 140, "remastered version is benign");
+        that(QQMatch.score("Song", "Artist", 200000, "Song (Remastered 2011)", "Artist", 200000) >= 140, "remastered year is benign");
+        that(QQMatch.score("Bound 2", "Ye", 229000, "Bound 2 (Album Version|Explicit)", "Ye (侃爷)", 229000) >= 140, "pipe-separated benign edition markers match");
+        that(QQMatch.score("Kill Bill", "SZA", 153000, "Kill Bill (Live)", "SZA", 153000) < 0, "live recording cannot replace the studio song");
+
+        // Language and vocal-variant guards (e.g. 陈奕迅《最后派对》/《粤语残片》 Cantonese vs dialect/Mandarin/female/DJ variants).
+        that(QQMatch.score("最后派对", "陈奕迅", "Stranger Under My Skin", 311600, "最后派对", "陈奕迅", "Stranger Under My Skin", 311000) > 140, "exact Cantonese studio version matches");
+        for (String variant : new String[]{"女版", "男版", "白话版", "国语版", "普通话版", "粤语版", "片段版", "民谣版", "DJ Solstice晦朔版", "x", "白话", "國語", "粵語"}) {
+            that(QQMatch.score("最后派对", "陈奕迅", 311600, "最后派对 (" + variant + ")", "陈奕迅", 312000) < 0,
+                    "variant rejected for 最后派对: " + variant);
+        }
+        that(QQMatch.score("粤语残片", "陈奕迅", 277000, "粤语残片", "陈奕迅", 277000) > 140, "title containing 粤语 still matches exact song");
+        that(QQMatch.score("粤语残片", "陈奕迅", 277000, "粤语残片 (白话版)", "陈奕迅", 277000) < 0, "粤语残片 rejects 白话版");
+        that(QQMatch.score("粤语残片", "陈奕迅", 277000, "粤语残片 (国语版)", "陈奕迅", 277000) < 0, "粤语残片 rejects 国语版");
+        that(QQMatch.score("富士山下", "陈奕迅", 258900, "富士山下 (国语)", "陈奕迅", 259000) < 0, "language tag mismatch is rejected");
+
         that(QQMatch.keyword("Song", "A / B").equals("Song A B"), "keyword joins every artist");
         that(QQMatch.keyword("Song", "").equals("Song"), "keyword without artist");
     }

@@ -49,6 +49,23 @@ public final class MusicApi {
     private final Object cookieLock = new Object();
     private final SessionGeneration sessionGeneration = new SessionGeneration();
     private final NetEaseLikedTrackCache likedTrackCache = new NetEaseLikedTrackCache();
+    private final LinkedHashMap<String, List<String>> artistAliasCache =
+            new LinkedHashMap<String, List<String>>(64, 0.75f, true) {
+                @Override protected boolean removeEldestEntry(Map.Entry<String, List<String>> eldest) {
+                    return size() > 64;
+                }
+            };
+
+    public static final class ResolveException extends Exception {
+        public final String code;
+        public final String detail;
+
+        public ResolveException(String code, String message, String detail) {
+            super(message);
+            this.code = code == null || code.isEmpty() ? "stream_unavailable" : code;
+            this.detail = detail == null ? "" : detail;
+        }
+    }
 
     private MusicApi(Context context) {
         appContext = context.getApplicationContext();
@@ -117,30 +134,138 @@ public final class MusicApi {
     }
 
     public JSONObject resolveTrackUrl(String id) throws Exception {
+        List<JSONObject> attempts = resolveTrackAttempts(id);
+        if (attempts.isEmpty()) {
+            throw new ResolveException("stream_unavailable", "这首歌当前没有可播放的网易云音源", "empty_attempts");
+        }
+        return attempts.get(0);
+    }
+
+    /**
+     * Resolves playable NetEase stream attempts for a numeric track ID.
+     * Prefers br=350000 (standard FLAC/320k MP3 without hitting Hi-Res >= 400000 tiers),
+     * verifies the returned item ID matches the requested song, and falls back to url/v1
+     * exhigh MP3 when v0 reports rights/trial or empty URL.
+     */
+    public List<JSONObject> resolveTrackAttempts(String id) throws Exception {
         String safeId = requireId(id);
-        JSONObject params = new JSONObject();
-        params.put("ids", "[" + safeId + "]");
-        params.put("br", 999000);
-        JSONObject result = requestEapi("/api/song/enhance/player/url", params);
+        List<JSONObject> attempts = new ArrayList<>();
+        ResolveException primaryError = null;
+        try {
+            JSONObject params = new JSONObject();
+            params.put("ids", "[" + safeId + "]");
+            params.put("br", 350000);
+            JSONObject response = requestEapi("/api/song/enhance/player/url", params);
+            attempts.add(extractPlayableItem(response, safeId));
+            return attempts;
+        } catch (ResolveException error) {
+            primaryError = error;
+            if ("netease_auth_expired".equals(error.code) || "netease_rate_limited".equals(error.code)) {
+                throw error;
+            }
+        } catch (IOException error) {
+            throw new ResolveException("network_error", "无法连接网易云音乐服务", error.getClass().getSimpleName());
+        }
+
+        try {
+            JSONObject v1Params = new JSONObject();
+            v1Params.put("ids", "[" + safeId + "]");
+            v1Params.put("level", "exhigh");
+            v1Params.put("encodeType", "mp3");
+            JSONObject v1Response = requestEapi("/api/song/enhance/player/url/v1", v1Params);
+            attempts.add(extractPlayableItem(v1Response, safeId));
+            return attempts;
+        } catch (ResolveException fallbackError) {
+            if ("netease_auth_expired".equals(fallbackError.code)
+                    || "netease_rate_limited".equals(fallbackError.code)) {
+                throw fallbackError;
+            }
+            if (primaryError != null && "trial_unavailable".equals(primaryError.code)) {
+                throw primaryError;
+            }
+            throw primaryError != null ? primaryError : fallbackError;
+        } catch (IOException error) {
+            if (primaryError != null) throw primaryError;
+            throw new ResolveException("network_error", "无法连接网易云音乐服务", error.getClass().getSimpleName());
+        }
+    }
+
+    /** Fallback MP3 stream when MediaPlayer fails to open/decode a lossless NetEase stream. */
+    public JSONObject resolveTrackMp3Fallback(String id) throws Exception {
+        String safeId = requireId(id);
+        try {
+            JSONObject v1Params = new JSONObject();
+            v1Params.put("ids", "[" + safeId + "]");
+            v1Params.put("level", "exhigh");
+            v1Params.put("encodeType", "mp3");
+            return extractPlayableItem(requestEapi("/api/song/enhance/player/url/v1", v1Params), safeId);
+        } catch (ResolveException firstError) {
+            JSONObject params = new JSONObject();
+            params.put("ids", "[" + safeId + "]");
+            params.put("br", 128000);
+            return extractPlayableItem(requestEapi("/api/song/enhance/player/url", params), safeId);
+        }
+    }
+
+    /**
+     * Pure response classifier: checks top-level code, selects only the entry matching expectedId
+     * (preventing upstream cross-talk), rejects free-trial clips, and validates the HTTPS stream host.
+     */
+    static JSONObject extractPlayableItem(JSONObject result, String expectedId) throws Exception {
+        if (result == null) {
+            throw new ResolveException("stream_unavailable", "歌曲没有可用的网易云播放地址", "null_response");
+        }
+        int topCode = result.optInt("code", 0);
+        if (topCode == 301 || topCode == 401) {
+            throw new ResolveException("netease_auth_expired", "网易云登录已失效，请重新登录", "top=" + topCode);
+        }
+        if (topCode == -462 || topCode == 400 || topCode == 405 || topCode == 429) {
+            throw new ResolveException("netease_rate_limited", "网易云请求受限，请稍后重试", "top=" + topCode);
+        }
+        if (topCode != 0 && topCode != 200) {
+            throw new ResolveException("stream_unavailable", "网易云暂不可用（" + topCode + "）", "top=" + topCode);
+        }
         JSONArray data = result.optJSONArray("data");
         if (data == null || data.length() == 0) {
-            throw apiError("歌曲没有可用的网易云播放地址", result);
+            throw new ResolveException("netease_rights_unavailable", "歌曲没有可用的网易云播放地址", "empty_data");
         }
-        JSONObject item = data.optJSONObject(0);
-        String url = item == null ? null : item.optString("url", null);
-        if (url == null || url.length() == 0 || "null".equals(url)) {
-            throw apiError("这首歌当前没有可播放的网易云音源", result);
+        JSONObject item = null;
+        for (int i = 0; i < data.length(); i++) {
+            JSONObject candidate = data.optJSONObject(i);
+            if (candidate == null) continue;
+            Object rawId = candidate.opt("id");
+            if (rawId != null && expectedId.equals(String.valueOf(rawId).trim())) {
+                item = candidate;
+                break;
+            }
         }
-        if (url.startsWith("http://")) url = "https://" + url.substring("http://".length());
-        if (!url.startsWith("https://")) throw new IOException("网易云未提供安全的 HTTPS 播放地址");
+        if (item == null) {
+            throw new ResolveException("netease_id_mismatch", "网易云返回了不匹配的歌曲信息", "expected=" + expectedId);
+        }
+        int itemCode = item.optInt("code", 200);
+        if (itemCode == 301 || itemCode == 401) {
+            throw new ResolveException("netease_auth_expired", "网易云登录已失效，请重新登录", "item=" + itemCode);
+        }
         boolean trial = item.has("freeTrialInfo") && !item.isNull("freeTrialInfo")
-                && !"null".equals(item.optString("freeTrialInfo"));
+                && !"null".equalsIgnoreCase(item.optString("freeTrialInfo", "").trim());
+        if (trial) {
+            throw new ResolveException("trial_unavailable", "这首歌在网易云仅支持试听", "item=" + itemCode);
+        }
+        String rawUrl = item.optString("url", "");
+        if (rawUrl.isEmpty() || "null".equalsIgnoreCase(rawUrl.trim())) {
+            throw new ResolveException("netease_rights_unavailable", "这首歌当前没有可播放的网易云音源", "item=" + itemCode);
+        }
+        String url = StreamHosts.normalizeStreamUrl(rawUrl, "netease");
+        if (url.isEmpty()) {
+            throw new ResolveException("stream_unavailable", "网易云未提供受信任的 HTTPS 播放地址", "host=" + StreamHosts.hostOf(rawUrl));
+        }
         JSONObject playable = new JSONObject();
-        playable.put("id", safeId);
+        playable.put("id", expectedId);
         playable.put("url", url);
         playable.put("source", "netease");
         playable.put("duration", item.optLong("time", 0L));
-        playable.put("trial", trial);
+        playable.put("trial", false);
+        playable.put("host", StreamHosts.hostOf(url));
         if (item.has("br")) playable.put("br", item.optLong("br"));
         if (item.has("type")) playable.put("type", item.optString("type"));
         return playable;
@@ -260,6 +385,76 @@ public final class MusicApi {
         JSONObject response = search(new JSONObject().put("keywords", (cleanTitle + " " + cleanArtist).trim())
                 .put("type", 1).put("limit", 10));
         return ArtistAliases.fromExactNeteaseSong(response, id);
+    }
+
+    /**
+     * Recovers official alternate artist names for a NetEase track: prefers cached `/api/v1/artist/{id}`
+     * lookups when numeric artist IDs are known (e.g. Kanye West 37520 -> ["ye", "坎耶·维斯特"]), then
+     * falls back to exact song search metadata.
+     */
+    List<String> findNeteaseArtistAliases(String songId, String title, String artist, List<String> artistIds) {
+        LinkedHashMap<String, String> collected = new LinkedHashMap<>();
+        if (artistIds != null && !artistIds.isEmpty()) {
+            int lookedUp = 0;
+            for (String rawId : artistIds) {
+                if (lookedUp >= 2 || Thread.currentThread().isInterrupted()) break;
+                String artistId = rawId == null ? "" : rawId.trim();
+                if (!NetEaseAuthState.hasPositiveUserId(artistId)) continue;
+                lookedUp++;
+                List<String> aliases = cachedArtistAliases(artistId);
+                for (String alias : aliases) {
+                    String key = QQMatch.normalize(alias);
+                    if (!key.isEmpty() && !collected.containsKey(key)) collected.put(key, alias);
+                }
+            }
+        }
+        if (collected.isEmpty() && !Thread.currentThread().isInterrupted()) {
+            try {
+                for (String alias : findExactNeteaseArtistAliases(songId, title, artist)) {
+                    String key = QQMatch.normalize(alias);
+                    if (!key.isEmpty() && !collected.containsKey(key)) collected.put(key, alias);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return collected.isEmpty() ? java.util.Collections.emptyList()
+                : java.util.Collections.unmodifiableList(new ArrayList<>(collected.values()));
+    }
+
+    private List<String> cachedArtistAliases(String artistId) {
+        synchronized (artistAliasCache) {
+            List<String> cached = artistAliasCache.get(artistId);
+            if (cached != null) return cached;
+        }
+        try {
+            JSONObject response = requestWeapi("/api/v1/artist/" + artistId, new JSONObject());
+            JSONObject artistObj = response.optJSONObject("artist");
+            List<String> parsed = extractArtistDetailAliases(artistObj);
+            synchronized (artistAliasCache) {
+                artistAliasCache.put(artistId, parsed);
+            }
+            return parsed;
+        } catch (Exception ignored) {
+            return java.util.Collections.emptyList();
+        }
+    }
+
+    static List<String> extractArtistDetailAliases(JSONObject artistObj) {
+        if (artistObj == null) return java.util.Collections.emptyList();
+        JSONArray wrapper = new JSONArray();
+        JSONObject copy = new JSONObject();
+        try {
+            copy.put("name", artistObj.optString("name", ""));
+            if (artistObj.has("alias")) copy.put("alias", artistObj.opt("alias"));
+            if (artistObj.has("alia")) copy.put("alia", artistObj.opt("alia"));
+            if (artistObj.has("trans")) copy.put("trans", artistObj.opt("trans"));
+            if (artistObj.has("tns")) copy.put("tns", artistObj.opt("tns"));
+            else if (artistObj.has("transNames")) copy.put("tns", artistObj.opt("transNames"));
+            wrapper.put(copy);
+        } catch (JSONException ignored) {
+            return java.util.Collections.emptyList();
+        }
+        return ArtistAliases.fromArtists(wrapper);
     }
 
     private static final int MAX_PLAYLIST_TRACKS = 500; // Keep in sync with PlaybackService.MAX_QUEUE_SIZE.
@@ -1119,16 +1314,29 @@ public final class MusicApi {
         }
     }
 
+    /** Finds the NetEase version of a QQ catalog song for playlists or cross-source playback. */
+    JSONObject matchNeteaseTrack(Track track) throws Exception {
+        if (track == null) return new JSONObject().put("code", 200).put("matched", false);
+        JSONObject args = new JSONObject()
+                .put("title", track.title)
+                .put("artist", track.artist)
+                .put("album", track.album)
+                .put("artistAliases", ArtistAliases.toJsonArray(track.artistAliases))
+                .put("duration", track.duration);
+        return matchTrack(args);
+    }
+
     /** Finds the NetEase version of a QQ catalog song so it can be added to a NetEase playlist. */
     private JSONObject matchTrack(JSONObject args) throws Exception {
         String title = args.optString("title", "").trim();
         String artist = args.optString("artist", "").trim();
+        String album = args.optString("album", "").trim();
         long duration = Math.max(0L, args.optLong("duration", 0L));
         List<String> artistAliases = ArtistAliases.fromAliasArray(args.optJSONArray("artistAliases"), artist);
         if (title.isEmpty() || title.length() > 200 || artist.length() > 200) {
             throw new IllegalArgumentException("\u6b4c\u66f2\u4fe1\u606f\u4e0d\u8db3");
         }
-        JSONObject query = new JSONObject().put("keywords", (title + " " + artist).trim())
+        JSONObject query = new JSONObject().put("keywords", QQMatch.keyword(title, artist))
                 .put("type", 1).put("limit", 10);
         JSONObject response = search(query);
         JSONObject result = response.optJSONObject("result");
@@ -1136,27 +1344,36 @@ public final class MusicApi {
         JSONObject best = null;
         String bestArtist = "";
         int bestScore = -1;
+        boolean ambiguousTie = false;
         for (int i = 0; songs != null && i < songs.length(); i++) {
             JSONObject song = songs.optJSONObject(i);
             if (song == null || !NetEaseAuthState.hasPositiveUserId(song.optString("id", ""))) continue;
             String names = artistNames(song.optJSONArray("ar"));
-            int score = ArtistAliases.score(title, artist, artistAliases, duration,
+            JSONObject songAlbum = song.optJSONObject("al");
+            String candidateAlbum = songAlbum == null ? "" : songAlbum.optString("name", "");
+            int score = ArtistAliases.score(title, artist, artistAliases, album, duration,
                     song.optString("name", ""), names, ArtistAliases.fromArtists(song.optJSONArray("ar")),
-                    song.optLong("dt", 0L));
+                    candidateAlbum, song.optLong("dt", 0L));
             if (score > bestScore) {
                 bestScore = score;
                 best = song;
                 bestArtist = names;
+                ambiguousTie = false;
+            } else if (score >= 0 && score == bestScore && best != null
+                    && !QQMatch.normalize(bestArtist).equals(QQMatch.normalize(names))) {
+                ambiguousTie = true;
             }
         }
-        if (best == null || bestScore < 0) return new JSONObject().put("code", 200).put("matched", false);
-        JSONObject album = best.optJSONObject("al");
+        if (best == null || bestScore < 0 || ambiguousTie) {
+            return new JSONObject().put("code", 200).put("matched", false);
+        }
+        JSONObject albumObj = best.optJSONObject("al");
         return new JSONObject().put("code", 200).put("matched", true)
                 .put("id", best.optString("id"))
                 .put("title", best.optString("name", title))
                 .put("artist", bestArtist)
-                .put("album", album == null ? "" : album.optString("name", ""))
-                .put("albumId", album == null ? "" : album.optString("id", ""))
+                .put("album", albumObj == null ? "" : albumObj.optString("name", ""))
+                .put("albumId", albumObj == null ? "" : albumObj.optString("id", ""))
                 .put("artists", artistRefs(best.optJSONArray("ar")))
                 .put("duration", best.optLong("dt", 0L));
     }
@@ -1587,29 +1804,89 @@ public final class MusicApi {
         synchronized (cookieLock) {
             if (!sessionGeneration.accepts(requestGeneration)) return;
             LinkedHashMap<String, String> merged = parseCookies(authStore.get("netease"));
-            String previousMusicU = merged.get("MUSIC_U");
-            boolean musicUSessionChanged = false;
-            for (String header : received) {
-                String first = header.split(";", 2)[0].trim();
-                int separator = first.indexOf('=');
-                if (separator <= 0) continue;
-                String name = first.substring(0, separator).trim();
-                String value = first.substring(separator + 1).trim();
-                if (name.isEmpty() || isCookieAttribute(name)) continue;
-                if ("MUSIC_U".equalsIgnoreCase(name)) {
-                    if (previousMusicU == null ? !value.isEmpty() : !previousMusicU.equals(value)) {
-                        musicUSessionChanged = true;
-                    }
-                    if (value.isEmpty() || "deleted".equalsIgnoreCase(value)) merged.remove(name);
-                    else merged.put(name, value);
-                } else {
-                    merged.put(name, value);
-                }
-            }
+            boolean musicUSessionChanged = applySetCookies(merged, received, System.currentTimeMillis());
             if (!merged.isEmpty()) authStore.put("netease", formatCookies(merged));
             else authStore.clear("netease");
             if (musicUSessionChanged) advanceSessionGeneration();
         }
+    }
+
+    /** Applies HTTP Set-Cookie headers, removing cookies expired via Max-Age<=0, past Expires, or empty/deleted values. */
+    static boolean applySetCookies(LinkedHashMap<String, String> merged, List<String> received, long nowEpochMillis) {
+        if (received == null || received.isEmpty()) return false;
+        String previousMusicU = findCookieIgnoreCase(merged, "MUSIC_U");
+        for (String header : received) {
+            if (header == null || header.trim().isEmpty()) continue;
+            String[] segments = header.split(";");
+            String first = segments[0].trim();
+            int separator = first.indexOf('=');
+            if (separator <= 0) continue;
+            String name = first.substring(0, separator).trim();
+            String value = first.substring(separator + 1).trim();
+            if (name.isEmpty() || isCookieAttribute(name)) continue;
+            boolean expired = value.isEmpty() || "deleted".equalsIgnoreCase(value)
+                    || isExpiredCookieAttributes(segments, nowEpochMillis);
+            if (expired) {
+                removeCookieIgnoreCase(merged, name);
+            } else {
+                removeCookieIgnoreCase(merged, name);
+                merged.put(name, value);
+            }
+        }
+        String currentMusicU = findCookieIgnoreCase(merged, "MUSIC_U");
+        return previousMusicU == null ? currentMusicU != null : !previousMusicU.equals(currentMusicU);
+    }
+
+    private static String findCookieIgnoreCase(LinkedHashMap<String, String> cookies, String target) {
+        for (Map.Entry<String, String> entry : cookies.entrySet()) {
+            if (target.equalsIgnoreCase(entry.getKey())) return entry.getValue();
+        }
+        return null;
+    }
+
+    private static void removeCookieIgnoreCase(LinkedHashMap<String, String> cookies, String target) {
+        java.util.Iterator<String> iterator = cookies.keySet().iterator();
+        while (iterator.hasNext()) {
+            if (target.equalsIgnoreCase(iterator.next())) iterator.remove();
+        }
+    }
+
+    private static boolean isExpiredCookieAttributes(String[] segments, long nowEpochMillis) {
+        for (int i = 1; i < segments.length; i++) {
+            String attr = segments[i].trim();
+            int eq = attr.indexOf('=');
+            if (eq <= 0) continue;
+            String key = attr.substring(0, eq).trim().toLowerCase(Locale.US);
+            String val = attr.substring(eq + 1).trim();
+            if ("max-age".equals(key)) {
+                try {
+                    if (Long.parseLong(val) <= 0L) return true;
+                } catch (NumberFormatException ignored) {
+                }
+            } else if ("expires".equals(key)) {
+                long expiresAt = parseHttpDate(val);
+                if (expiresAt != Long.MIN_VALUE && expiresAt <= nowEpochMillis) return true;
+            }
+        }
+        return false;
+    }
+
+    private static long parseHttpDate(String value) {
+        String[] patterns = {
+                "EEE, dd MMM yyyy HH:mm:ss z",
+                "EEE, dd-MMM-yyyy HH:mm:ss z",
+                "EEE, dd-MMM-yy HH:mm:ss z"
+        };
+        for (String pattern : patterns) {
+            try {
+                java.text.SimpleDateFormat format = new java.text.SimpleDateFormat(pattern, Locale.US);
+                format.setTimeZone(java.util.TimeZone.getTimeZone("GMT"));
+                java.util.Date parsed = format.parse(value);
+                if (parsed != null) return parsed.getTime();
+            } catch (Exception ignored) {
+            }
+        }
+        return Long.MIN_VALUE;
     }
 
     private static LinkedHashMap<String, String> parseCookies(String cookie) {

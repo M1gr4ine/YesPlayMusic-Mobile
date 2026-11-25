@@ -7,6 +7,7 @@
   <title>YesPlayMusic</title>
   <link rel="stylesheet" href="./app.css">
   <link rel="stylesheet" href="./playlist-editor.css">
+  <link rel="stylesheet" href="./material3.css">
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -177,9 +178,13 @@
         <div class="settings-group-title"><h3>歌词</h3><p>锁屏、通知与状态栏卡片</p></div>
         <button class="setting-switch" id="status-lyrics" role="switch" aria-checked="true" type="button"><span><strong>在系统播放卡片显示歌词</strong><small>标题显示当前一句，歌名与歌手移到副标题</small></span><span class="switch-mark"></span></button>
       </section>
+      <section class="settings-group ui-style-group">
+        <div class="settings-group-title"><h3>界面风格</h3><p>保留原版风格或切换至 Material 3</p></div>
+        <div class="theme-picker ui-style-picker" role="radiogroup" aria-label="界面风格"><button data-ui-choice="classic" role="radio" aria-checked="true" type="button">原版</button><button data-ui-choice="material3" role="radio" aria-checked="false" type="button">Material 3</button></div>
+      </section>
       <section class="settings-group theme-group">
         <div class="settings-group-title"><h3>外观</h3><p>跟随系统或固定明暗模式</p></div>
-        <div class="theme-picker" role="radiogroup" aria-label="外观"><button data-theme-choice="system" type="button">跟随系统</button><button data-theme-choice="light" type="button">浅色</button><button data-theme-choice="dark" type="button">深色</button></div>
+        <div class="theme-picker" role="radiogroup" aria-label="外观"><button data-theme-choice="system" role="radio" aria-checked="false" type="button">跟随系统</button><button data-theme-choice="light" role="radio" aria-checked="false" type="button">浅色</button><button data-theme-choice="dark" role="radio" aria-checked="false" type="button">深色</button></div>
       </section>
       <section class="settings-group">
         <div class="settings-group-title"><h3>存储</h3><p>歌曲在线播放，不会保存到本机</p></div>

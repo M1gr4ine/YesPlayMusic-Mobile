@@ -7,12 +7,15 @@ public final class AllTests {
     public static void main(String[] args) throws Exception {
         ArtistAliasesTest.run();
         LrcLinesTest.run();
+        MusicApiTest.run();
         NetEaseCryptoTest.run();
         NetEaseLikedTrackCacheTest.run();
+        PlaybackPolicyTest.run();
         PlaylistEditDeadlineTest.run();
         PlaylistEditPolicyTest.run();
         PlaylistTrackOrderTest.run();
         QQMatchTest.run();
+        QQSourceTest.run();
         RecentPlaybackStoreTest.run();
         TrackTest.run();
         System.out.println("Java tests passed: " + Check.count() + " checks");
