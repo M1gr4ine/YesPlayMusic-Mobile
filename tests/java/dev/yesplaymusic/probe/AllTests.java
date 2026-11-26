@@ -7,6 +7,7 @@ public final class AllTests {
     public static void main(String[] args) throws Exception {
         ArtistAliasesTest.run();
         LrcLinesTest.run();
+        MatchTraceTest.run();
         MusicApiTest.run();
         NetEaseCryptoTest.run();
         NetEaseLikedTrackCacheTest.run();

@@ -116,7 +116,7 @@ public final class QQMatch {
         return joined.length() > 0 ? joined.toString() : raw;
     }
 
-    private static String version(String value) {
+    static String version(String value) {
         String text = fold(value);
         Matcher latin = LATIN_TAG.matcher(text);
         TreeSet<String> tags = new TreeSet<>();
@@ -143,7 +143,7 @@ public final class QQMatch {
         for (String tag : tags) result.append(tag).append('|');
         return result.toString();
     }
-    private static String mainTitle(String title) {
+    static String mainTitle(String title) {
         String text = fold(title);
         Matcher brackets = BRACKET.matcher(text);
         StringBuffer result = new StringBuffer();

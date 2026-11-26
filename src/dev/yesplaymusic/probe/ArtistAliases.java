@@ -232,7 +232,7 @@ final class ArtistAliases {
         return false;
     }
 
-    private static boolean isGenericCompilation(String album) {
+    static boolean isGenericCompilation(String album) {
         String value = QQMatch.normalize(album);
         return value.contains("greatesthits") || value.contains("bestof") || value.contains("collection")
                 || value.contains("compilation") || value.contains("精选") || value.contains("合辑");

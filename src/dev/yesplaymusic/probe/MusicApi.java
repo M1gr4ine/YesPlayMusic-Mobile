@@ -1319,22 +1319,28 @@ public final class MusicApi {
     JSONObject matchNeteaseTrack(Track track) throws Exception {
         if (track == null) return new JSONObject().put("code", 200).put("matched", false);
         JSONObject args = new JSONObject()
+                .put("id", track.id)
                 .put("title", track.title)
                 .put("artist", track.artist)
                 .put("album", track.album)
                 .put("artistAliases", ArtistAliases.toJsonArray(track.artistAliases))
                 .put("artistMembers", ArtistAliases.membersToJson(track.artistMembers))
                 .put("duration", track.duration);
-        return matchTrack(args);
+        return matchTrackInternal(args, "netease_playback", MatchTrace.Policy.PLAYBACK);
     }
 
     /** Finds the NetEase version of a QQ catalog song so it can be added to a NetEase playlist. */
     private JSONObject matchTrack(JSONObject args) throws Exception {
+        return matchTrackInternal(args, "netease_match_api", MatchTrace.Policy.WRITE);
+    }
+
+    private JSONObject matchTrackInternal(JSONObject args, String entryPoint, MatchTrace.Policy policy)
+            throws Exception {
         return matchTrack(args, keyword -> {
             JSONObject response = search(new JSONObject().put("keywords", keyword).put("type", 1).put("limit", 10));
             JSONObject result = response.optJSONObject("result");
             return result == null ? null : result.optJSONArray("songs");
-        }, artistLookup(artistCache, this::fetchArtist));
+        }, artistLookup(artistCache, this::fetchArtist), entryPoint, policy, MatchTrace.androidLogSink(appContext));
     }
 
     interface SongSearch {
@@ -1343,33 +1349,106 @@ public final class MusicApi {
 
     static JSONObject matchTrack(JSONObject args, SongSearch search, Function<String, Member> artistDetail)
             throws Exception {
+        return matchTrack(args, search, artistDetail, "netease_match_api", MatchTrace.Policy.WRITE, MatchTrace.NOOP);
+    }
+
+    static JSONObject matchTrack(JSONObject args, SongSearch search, Function<String, Member> artistDetail,
+                                 String entryPoint, MatchTrace.Policy policy, MatchTrace.Sink traceSink)
+            throws Exception {
         NeteaseMatch match = new NeteaseMatch(args);
         if (match.title.isEmpty() || match.title.length() > 200 || match.artist.length() > 200) {
             throw new IllegalArgumentException("歌曲信息不足");
         }
-        LinkedHashSet<String> queries = new LinkedHashSet<>();
-        queries.add(QQMatch.keyword(match.title, match.artist));
-        queries.addAll(ArtistAliases.searchQueries(match.title, match.artist, match.members, match.aliases));
+        MatchTrace.Sink sink = traceSink == null ? MatchTrace.NOOP : traceSink;
+        MatchTrace trace = new MatchTrace(
+                MatchTrace.Direction.QQ_TO_NETEASE,
+                entryPoint,
+                policy,
+                MatchTrace.Mode.LEGACY,
+                new MatchTrace.TargetInfo(
+                        args.optString("id", ""), match.title, match.artist, match.album, match.duration,
+                        match.members.size(), match.aliases.size(),
+                        QQMatch.mainTitle(match.title), QQMatch.version(match.title)));
+        try {
+            LinkedHashSet<String> queries = new LinkedHashSet<>();
+            queries.add(QQMatch.keyword(match.title, match.artist));
+            queries.addAll(ArtistAliases.searchQueries(match.title, match.artist, match.members, match.aliases));
 
-        Map<String, JSONObject> candidates = new LinkedHashMap<>();
-        for (String query : queries) {
-            if (Thread.currentThread().isInterrupted()) throw new InterruptedException("catalog search cancelled");
-            JSONArray songs = search.search(query);
-            for (int i = 0; songs != null && i < songs.length(); i++) {
-                JSONObject song = songs.optJSONObject(i);
-                if (song == null || !NetEaseAuthState.hasPositiveUserId(song.optString("id"))
-                        || !QQMatch.sameRecordingTitle(match.title, song.optString("name"))) continue;
-                if (candidates.putIfAbsent(song.optString("id"), song) == null) match.consider(song, null);
+            Map<String, JSONObject> candidates = new LinkedHashMap<>();
+            int queryIndex = 0;
+            for (String query : queries) {
+                if (Thread.currentThread().isInterrupted()) throw new InterruptedException("catalog search cancelled");
+                int idx = queryIndex++;
+                String stage = idx == 0 ? "primary" : "retry";
+                String round = stage + "#" + idx;
+                JSONArray songs = search.search(query);
+                int rawCount = songs == null ? 0 : songs.length();
+                int filteredCount = 0;
+                int uniqueAdded = 0;
+                for (int i = 0; songs != null && i < songs.length(); i++) {
+                    JSONObject song = songs.optJSONObject(i);
+                    String songId = song == null ? "" : song.optString("id");
+                    String songName = song == null ? "" : song.optString("name");
+                    if (song == null || !NetEaseAuthState.hasPositiveUserId(songId)) {
+                        trace.addCandidate(new MatchTrace.CandidateRecord(
+                                songId, "", i, -1, "", round, songName, "", "", 0L, null,
+                                trace.target.mainTitle, QQMatch.mainTitle(songName),
+                                trace.target.versionTags, QQMatch.version(songName),
+                                null, null, "", MatchTrace.Outcome.FILTERED, MatchTrace.Rule.NONE,
+                                MatchTrace.Gate.INVALID_ID, null, -1, "", ""));
+                        continue;
+                    }
+                    if (!QQMatch.sameRecordingTitle(match.title, songName)) {
+                        String candVer = QQMatch.version(songName);
+                        MatchTrace.Gate gate = trace.target.versionTags.equals(candVer)
+                                ? MatchTrace.Gate.TITLE : MatchTrace.Gate.VERSION;
+                        long songDur = song.optLong("dt");
+                        JSONObject al = song.optJSONObject("al");
+                        trace.addCandidate(new MatchTrace.CandidateRecord(
+                                songId, "", i, -1, "", round, songName,
+                                artistNames(song.optJSONArray("ar")), al == null ? "" : al.optString("name"),
+                                songDur, MatchTrace.durationGapOrNull(match.duration, songDur),
+                                trace.target.mainTitle, QQMatch.mainTitle(songName),
+                                trace.target.versionTags, candVer, null, null, "",
+                                MatchTrace.Outcome.REJECTED, MatchTrace.Rule.NONE, gate, null, -1, "", ""));
+                        continue;
+                    }
+                    filteredCount++;
+                    if (candidates.putIfAbsent(songId, song) == null) {
+                        uniqueAdded++;
+                        match.consider(song, null, trace, round, i);
+                    }
+                }
+                trace.addQuery(stage, idx, query, rawCount, filteredCount, uniqueAdded);
+                if (match.score > 0 && !match.ambiguous) {
+                    trace.setShortCircuitStage(round);
+                    trace.setTopCandidateIds(Collections.singletonList(match.best.optString("id")));
+                    trace.setFinalOutcome("matched", "");
+                    return match.result();
+                }
             }
-            if (match.score > 0 && !match.ambiguous) return match.result();
-        }
 
-        // Resolve metadata only for plausible recordings still missing an artist identity.
-        for (JSONObject song : candidates.values()) {
-            if (Thread.currentThread().isInterrupted()) throw new InterruptedException("artist lookup cancelled");
-            match.consider(song, artistDetail);
+            // Resolve metadata only for plausible recordings still missing an artist identity.
+            int enrichedIndex = 0;
+            for (JSONObject song : candidates.values()) {
+                if (Thread.currentThread().isInterrupted()) throw new InterruptedException("artist lookup cancelled");
+                match.consider(song, artistDetail, trace, "enriched", enrichedIndex++);
+            }
+            if (match.best != null && !match.ambiguous) {
+                trace.setTopCandidateIds(Collections.singletonList(match.best.optString("id")));
+                trace.setFinalOutcome("matched", "");
+            } else if (match.ambiguous) {
+                trace.setFinalOutcome("ambiguous", "ambiguous");
+            } else {
+                trace.setFinalOutcome("match_not_found", "match_not_found");
+            }
+            return match.result();
+        } catch (InterruptedException cancelled) {
+            trace.setFinalOutcome("cancelled", "interrupted");
+            throw cancelled;
+        } finally {
+            sink.emit(trace);
         }
-        return match.result();
     }
 
     private static final int MAX_MATCH_ARTIST_LOOKUPS = 4;
@@ -1410,22 +1489,47 @@ public final class MusicApi {
             if (artistCount == 1) for (String alias : aliases) sourceNames.addAll(QQMatch.memberAtomNames(alias));
         }
 
-        void consider(JSONObject song, Function<String, Member> moreAliases) {
+        void consider(JSONObject song, Function<String, Member> moreAliases,
+                      MatchTrace trace, String round, int listIndex) {
             JSONArray artists = song.optJSONArray("ar");
             List<Member> credit = ArtistAliases.membersFromArtists(artists);
             String names = artistNames(artists);
             JSONObject al = song.optJSONObject("al");
             String songAlbum = al == null ? "" : al.optString("name");
             String songTitle = song.optString("name");
+            String songId = song.optString("id");
             long songDuration = song.optLong("dt");
             long gap = duration > 0 && songDuration > 0 ? Math.abs(duration - songDuration) : Long.MAX_VALUE;
-            if (gap != Long.MAX_VALUE && gap > 8000) return;
+            Long gapOrNull = MatchTrace.durationGapOrNull(duration, songDuration);
+            boolean albumMatches = QQMatch.sameRecordingTitle(album, songAlbum);
+            boolean compAlbum = ArtistAliases.isGenericCompilation(album) || ArtistAliases.isGenericCompilation(songAlbum);
+            if (gap != Long.MAX_VALUE && gap > 8000) {
+                if (trace != null) {
+                    trace.addCandidate(new MatchTrace.CandidateRecord(
+                            songId, "", listIndex, -1, "", round, songTitle, names, songAlbum, songDuration,
+                            gapOrNull, trace.target.mainTitle, QQMatch.mainTitle(songTitle),
+                            trace.target.versionTags, QQMatch.version(songTitle),
+                            albumMatches, compAlbum, "", MatchTrace.Outcome.REJECTED, MatchTrace.Rule.NONE,
+                            MatchTrace.Gate.DURATION, null, -1, "", "strict>8000ms"));
+                }
+                return;
+            }
 
             if (moreAliases != null) {
                 boolean complete = artistCount == credit.size();
                 boolean leadOnly = (artistCount == 1 || credit.size() == 1)
                         && gap <= QQMatch.UNM_DURATION_MS && QQMatch.sameRecordingTitle(album, songAlbum);
-                if (!complete && !leadOnly) return;
+                if (!complete && !leadOnly) {
+                    if (trace != null) {
+                        trace.addCandidate(new MatchTrace.CandidateRecord(
+                                songId, "", listIndex, -1, "", round, songTitle, names, songAlbum, songDuration,
+                                gapOrNull, trace.target.mainTitle, QQMatch.mainTitle(songTitle),
+                                trace.target.versionTags, QQMatch.version(songTitle),
+                                albumMatches, compAlbum, "", MatchTrace.Outcome.REJECTED, MatchTrace.Rule.NONE,
+                                MatchTrace.Gate.ARTIST, null, -1, "", "enrichment_ineligible"));
+                    }
+                    return;
+                }
                 List<Member> enriched = new ArrayList<>(credit);
                 for (int i = 0; i < (complete ? credit.size() : Math.min(1, credit.size())); i++) {
                     Member member = credit.get(i);
@@ -1442,20 +1546,60 @@ public final class MusicApi {
             List<String> noFlatAliases = Collections.emptyList();
             int candidateScore = ArtistAliases.score(title, artist, members, aliases, album, duration,
                     songTitle, names, credit, noFlatAliases, songAlbum, songDuration);
+            MatchTrace.Rule rule = candidateScore >= 0 ? MatchTrace.Rule.LEGACY_STRICT : MatchTrace.Rule.NONE;
             if (candidateScore < 0 && ArtistAliases.evidencedLeadAlbumBridge(title, artist, members, aliases,
                     album, duration, songTitle, names, credit, noFlatAliases, songAlbum, songDuration)) {
                 candidateScore = 0;
+                rule = MatchTrace.Rule.LEGACY_ALBUM_BRIDGE;
             }
-            if (candidateScore < 0 || candidateScore < score) return;
+            if (candidateScore < 0) {
+                if (trace != null) {
+                    MatchTrace.Gate gate = (!QQMatch.knownArtist(artist) || !QQMatch.knownArtist(names))
+                            ? MatchTrace.Gate.UNKNOWN_ARTIST : MatchTrace.Gate.ARTIST;
+                    trace.addCandidate(new MatchTrace.CandidateRecord(
+                            songId, "", listIndex, -1, "", round, songTitle, names, songAlbum, songDuration,
+                            gapOrNull, trace.target.mainTitle, QQMatch.mainTitle(songTitle),
+                            trace.target.versionTags, QQMatch.version(songTitle),
+                            albumMatches, compAlbum, "", MatchTrace.Outcome.REJECTED, MatchTrace.Rule.NONE,
+                            gate, null, -1, "", ""));
+                }
+                return;
+            }
+            if (candidateScore < score) {
+                if (trace != null) {
+                    trace.addCandidate(new MatchTrace.CandidateRecord(
+                            songId, "", listIndex, -1, "", round, songTitle, names, songAlbum, songDuration,
+                            gapOrNull, trace.target.mainTitle, QQMatch.mainTitle(songTitle),
+                            trace.target.versionTags, QQMatch.version(songTitle),
+                            albumMatches, compAlbum, "", MatchTrace.Outcome.ACCEPTED, rule, MatchTrace.Gate.NONE,
+                            candidateScore, -1, "", "below_best=" + score));
+                }
+                return;
+            }
             List<String> identity = new ArrayList<>();
             for (Member member : credit) {
                 identity.add(member.providerId.isEmpty() ? "name:" + QQMatch.foldCompact(member.name) : "id:" + member.providerId);
             }
             Collections.sort(identity);
-            boolean albumMatches = QQMatch.sameRecordingTitle(album, songAlbum);
+            String conflictId = "";
             if (candidateScore == score) {
-                if (!identity.equals(bestCredit)) ambiguous = true;
-                if (albumMatches == bestAlbumMatches ? gap >= bestGap : !albumMatches) return;
+                if (!identity.equals(bestCredit)) {
+                    ambiguous = true;
+                    conflictId = best == null ? "" : best.optString("id");
+                }
+                if (albumMatches == bestAlbumMatches ? gap >= bestGap : !albumMatches) {
+                    if (trace != null) {
+                        trace.addCandidate(new MatchTrace.CandidateRecord(
+                                songId, "", listIndex, -1, "", round, songTitle, names, songAlbum, songDuration,
+                                gapOrNull, trace.target.mainTitle, QQMatch.mainTitle(songTitle),
+                                trace.target.versionTags, QQMatch.version(songTitle),
+                                albumMatches, compAlbum, "",
+                                conflictId.isEmpty() ? MatchTrace.Outcome.ACCEPTED : MatchTrace.Outcome.REJECTED,
+                                rule, conflictId.isEmpty() ? MatchTrace.Gate.NONE : MatchTrace.Gate.AMBIGUOUS,
+                                candidateScore, -1, conflictId, "tie_kept_previous"));
+                    }
+                    return;
+                }
             } else {
                 ambiguous = false;
             }
@@ -1464,6 +1608,16 @@ public final class MusicApi {
             bestCredit = identity;
             bestAlbumMatches = albumMatches;
             bestGap = gap;
+            if (trace != null) {
+                trace.addCandidate(new MatchTrace.CandidateRecord(
+                        songId, "", listIndex, -1, "", round, songTitle, names, songAlbum, songDuration,
+                        gapOrNull, trace.target.mainTitle, QQMatch.mainTitle(songTitle),
+                        trace.target.versionTags, QQMatch.version(songTitle),
+                        albumMatches, compAlbum, "",
+                        conflictId.isEmpty() ? MatchTrace.Outcome.ACCEPTED : MatchTrace.Outcome.REJECTED,
+                        rule, conflictId.isEmpty() ? MatchTrace.Gate.NONE : MatchTrace.Gate.AMBIGUOUS,
+                        candidateScore, 0, conflictId, "new_best"));
+            }
         }
 
         JSONObject result() throws JSONException {
