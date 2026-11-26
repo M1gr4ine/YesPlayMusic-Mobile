@@ -1340,7 +1340,7 @@ public final class MusicApi {
             JSONObject response = search(new JSONObject().put("keywords", keyword).put("type", 1).put("limit", 10));
             JSONObject result = response.optJSONObject("result");
             return result == null ? null : result.optJSONArray("songs");
-        }, artistLookup(artistCache, this::fetchArtist), entryPoint, policy, MatchTrace.androidLogSink(appContext));
+        }, artistLookup(artistCache, this::fetchArtist), entryPoint, policy, MatchTrace.sinkIfEnabled(appContext));
     }
 
     interface SongSearch {
@@ -1359,16 +1359,17 @@ public final class MusicApi {
         if (match.title.isEmpty() || match.title.length() > 200 || match.artist.length() > 200) {
             throw new IllegalArgumentException("歌曲信息不足");
         }
-        MatchTrace.Sink sink = traceSink == null ? MatchTrace.NOOP : traceSink;
-        MatchTrace trace = new MatchTrace(
-                MatchTrace.Direction.QQ_TO_NETEASE,
-                entryPoint,
-                policy,
-                MatchTrace.Mode.LEGACY,
-                new MatchTrace.TargetInfo(
-                        args.optString("id", ""), match.title, match.artist, match.album, match.duration,
-                        match.members.size(), match.aliases.size(),
-                        QQMatch.mainTitle(match.title), QQMatch.version(match.title)));
+        MatchTrace trace = MatchTrace.isActive(traceSink)
+                ? new MatchTrace(
+                        MatchTrace.Direction.QQ_TO_NETEASE,
+                        entryPoint,
+                        policy,
+                        MatchTrace.Mode.LEGACY,
+                        new MatchTrace.TargetInfo(
+                                args.optString("id", ""), match.title, match.artist, match.album, match.duration,
+                                match.members.size(), match.aliases.size(),
+                                QQMatch.mainTitle(match.title), QQMatch.version(match.title)))
+                : null;
         try {
             LinkedHashSet<String> queries = new LinkedHashSet<>();
             queries.add(QQMatch.keyword(match.title, match.artist));
@@ -1390,27 +1391,31 @@ public final class MusicApi {
                     String songId = song == null ? "" : song.optString("id");
                     String songName = song == null ? "" : song.optString("name");
                     if (song == null || !NetEaseAuthState.hasPositiveUserId(songId)) {
-                        trace.addCandidate(new MatchTrace.CandidateRecord(
-                                songId, "", i, -1, "", round, songName, "", "", 0L, null,
-                                trace.target.mainTitle, QQMatch.mainTitle(songName),
-                                trace.target.versionTags, QQMatch.version(songName),
-                                null, null, "", MatchTrace.Outcome.FILTERED, MatchTrace.Rule.NONE,
-                                MatchTrace.Gate.INVALID_ID, null, -1, "", ""));
+                        if (trace != null) {
+                            trace.addCandidate(new MatchTrace.CandidateRecord(
+                                    "", "", i, -1, "", round, songName, "", "", 0L, null,
+                                    trace.target.mainTitle, QQMatch.mainTitle(songName),
+                                    trace.target.versionTags, QQMatch.version(songName),
+                                    null, null, "", MatchTrace.Outcome.FILTERED, MatchTrace.Rule.NONE,
+                                    MatchTrace.Gate.INVALID_ID, null, -1, "", "invalid_netease_id"));
+                        }
                         continue;
                     }
                     if (!QQMatch.sameRecordingTitle(match.title, songName)) {
-                        String candVer = QQMatch.version(songName);
-                        MatchTrace.Gate gate = trace.target.versionTags.equals(candVer)
-                                ? MatchTrace.Gate.TITLE : MatchTrace.Gate.VERSION;
-                        long songDur = song.optLong("dt");
-                        JSONObject al = song.optJSONObject("al");
-                        trace.addCandidate(new MatchTrace.CandidateRecord(
-                                songId, "", i, -1, "", round, songName,
-                                artistNames(song.optJSONArray("ar")), al == null ? "" : al.optString("name"),
-                                songDur, MatchTrace.durationGapOrNull(match.duration, songDur),
-                                trace.target.mainTitle, QQMatch.mainTitle(songName),
-                                trace.target.versionTags, candVer, null, null, "",
-                                MatchTrace.Outcome.REJECTED, MatchTrace.Rule.NONE, gate, null, -1, "", ""));
+                        if (trace != null) {
+                            String candVer = QQMatch.version(songName);
+                            MatchTrace.Gate gate = trace.target.versionTags.equals(candVer)
+                                    ? MatchTrace.Gate.TITLE : MatchTrace.Gate.VERSION;
+                            long songDur = song.optLong("dt");
+                            JSONObject al = song.optJSONObject("al");
+                            trace.addCandidate(new MatchTrace.CandidateRecord(
+                                    songId, "", i, -1, "", round, songName,
+                                    artistNames(song.optJSONArray("ar")), al == null ? "" : al.optString("name"),
+                                    songDur, MatchTrace.durationGapOrNull(match.duration, songDur),
+                                    trace.target.mainTitle, QQMatch.mainTitle(songName),
+                                    trace.target.versionTags, candVer, null, null, "",
+                                    MatchTrace.Outcome.REJECTED, MatchTrace.Rule.NONE, gate, null, -1, "", ""));
+                        }
                         continue;
                     }
                     filteredCount++;
@@ -1419,11 +1424,13 @@ public final class MusicApi {
                         match.consider(song, null, trace, round, i);
                     }
                 }
-                trace.addQuery(stage, idx, query, rawCount, filteredCount, uniqueAdded);
+                if (trace != null) trace.addQuery(stage, idx, query, rawCount, filteredCount, uniqueAdded);
                 if (match.score > 0 && !match.ambiguous) {
-                    trace.setShortCircuitStage(round);
-                    trace.setTopCandidateIds(Collections.singletonList(match.best.optString("id")));
-                    trace.setFinalOutcome("matched", "");
+                    if (trace != null) {
+                        trace.setShortCircuitStage(round);
+                        trace.setTopCandidateIds(Collections.singletonList(match.best.optString("id")));
+                        trace.setFinalOutcome("matched", "");
+                    }
                     return match.result();
                 }
             }
@@ -1434,20 +1441,25 @@ public final class MusicApi {
                 if (Thread.currentThread().isInterrupted()) throw new InterruptedException("artist lookup cancelled");
                 match.consider(song, artistDetail, trace, "enriched", enrichedIndex++);
             }
-            if (match.best != null && !match.ambiguous) {
-                trace.setTopCandidateIds(Collections.singletonList(match.best.optString("id")));
-                trace.setFinalOutcome("matched", "");
-            } else if (match.ambiguous) {
-                trace.setFinalOutcome("ambiguous", "ambiguous");
-            } else {
-                trace.setFinalOutcome("match_not_found", "match_not_found");
+            if (trace != null) {
+                if (match.best != null && !match.ambiguous) {
+                    trace.setTopCandidateIds(Collections.singletonList(match.best.optString("id")));
+                    trace.setFinalOutcome("matched", "");
+                } else if (match.ambiguous) {
+                    trace.setFinalOutcome("ambiguous", "ambiguous");
+                } else {
+                    trace.setFinalOutcome("match_not_found", "match_not_found");
+                }
             }
             return match.result();
         } catch (InterruptedException cancelled) {
-            trace.setFinalOutcome("cancelled", "interrupted");
+            if (trace != null) trace.setFinalOutcome("cancelled", "interrupted");
             throw cancelled;
+        } catch (Exception error) {
+            if (trace != null) trace.setFinalOutcome("error", error.getClass().getSimpleName());
+            throw error;
         } finally {
-            sink.emit(trace);
+            if (trace != null) traceSink.emit(trace);
         }
     }
 

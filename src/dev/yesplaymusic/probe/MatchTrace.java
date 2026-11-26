@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 
 /**
  * Structured, read-only diagnostic trace for a single cross-source track match attempt.
@@ -19,6 +20,12 @@ final class MatchTrace {
     private static final String SETTINGS_PREFS = "mobile_settings";
     private static final String SETTINGS_DIAGNOSTICS_KEY = "matchDiagnostics";
     private static final AtomicLong SEQUENCE = new AtomicLong(0L);
+
+    private static final Pattern SAFE_CATALOG_ID = Pattern.compile(
+            "^(?:[1-9][0-9]{0,23}|qq:[A-Za-z0-9]{1,128}|[A-Za-z0-9_-]{1,128})$");
+    private static final Pattern URL_LIKE = Pattern.compile("(?i)https?://\\S+");
+    private static final Pattern SECRET_KV = Pattern.compile(
+            "(?i)(?:^|[\\s;,&?])(?:cookie|music_u|qqmusic_key|qm_keyst|psrf_[a-z0-9_]+|token|vkey|purl|sig|password|secret)\\s*=\\s*[^\\s;,&]+");
 
     private static volatile boolean diagnosticLoggingEnabled;
 
@@ -92,7 +99,7 @@ final class MatchTrace {
 
         TargetInfo(String catalogId, String title, String artist, String album, long durationMs,
                    int memberCount, int aliasCount, String mainTitle, String versionTags) {
-            this.catalogId = safe(catalogId);
+            this.catalogId = sanitizeId(catalogId);
             this.title = safe(title);
             this.artist = safe(artist);
             this.album = safe(album);
@@ -155,11 +162,11 @@ final class MatchTrace {
                         String candidateVersionTags, Boolean sameAlbum, Boolean compilationAlbum,
                         String matchedMembers, Outcome outcome, Rule rule, Gate failedGate, Integer score,
                         int rankPosition, String conflictCandidateId, String detail) {
-            this.candidateId = safe(candidateId);
-            this.mediaMid = safe(mediaMid);
+            this.candidateId = sanitizeId(candidateId);
+            this.mediaMid = sanitizeId(mediaMid);
             this.listIndex = listIndex;
             this.grpIndex = grpIndex;
-            this.parentMid = safe(parentMid);
+            this.parentMid = sanitizeId(parentMid);
             this.round = safe(round);
             this.title = safe(title);
             this.artist = safe(artist);
@@ -178,7 +185,7 @@ final class MatchTrace {
             this.failedGate = failedGate == null ? Gate.NONE : failedGate;
             this.score = score;
             this.rankPosition = rankPosition;
-            this.conflictCandidateId = safe(conflictCandidateId);
+            this.conflictCandidateId = sanitizeId(conflictCandidateId);
             this.detail = safe(detail);
         }
     }
@@ -189,8 +196,8 @@ final class MatchTrace {
         final String outcomeCode;
 
         VkeyRecord(String mid, String mediaMid, String outcomeCode) {
-            this.mid = safe(mid);
-            this.mediaMid = safe(mediaMid);
+            this.mid = sanitizeId(mid);
+            this.mediaMid = sanitizeId(mediaMid);
             this.outcomeCode = safe(outcomeCode);
         }
     }
@@ -228,6 +235,10 @@ final class MatchTrace {
         return diagnosticLoggingEnabled;
     }
 
+    static boolean isActive(Sink sink) {
+        return sink != null && sink != NOOP;
+    }
+
     static boolean isLogcatEnabled(Context context) {
         if (diagnosticLoggingEnabled) return true;
         if (context == null) return false;
@@ -243,6 +254,11 @@ final class MatchTrace {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    /** Returns an active logcat sink only when tracing is enabled, or NOOP to avoid trace collection overhead. */
+    static Sink sinkIfEnabled(Context context) {
+        return isLogcatEnabled(context) ? androidLogSink(context) : NOOP;
     }
 
     static Sink androidLogSink(final Context context) {
@@ -285,7 +301,7 @@ final class MatchTrace {
         topCandidateIds.clear();
         if (ids == null) return;
         for (int i = 0; i < ids.size() && i < 3; i++) {
-            String id = safe(ids.get(i));
+            String id = sanitizeId(ids.get(i));
             if (!id.isEmpty()) topCandidateIds.add(id);
         }
     }
@@ -361,13 +377,13 @@ final class MatchTrace {
             lines.add(sb.toString());
         }
         for (VkeyRecord v : vkeyAttempts) {
-            lines.add("[" + traceId + "] vkey mid=" + v.mid + " media=" + v.mediaMid + " result=" + v.outcomeCode);
+            lines.add("[" + traceId + "] vkey mid=" + v.mid + " media=" + v.mediaMid + " result=" + quote(v.outcomeCode));
         }
         lines.add("[" + traceId + "] end cache=" + cachePath
                 + " shortCircuit=" + shortCircuitStage
                 + " top3=" + topCandidateIds
                 + " outcome=" + finalOutcome
-                + (finalErrorCode.isEmpty() ? "" : " error=" + finalErrorCode));
+                + (finalErrorCode.isEmpty() ? "" : " error=" + quote(finalErrorCode)));
         return lines;
     }
 
@@ -384,14 +400,29 @@ final class MatchTrace {
         return leftMs > 0L && rightMs > 0L ? Math.abs(leftMs - rightMs) : null;
     }
 
+    static String sanitizeId(String value) {
+        if (value == null) return "";
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) return "";
+        return SAFE_CATALOG_ID.matcher(trimmed).matches() ? trimmed : "<invalid>";
+    }
+
+    static String sanitizeText(String value) {
+        if (value == null || value.isEmpty()) return "";
+        String cleaned = value.replace('\r', ' ').replace('\n', ' ').replace('"', '\'');
+        cleaned = URL_LIKE.matcher(cleaned).replaceAll("[redacted-url]");
+        cleaned = SECRET_KV.matcher(cleaned).replaceAll(" [redacted]");
+        cleaned = cleaned.trim();
+        if (cleaned.length() > 160) cleaned = cleaned.substring(0, 160) + "...";
+        return cleaned;
+    }
+
     private static String safe(String value) {
         return value == null ? "" : value;
     }
 
     private static String quote(String value) {
-        if (value == null || value.isEmpty()) return "\"\"";
-        String cleaned = value.replace('\r', ' ').replace('\n', ' ').replace('"', '\'');
-        if (cleaned.length() > 160) cleaned = cleaned.substring(0, 160) + "...";
-        return "\"" + cleaned + "\"";
+        String sanitized = sanitizeText(value);
+        return "\"" + sanitized + "\"";
     }
 }

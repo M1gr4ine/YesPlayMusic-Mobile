@@ -211,11 +211,14 @@ public final class QQSource {
         }
     }
 
-    private JSONArray searchRaw(String query,int page,int limit,String cookie) throws Exception {
+    private JSONArray searchRawList(String query,int page,int limit,String cookie) throws Exception {
         JSONObject param=new JSONObject().put("num_per_page",Math.min(50,Math.max(1,limit))).put("page_num",Math.max(1,page)).put("query",query).put("search_type",0);
         JSONObject data = searchWithRetry(() ->
                 request("music.search.SearchCgiService", "DoSearchForQQMusicDesktop", param, cookie));
-        JSONObject body=data.optJSONObject("body"), songs=body==null?null:body.optJSONObject("song");JSONArray list=songs==null?null:songs.optJSONArray("list");return filterSearchResults(list);
+        JSONObject body=data.optJSONObject("body"), songs=body==null?null:body.optJSONObject("song");JSONArray list=songs==null?null:songs.optJSONArray("list");return list==null?new JSONArray():list;
+    }
+    private JSONArray searchRaw(String query,int page,int limit,String cookie) throws Exception {
+        return filterSearchResults(searchRawList(query,page,limit,cookie));
     }
     public JSONObject execute(String method,JSONObject args) throws Exception {
         if("qqStatus".equals(method)){
@@ -476,11 +479,13 @@ public final class QQSource {
         final Track song;
         final boolean artistQuery;
         final int rank;
+        final int rawIndex;
         final int grpCount;
-        SearchHit(Track song, boolean artistQuery, int rank, int grpCount) {
+        SearchHit(Track song, boolean artistQuery, int rank, int rawIndex, int grpCount) {
             this.song = song;
             this.artistQuery = artistQuery;
             this.rank = rank;
+            this.rawIndex = rawIndex;
             this.grpCount = grpCount;
         }
     }
@@ -513,7 +518,7 @@ public final class QQSource {
             Track song = Track.fromJson(toTrack(item));
             if (song != null) {
                 JSONArray grp = item.optJSONArray("grp");
-                hits.add(new SearchHit(song, artistQuery, i, grp == null ? 0 : grp.length()));
+                hits.add(new SearchHit(song, artistQuery, filteredCount, i, grp == null ? 0 : grp.length()));
                 filteredCount++;
                 if (seenIds.add(song.id)) uniqueAdded++;
             }
@@ -526,8 +531,8 @@ public final class QQSource {
                 song.title, song.artist, song.artistMembers, song.artistAliases, song.album, song.duration);
     }
 
-    private static boolean hasCompetingCredit(Track target, List<ArtistAliases.Member> members,
-                                              List<String> aliases, Track selected, List<SearchHit> hits) {
+    private static String findCompetingCreditId(Track target, List<ArtistAliases.Member> members,
+                                                List<String> aliases, Track selected, List<SearchHit> hits) {
         for (SearchHit hit : hits) {
             if (!hit.artistQuery) continue;
             Track other = hit.song;
@@ -541,9 +546,9 @@ public final class QQSource {
                     other.title, other.artist, other.artistMembers, other.artistAliases, other.album, other.duration)) {
                 continue;
             }
-            return true;
+            return other.id;
         }
-        return false;
+        return null;
     }
 
     private static long durationGap(Track target, Track candidate) {
@@ -551,10 +556,8 @@ public final class QQSource {
                 ? Math.abs(target.duration - candidate.duration) : Long.MAX_VALUE;
     }
 
-    private static MatchTrace.CandidateRecord traceLegacyRejection(Track target, List<ArtistAliases.Member> members,
-                                                                   List<String> aliases, SearchHit hit,
-                                                                   List<SearchHit> allHits, String round,
-                                                                   boolean competingVetoed, String vetoSource) {
+    private static MatchTrace.CandidateRecord traceLegacyRejection(Track target, SearchHit hit, String round,
+                                                                   String competingId, String vetoSource) {
         Track song = hit.song;
         String targetVer = QQMatch.version(target.title);
         String candVer = QQMatch.version(song.title);
@@ -567,30 +570,33 @@ public final class QQSource {
                 || ArtistAliases.isGenericCompilation(song.album);
         MatchTrace.Gate gate;
         String detail = hit.grpCount > 0 ? "grp=" + hit.grpCount : "";
-        if (!QQMatch.knownArtist(target.artist) || !QQMatch.knownArtist(song.artist)) {
-            gate = MatchTrace.Gate.UNKNOWN_ARTIST;
-        } else if (!targetVer.equals(candVer)) {
-            gate = MatchTrace.Gate.VERSION;
-        } else if (!QQMatch.sameRecordingTitle(target.title, song.title)) {
-            gate = MatchTrace.Gate.TITLE;
-        } else if (gap != null && gap > 8000L) {
-            gate = MatchTrace.Gate.DURATION;
-            detail = appendDetail(detail, "strict>8000ms");
-        } else if (competingVetoed) {
+        if (hit.rawIndex != hit.rank) detail = appendDetail(detail, "filteredRank=" + hit.rank);
+        if (competingId != null && !competingId.isEmpty()) {
             gate = MatchTrace.Gate.COMPETING_CREDIT;
             detail = appendDetail(detail, vetoSource);
+        } else if (!QQMatch.knownArtist(target.artist) || !QQMatch.knownArtist(song.artist)) {
+            gate = MatchTrace.Gate.UNKNOWN_ARTIST;
+            detail = appendDetail(detail, "inferred");
+        } else if (!targetVer.equals(candVer)) {
+            gate = MatchTrace.Gate.VERSION;
+            detail = appendDetail(detail, "inferred");
+        } else if (!QQMatch.sameRecordingTitle(target.title, song.title)) {
+            gate = MatchTrace.Gate.TITLE;
+            detail = appendDetail(detail, "inferred");
+        } else if (gap != null && gap > 8000L) {
+            gate = MatchTrace.Gate.DURATION;
+            detail = appendDetail(detail, "inferred:strict>8000ms");
         } else {
             gate = MatchTrace.Gate.ARTIST;
-            if (gap != null && gap > QQMatch.UNM_DURATION_MS) {
-                detail = appendDetail(detail, "bridge>5000ms");
-            }
+            detail = appendDetail(detail, gap != null && gap > QQMatch.UNM_DURATION_MS
+                    ? "inferred:bridge>5000ms" : "inferred");
         }
         return new MatchTrace.CandidateRecord(
-                song.id, song.mediaMid, hit.rank, -1, "", round,
+                song.id, song.mediaMid, hit.rawIndex, -1, "", round,
                 song.title, song.artist, song.album, song.duration, gap,
                 targetMain, candMain, targetVer, candVer,
                 sameAlbum, compAlbum, "", MatchTrace.Outcome.REJECTED, MatchTrace.Rule.NONE,
-                gate, null, -1, "", detail);
+                gate, null, -1, competingId == null ? "" : competingId, detail);
     }
 
     private static String appendDetail(String base, String extra) {
@@ -613,16 +619,18 @@ public final class QQSource {
             return Long.compare(durationGap(target, left), durationGap(target, right));
         });
         Map<String,Candidate> accepted = new LinkedHashMap<>();
+        Map<String,Track> acceptedTracks = new LinkedHashMap<>();
         Map<String,Integer> acceptedScores = new LinkedHashMap<>();
         for (Track song : ranked) {
             if (accepted.putIfAbsent(song.id, new Candidate(song, "artist_title")) == null) {
+                acceptedTracks.put(song.id, song);
                 acceptedScores.put(song.id, scores.get(song));
             }
         }
 
         // Evidenced same-album solo-lead versions can safely back up full-credit matches if rights differ.
         List<Track> evidencedBridges = new ArrayList<>();
-        java.util.Set<String> competingVetoIds = new LinkedHashSet<>();
+        Map<String,String> competingById = new LinkedHashMap<>();
         Map<String,String> vetoSources = new LinkedHashMap<>();
         for (SearchHit hit : hits) {
             Track song = hit.song;
@@ -630,16 +638,21 @@ public final class QQSource {
             if (ArtistAliases.evidencedLeadAlbumBridge(
                     target.title, target.artist, members, aliases, target.album, target.duration,
                     song.title, song.artist, song.artistMembers, song.artistAliases, song.album, song.duration)) {
-                if (!hasCompetingCredit(target, members, aliases, song, hits)) {
+                String competingId = findCompetingCreditId(target, members, aliases, song, hits);
+                if (competingId == null) {
                     evidencedBridges.add(song);
                 } else {
-                    competingVetoIds.add(song.id);
+                    competingById.putIfAbsent(song.id, competingId);
                     vetoSources.putIfAbsent(song.id, "evidenced_bridge_vetoed");
                 }
             }
         }
         evidencedBridges.sort((left, right) -> Long.compare(durationGap(target, left), durationGap(target, right)));
-        for (Track song : evidencedBridges) accepted.putIfAbsent(song.id, new Candidate(song, "album_bridge"));
+        for (Track song : evidencedBridges) {
+            if (accepted.putIfAbsent(song.id, new Candidate(song, "album_bridge")) == null) {
+                acceptedTracks.put(song.id, song);
+            }
+        }
 
         if (accepted.isEmpty()) {
             for (SearchHit hit : hits) {
@@ -647,10 +660,13 @@ public final class QQSource {
                 if (ArtistAliases.bridgeAccepts(target.title, target.artist, members, aliases, target.album,
                         target.duration, song.title, song.artist, song.artistMembers, song.artistAliases, song.album,
                         song.duration, hit.artistQuery, hit.rank)) {
-                    if (!hasCompetingCredit(target, members, aliases, song, hits)) {
-                        accepted.putIfAbsent(song.id, new Candidate(song, "catalog_bridge"));
+                    String competingId = findCompetingCreditId(target, members, aliases, song, hits);
+                    if (competingId == null) {
+                        if (accepted.putIfAbsent(song.id, new Candidate(song, "catalog_bridge")) == null) {
+                            acceptedTracks.put(song.id, song);
+                        }
                     } else {
-                        competingVetoIds.add(song.id);
+                        competingById.putIfAbsent(song.id, competingId);
                         vetoSources.putIfAbsent(song.id, "catalog_bridge_vetoed");
                     }
                 }
@@ -667,9 +683,9 @@ public final class QQSource {
             String targetVer = QQMatch.version(target.title);
             for (SearchHit hit : hits) {
                 Track song = hit.song;
-                if (!tracedIds.add(song.id)) continue;
                 Candidate chosen = accepted.get(song.id);
                 if (chosen != null) {
+                    if (acceptedTracks.get(song.id) != song || !tracedIds.add(song.id)) continue;
                     MatchTrace.Rule rule = "artist_title".equals(chosen.reason)
                             ? MatchTrace.Rule.LEGACY_STRICT
                             : "album_bridge".equals(chosen.reason)
@@ -680,16 +696,17 @@ public final class QQSource {
                     boolean compAlbum = ArtistAliases.isGenericCompilation(target.album)
                             || ArtistAliases.isGenericCompilation(song.album);
                     String detail = hit.grpCount > 0 ? "grp=" + hit.grpCount : "";
+                    if (hit.rawIndex != hit.rank) detail = appendDetail(detail, "filteredRank=" + hit.rank);
                     trace.addCandidate(new MatchTrace.CandidateRecord(
-                            song.id, song.mediaMid, hit.rank, -1, "", round,
+                            song.id, song.mediaMid, hit.rawIndex, -1, "", round,
                             song.title, song.artist, song.album, song.duration,
                             MatchTrace.durationGapOrNull(target.duration, song.duration),
                             targetMain, QQMatch.mainTitle(song.title), targetVer, QQMatch.version(song.title),
                             sameAlbum, compAlbum, "", MatchTrace.Outcome.ACCEPTED, rule, MatchTrace.Gate.NONE,
                             acceptedScores.get(song.id), rankById.get(song.id), "", detail));
-                } else {
-                    trace.addCandidate(traceLegacyRejection(target, members, aliases, hit, hits, round,
-                            competingVetoIds.contains(song.id), vetoSources.get(song.id)));
+                } else if (tracedIds.add(song.id)) {
+                    trace.addCandidate(traceLegacyRejection(target, hit, round,
+                            competingById.get(song.id), vetoSources.get(song.id)));
                 }
             }
         }
@@ -947,16 +964,17 @@ public final class QQSource {
 
     static List<JSONObject> lookupAttempts(Track track, Lookup api, String uin, MatchTrace.Sink traceSink) throws Exception {
         if (track == null) throw new ResolveException("match_not_found", "missing_track");
-        MatchTrace.Sink sink = traceSink == null ? MatchTrace.NOOP : traceSink;
-        MatchTrace trace = new MatchTrace(
-                MatchTrace.Direction.NETEASE_TO_QQ,
-                "qq_playback",
-                MatchTrace.Policy.PLAYBACK,
-                MatchTrace.Mode.LEGACY,
-                new MatchTrace.TargetInfo(
-                        track.id, track.title, track.artist, track.album, track.duration,
-                        track.artistMembers.size(), track.artistAliases.size(),
-                        QQMatch.mainTitle(track.title), QQMatch.version(track.title)));
+        MatchTrace trace = MatchTrace.isActive(traceSink)
+                ? new MatchTrace(
+                        MatchTrace.Direction.NETEASE_TO_QQ,
+                        "qq_playback",
+                        MatchTrace.Policy.PLAYBACK,
+                        MatchTrace.Mode.LEGACY,
+                        new MatchTrace.TargetInfo(
+                                track.id, track.title, track.artist, track.album, track.duration,
+                                track.artistMembers.size(), track.artistAliases.size(),
+                                QQMatch.mainTitle(track.title), QQMatch.version(track.title)))
+                : null;
         try {
             // A ten-digit decimal device identifier, encoded as a JSON string.
             String guid = Long.toString(ThreadLocalRandom.current()
@@ -966,26 +984,28 @@ public final class QQSource {
             if (previous != null) {
                 try {
                     List<JSONObject> cached = streams(previous, uin, guid, api);
-                    trace.addVkeyAttempt(previous.mid, previous.mediaMid, "ok");
-                    trace.setFinalOutcome("vkey_ok", "");
+                    if (trace != null) {
+                        trace.addVkeyAttempt(previous.mid, previous.mediaMid, "ok");
+                        trace.setFinalOutcome("vkey_ok", "");
+                    }
                     return cached;
                 } catch (ResolveException denied) {
-                    trace.addVkeyAttempt(previous.mid, previous.mediaMid, denied.code + "/" + denied.detail);
+                    if (trace != null) trace.addVkeyAttempt(previous.mid, previous.mediaMid, denied.code + "/" + denied.detail);
                     failure = denied;
                 }
             }
             if (track.id.startsWith("qq:")) {
                 if (failure != null) {
-                    trace.setFinalOutcome("error", failure.code + "/" + failure.detail);
+                    if (trace != null) trace.setFinalOutcome("error", failure.code + "/" + failure.detail);
                     throw failure;
                 }
                 ResolveException invalid = new ResolveException("match_not_found", "invalid_catalog_mid");
-                trace.setFinalOutcome("error", invalid.code + "/" + invalid.detail);
+                if (trace != null) trace.setFinalOutcome("error", invalid.code + "/" + invalid.detail);
                 throw invalid;
             }
             if (track.title.isEmpty()) {
                 ResolveException missing = new ResolveException("match_not_found", "missing_title");
-                trace.setFinalOutcome("error", missing.code + "/" + missing.detail);
+                if (trace != null) trace.setFinalOutcome("error", missing.code + "/" + missing.detail);
                 throw missing;
             }
             List<Candidate> matches;
@@ -993,14 +1013,16 @@ public final class QQSource {
                 matches = searchCandidates(track, api, trace);
             } catch (ResolveException searchFailure) {
                 ResolveException chosen = prefer(failure, searchFailure);
-                trace.setFinalOutcome("error", chosen.code + "/" + chosen.detail);
+                if (trace != null) trace.setFinalOutcome("error", chosen.code + "/" + chosen.detail);
                 throw chosen;
             }
-            List<String> topIds = new ArrayList<>();
-            for (int i = 0; i < matches.size() && i < MAX_PLAYBACK_CANDIDATES; i++) {
-                topIds.add("qq:" + matches.get(i).mid);
+            if (trace != null) {
+                List<String> topIds = new ArrayList<>();
+                for (int i = 0; i < matches.size() && i < MAX_PLAYBACK_CANDIDATES; i++) {
+                    topIds.add("qq:" + matches.get(i).mid);
+                }
+                trace.setTopCandidateIds(topIds);
             }
-            trace.setTopCandidateIds(topIds);
             int tried = 0;
             for (Candidate match : matches) {
                 if (previous != null && previous.mid.equals(match.mid) && previous.mediaMid.equals(match.mediaMid)) continue;
@@ -1008,27 +1030,34 @@ public final class QQSource {
                 try {
                     List<JSONObject> granted = streams(match, uin, guid, api);
                     if (!granted.isEmpty()) {
-                        trace.addVkeyAttempt(match.mid, match.mediaMid, "ok");
-                        trace.setFinalOutcome("vkey_ok", "");
+                        if (trace != null) {
+                            trace.addVkeyAttempt(match.mid, match.mediaMid, "ok");
+                            trace.setFinalOutcome("vkey_ok", "");
+                        }
                         return granted;
                     }
                 } catch (ResolveException denied) {
-                    trace.addVkeyAttempt(match.mid, match.mediaMid, denied.code + "/" + denied.detail);
+                    if (trace != null) trace.addVkeyAttempt(match.mid, match.mediaMid, denied.code + "/" + denied.detail);
                     failure = prefer(failure, denied);
                 }
             }
             if (failure != null) {
-                trace.setFinalOutcome("error", failure.code + "/" + failure.detail);
+                if (trace != null) trace.setFinalOutcome("error", failure.code + "/" + failure.detail);
                 throw failure;
             }
             ResolveException none = new ResolveException("match_not_found", "no_verified_recording");
-            trace.setFinalOutcome("error", none.code + "/" + none.detail);
+            if (trace != null) trace.setFinalOutcome("error", none.code + "/" + none.detail);
             throw none;
         } catch (InterruptedException cancelled) {
-            trace.setFinalOutcome("cancelled", "interrupted");
+            if (trace != null) trace.setFinalOutcome("cancelled", "interrupted");
             throw cancelled;
+        } catch (ResolveException resolved) {
+            throw resolved;
+        } catch (Exception unexpected) {
+            if (trace != null) trace.setFinalOutcome("error", unexpected.getClass().getSimpleName());
+            throw unexpected;
         } finally {
-            sink.emit(trace);
+            if (trace != null) traceSink.emit(trace);
         }
     }
 
@@ -1039,7 +1068,7 @@ public final class QQSource {
         Credentials auth = credentials(cookie);
         Lookup api = new Lookup() {
             public JSONArray search(String query) throws Exception {
-                return searchRaw(query, 1, 10, cookie);
+                return searchRawList(query, 1, 10, cookie);
             }
             public JSONObject detail(String mid) throws Exception {
                 return request("music.pf_song_detail_svr", "get_song_detail",
@@ -1059,7 +1088,7 @@ public final class QQSource {
         };
         try {
             List<JSONObject> granted = lookupAttempts(Track.fromJson(input), api,
-                    auth.loggedIn ? auth.uin : "0", MatchTrace.androidLogSink(appContext));
+                    auth.loggedIn ? auth.uin : "0", MatchTrace.sinkIfEnabled(appContext));
             checkCancelled();
             if (!currentSession(authSnapshot)) throw new ResolveException("stream_unavailable", "session_changed");
             // A public file can also be granted to a guest. Only an authenticated account response proves login.
