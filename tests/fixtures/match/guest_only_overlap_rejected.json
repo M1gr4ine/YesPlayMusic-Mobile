@@ -1,0 +1,75 @@
+{
+  "name": "guest_only_overlap_rejected",
+  "direction": "netease_to_qq",
+  "policy": "PLAYBACK",
+  "rule": "rule_a4_guest_only_overlap_rejected",
+  "description": "Candidate credited only to guest member Rihanna on same album cannot match Kanye West / Rihanna (A4 rejects without Rule B fallback).",
+  "expandGrp": false,
+  "target": {
+    "id": "409736434",
+    "title": "Famous",
+    "artist": "Kanye West / Rihanna",
+    "album": "The Life Of Pablo",
+    "duration": 196040,
+    "provider": "netease",
+    "artistMembers": [
+      {
+        "name": "Kanye West",
+        "providerId": "37520",
+        "aliases": [
+          "ye",
+          "坎耶·维斯特"
+        ]
+      },
+      {
+        "name": "Rihanna",
+        "providerId": "72724",
+        "aliases": [
+          "蕾哈娜"
+        ]
+      }
+    ]
+  },
+  "responses": {
+    "Famous Kanye West Rihanna": [
+      {
+        "mid": "002GuestOnlyRih",
+        "file": {
+          "media_mid": "002GuestOnlyFile"
+        },
+        "title": "Famous (Explicit)",
+        "singer": [
+          {
+            "name": "Rihanna",
+            "mid": "001Ri"
+          }
+        ],
+        "album": {
+          "name": "The Life Of Pablo (Explicit)"
+        },
+        "interval": 196
+      },
+      {
+        "mid": "0023yUmC3Ss6Xm",
+        "file": {
+          "media_mid": "0023yUmC3Ss6Xm"
+        },
+        "title": "Famous",
+        "singer": [
+          {
+            "name": "Kanye West"
+          },
+          {
+            "name": "Rihanna"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 30
+      }
+    ]
+  },
+  "expect": "reject",
+  "expectRule": "NONE"
+}

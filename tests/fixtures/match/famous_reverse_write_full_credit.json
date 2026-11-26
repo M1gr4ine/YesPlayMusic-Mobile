@@ -1,0 +1,437 @@
+{
+  "name": "famous_reverse_write_full_credit",
+  "direction": "qq_to_netease",
+  "policy": "WRITE",
+  "rule": "famous_reverse_write_full_coverage_same_album",
+  "description": "Real recorded NetEase search for Famous; QQ full-credit Ye (侃爷) / Rihanna on single Famous matches NetEase 408440465 (same album) over 409736434 (album edition) while rejecting tribute/karaoke hits.",
+  "expandGrp": false,
+  "target": {
+    "id": "qq:003Z0JlC3c9Jwx",
+    "title": "Famous",
+    "artist": "Ye (侃爷) / Rihanna",
+    "album": "Famous",
+    "duration": 195000,
+    "provider": "qq",
+    "artistMembers": [
+      {
+        "name": "Ye (侃爷)",
+        "providerId": "0025NhlN2yWrP4",
+        "aliases": []
+      },
+      {
+        "name": "Rihanna",
+        "providerId": "001Ri",
+        "aliases": []
+      }
+    ]
+  },
+  "responses": {
+    "Famous Ye Rihanna": [
+      {
+        "id": 408440465,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 37520,
+            "name": "Kanye West",
+            "alias": [
+              "ye"
+            ],
+            "tns": [
+              "坎耶·维斯特"
+            ]
+          },
+          {
+            "id": 72724,
+            "name": "Rihanna",
+            "tns": [
+              "蕾哈娜"
+            ]
+          }
+        ],
+        "al": {
+          "name": "Famous"
+        },
+        "dt": 196040
+      },
+      {
+        "id": 409736434,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 37520,
+            "name": "Kanye West",
+            "alias": [
+              "ye"
+            ],
+            "tns": [
+              "坎耶·维斯特"
+            ]
+          },
+          {
+            "id": 72724,
+            "name": "Rihanna",
+            "tns": [
+              "蕾哈娜"
+            ]
+          }
+        ],
+        "al": {
+          "name": "The Life Of Pablo"
+        },
+        "dt": 196040
+      },
+      {
+        "id": 1368371798,
+        "name": "Famous (explicit) (Tribute version originally performed by Kanye West feat. Rihanna and Swizz Beatz)",
+        "ar": [
+          {
+            "id": 104700,
+            "name": "Various Artists",
+            "tns": [
+              "欧美群星"
+            ]
+          }
+        ],
+        "al": {
+          "name": "Famous (explicit)"
+        },
+        "dt": 200327
+      },
+      {
+        "id": 541410106,
+        "name": "Famous (Originally Performed by Kanye West, Rihanna & Swizz Beatz) [Karaoke]",
+        "ar": [
+          {
+            "id": 12979081,
+            "name": "Singer's Edge Karaoke"
+          }
+        ],
+        "al": {
+          "name": "Famous (Originally Performed by Kanye West, Rihanna & Swizz Beatz) [Karaoke Version]"
+        },
+        "dt": 196371
+      },
+      {
+        "id": 1335286010,
+        "name": "Famous (Karaoke, Version Originally Performed By, Kanye West and Rihanna and Swizz Beatz)",
+        "ar": [
+          {
+            "id": 31044180,
+            "name": "BOPT"
+          }
+        ],
+        "al": {
+          "name": "Best of Pop Tributes Vol 8"
+        },
+        "dt": 200334
+      },
+      {
+        "id": 484755737,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 37520,
+            "name": "Kanye West",
+            "alias": [
+              "ye"
+            ],
+            "tns": [
+              "坎耶·维斯特"
+            ]
+          },
+          {
+            "id": 72724,
+            "name": "Rihanna",
+            "tns": [
+              "蕾哈娜"
+            ]
+          }
+        ],
+        "al": {
+          "name": "The Life Of Pablo"
+        },
+        "dt": 196092
+      },
+      {
+        "id": 1335288938,
+        "name": "Famous (Tribute Version Originally Performed By, Kanye West and Rihanna and Swizz Beatz)",
+        "ar": [
+          {
+            "id": 31044180,
+            "name": "BOPT"
+          }
+        ],
+        "al": {
+          "name": "Best of Pop Tributes Vol 8"
+        },
+        "dt": 200334
+      },
+      {
+        "id": 541406799,
+        "name": "Famous (Originally Performed by Kanye West, Rihanna & Swizz Beatz) [Instrumental]",
+        "ar": [
+          {
+            "id": 12979081,
+            "name": "Singer's Edge Karaoke"
+          }
+        ],
+        "al": {
+          "name": "Famous (Originally Performed by Kanye West, Rihanna & Swizz Beatz) [Karaoke Version]"
+        },
+        "dt": 196371
+      },
+      {
+        "id": 553722204,
+        "name": "All Of The Lights (Made Famous by Kanye West feat. Rihanna)",
+        "ar": [
+          {
+            "id": 13061608,
+            "name": "Future Hitmakers"
+          }
+        ],
+        "al": {
+          "name": "50 Hottest Instrumental Hits Now!"
+        },
+        "dt": 303647
+      },
+      {
+        "id": 567086588,
+        "name": "Run this Town (As Made Famous By Jay-Z, Kanye West and Rihanna)",
+        "ar": [
+          {
+            "id": 12718081,
+            "name": "The Karaoke Crew"
+          }
+        ],
+        "al": {
+          "name": "Drew's Famous # 1 Karaoke Hits: Rap Like Kanye West"
+        },
+        "dt": 286050
+      }
+    ],
+    "Famous Ye": [
+      {
+        "id": 409736434,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 37520,
+            "name": "Kanye West",
+            "alias": [
+              "ye"
+            ],
+            "tns": [
+              "坎耶·维斯特"
+            ]
+          },
+          {
+            "id": 72724,
+            "name": "Rihanna",
+            "tns": [
+              "蕾哈娜"
+            ]
+          }
+        ],
+        "al": {
+          "name": "The Life Of Pablo"
+        },
+        "dt": 196040
+      },
+      {
+        "id": 484755737,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 37520,
+            "name": "Kanye West",
+            "alias": [
+              "ye"
+            ],
+            "tns": [
+              "坎耶·维斯特"
+            ]
+          },
+          {
+            "id": 72724,
+            "name": "Rihanna",
+            "tns": [
+              "蕾哈娜"
+            ]
+          }
+        ],
+        "al": {
+          "name": "The Life Of Pablo"
+        },
+        "dt": 196092
+      },
+      {
+        "id": 1461953934,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 46715802,
+            "name": "Luye"
+          }
+        ],
+        "al": {
+          "name": "The Spread"
+        },
+        "dt": 239674
+      },
+      {
+        "id": 1338465889,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 360823,
+            "name": "Mozzy"
+          },
+          {
+            "id": 792425,
+            "name": "Iamsu!"
+          },
+          {
+            "id": 84935,
+            "name": "Yo Gotti"
+          },
+          {
+            "id": 1024151,
+            "name": "Dej Loaf"
+          }
+        ],
+        "al": {
+          "name": "Gangland Landlord"
+        },
+        "dt": 205333
+      },
+      {
+        "id": 1947119077,
+        "name": "QueenTalk（公主说）",
+        "ar": [
+          {
+            "id": 13450286,
+            "name": "famouswangye",
+            "alias": [
+              "王崇禧"
+            ]
+          },
+          {
+            "id": 36522948,
+            "name": "Weslake",
+            "alias": [
+              "西湖哥"
+            ]
+          },
+          {
+            "id": 49086171,
+            "name": "kellomiii"
+          },
+          {
+            "id": 33021526,
+            "name": "Vinke VK"
+          }
+        ],
+        "al": {
+          "name": "QueenTalk（公主说）"
+        },
+        "dt": 145277
+      },
+      {
+        "id": 408440465,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 37520,
+            "name": "Kanye West",
+            "alias": [
+              "ye"
+            ],
+            "tns": [
+              "坎耶·维斯特"
+            ]
+          },
+          {
+            "id": 72724,
+            "name": "Rihanna",
+            "tns": [
+              "蕾哈娜"
+            ]
+          }
+        ],
+        "al": {
+          "name": "Famous"
+        },
+        "dt": 196040
+      },
+      {
+        "id": 1819490570,
+        "name": "☆Don' t say【prod ZS beatz】",
+        "ar": [
+          {
+            "id": 37621718,
+            "name": "tree"
+          },
+          {
+            "id": 13450286,
+            "name": "famouswangye",
+            "alias": [
+              "王崇禧"
+            ]
+          }
+        ],
+        "al": {
+          "name": "☆//不用多说Don' t say ☆"
+        },
+        "dt": 167902
+      },
+      {
+        "id": 2718608376,
+        "name": "FAMOUS",
+        "ar": [
+          {
+            "id": 98893138,
+            "name": "ALLDAY PROJECT"
+          }
+        ],
+        "al": {
+          "name": "FAMOUS"
+        },
+        "dt": 180353
+      },
+      {
+        "id": 522647397,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 12925126,
+            "name": "Ivy Adara",
+            "alias": [
+              "Kayla Rae Haywood"
+            ]
+          }
+        ],
+        "al": {
+          "name": "Famous"
+        },
+        "dt": 223591
+      },
+      {
+        "id": 2144392719,
+        "name": "famous",
+        "ar": [
+          {
+            "id": 52446054,
+            "name": "Nate Sib"
+          }
+        ],
+        "al": {
+          "name": "famous"
+        },
+        "dt": 106956
+      }
+    ]
+  },
+  "expect": "408440465",
+  "expectRule": "A"
+}

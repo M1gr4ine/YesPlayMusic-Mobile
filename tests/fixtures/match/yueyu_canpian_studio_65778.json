@@ -1,0 +1,1845 @@
+{
+  "name": "yueyu_canpian_studio_65778",
+  "direction": "netease_to_qq",
+  "policy": "PLAYBACK",
+  "rule": "yueyu_canpian_grp_expansion_ranks_exact_master_first",
+  "description": "Real recorded NetEase 65778 (276306ms) -> QQ 粤语残片; expanding grp[] promotes 000SX6cK3Se2WV (306ms gap, same album) to #1 above 000J9BOC3sAUqd (4306ms gap) and supplies 3 studio candidates.",
+  "expandGrp": true,
+  "target": {
+    "id": "65778",
+    "title": "粤语残片",
+    "artist": "陈奕迅",
+    "album": "What's Going On…?",
+    "duration": 276306,
+    "provider": "netease",
+    "artistMembers": [
+      {
+        "name": "陈奕迅",
+        "providerId": "2116",
+        "aliases": [
+          "Eason Chan"
+        ]
+      }
+    ]
+  },
+  "responses": {
+    "粤语残片 陈奕迅": [
+      {
+        "mid": "000J9BOC3sAUqd",
+        "file": {
+          "media_mid": "003BGqJ14ak5uu"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "What's Going On...? (Remastered 2019)"
+        },
+        "interval": 272,
+        "grp": [
+          {
+            "mid": "000SX6cK3Se2WV",
+            "file": {
+              "media_mid": "004MotpJ2JgJfV"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...?"
+            },
+            "interval": 276
+          },
+          {
+            "mid": "000vPmze3aWPCm",
+            "file": {
+              "media_mid": "003zT5k51maUjQ"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 272
+          },
+          {
+            "mid": "00299LKs1nNO45",
+            "file": {
+              "media_mid": "00472xjp3xyEUl"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (2nd Edition)"
+            },
+            "interval": 276
+          }
+        ]
+      },
+      {
+        "mid": "0028qpYH1uolzX",
+        "file": {
+          "media_mid": "003254o74ZDKtG"
+        },
+        "title": "白色球鞋",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "认了吧"
+        },
+        "interval": 278
+      },
+      {
+        "mid": "003oAh0u3RTCv3",
+        "file": {
+          "media_mid": "0044VTIY1sLCbW"
+        },
+        "title": "粤语残片 (Live)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "Eason Moving On Stage 1 (Live)"
+        },
+        "interval": 277
+      },
+      {
+        "mid": "000iAWdB3V89ZR",
+        "file": {
+          "media_mid": "000iAWdB3V89ZR"
+        },
+        "title": "粤语残片 (2025 FEAR and DREAMS世界巡回演唱会澳门站)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 269
+      },
+      {
+        "mid": "001LyLbL26SHYQ",
+        "file": {
+          "media_mid": "001LyLbL26SHYQ"
+        },
+        "title": "粤语残片 (2007香港Eason's Moving On Stage 1 演唱会片段)",
+        "singer": [
+          {
+            "name": "陈奕迅歌迷汇"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 19
+      },
+      {
+        "mid": "004CU50m2JjBjr",
+        "file": {
+          "media_mid": "000wa9ED359rBP"
+        },
+        "title": "单车",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "Shall We Dance? Shall We Talk!"
+        },
+        "interval": 211,
+        "grp": [
+          {
+            "mid": "000WAB4E15BZnf",
+            "file": {
+              "media_mid": "0009MbJQ4RkESQ"
+            },
+            "title": "单车",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "陈奕迅 广东精选"
+            },
+            "interval": 211
+          },
+          {
+            "mid": "001LTWag4CvvuH",
+            "file": {
+              "media_mid": "002RrBjp2pWmuD"
+            },
+            "title": "单车",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Great 5000 Secs"
+            },
+            "interval": 211
+          },
+          {
+            "mid": "001fkuWf2XEsDi",
+            "file": {
+              "media_mid": "002surnQ1mn88Q"
+            },
+            "title": "单车",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Eason 4 A Change & Hits"
+            },
+            "interval": 211
+          },
+          {
+            "mid": "001KFbcO2V0g3K",
+            "file": {
+              "media_mid": "002iLo6Q1KGBMM"
+            },
+            "title": "单车",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Sound & Sight"
+            },
+            "interval": 211
+          },
+          {
+            "mid": "004LYcyH0Uw4KE",
+            "file": {
+              "media_mid": "001atsrB4HxR9e"
+            },
+            "title": "单车",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "陈奕迅48首选"
+            },
+            "interval": 211
+          },
+          {
+            "mid": "003nm0Oj1uw0aA",
+            "file": {
+              "media_mid": "000m3CVm4UCgYW"
+            },
+            "title": "单车",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "陈奕迅 LPCD 45"
+            },
+            "interval": 211
+          },
+          {
+            "mid": "0005H62A2I7Zqk",
+            "file": {
+              "media_mid": "002CzJdc0YPo3G"
+            },
+            "title": "单车",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "我的最好时代"
+            },
+            "interval": 211
+          },
+          {
+            "mid": "002Y9YKQ4OdDYz",
+            "file": {
+              "media_mid": "001VoNPu3DD8aI"
+            },
+            "title": "单车",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "The Best Moment 精选"
+            },
+            "interval": 211
+          },
+          {
+            "mid": "0026DGGX29QRVO",
+            "file": {
+              "media_mid": "002BkxiC0dcUgX"
+            },
+            "title": "单车",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "2013 陈奕迅 Music Life 精选"
+            },
+            "interval": 211
+          }
+        ]
+      },
+      {
+        "mid": "004OvYY92L7iJB",
+        "file": {
+          "media_mid": "004OvYY92L7iJB"
+        },
+        "title": "粤语残片 (DJ 阿若版)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 199
+      },
+      {
+        "mid": "000CXyE50NZOQn",
+        "file": {
+          "media_mid": "000CXyE50NZOQn"
+        },
+        "title": "粤语残片 (DJ 阿雪版)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 350
+      },
+      {
+        "mid": "001OyHbk2MSIi4",
+        "file": {
+          "media_mid": "002AIxAT3HZwiA"
+        },
+        "title": "十年",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "黑白灰"
+        },
+        "interval": 205,
+        "grp": [
+          {
+            "mid": "001ixp014Kmo7p",
+            "file": {
+              "media_mid": "0003Orc72Xkv7Z"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "七"
+            },
+            "interval": 204
+          },
+          {
+            "mid": "000mO0WF1R9JsA",
+            "file": {
+              "media_mid": "000mO0WF1R9JsA"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅"
+              }
+            ],
+            "album": {
+              "name": "校园.告别时"
+            },
+            "interval": 205
+          },
+          {
+            "mid": "000mNhQt1gVcrg",
+            "file": {
+              "media_mid": "002TiJpg3MARRs"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "你的陈奕迅 国语精选"
+            },
+            "interval": 205
+          },
+          {
+            "mid": "000JxX9W1ftm9G",
+            "file": {
+              "media_mid": "000YiwVu3UpsPL"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "The First Eleven Years 然后呢 - 1997-2007陈奕迅跨世纪国语精选"
+            },
+            "interval": 205
+          },
+          {
+            "mid": "002dBjuI3hbAbF",
+            "file": {
+              "media_mid": "000408Y24VAK2i"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "The Best Moment 精选"
+            },
+            "interval": 205
+          },
+          {
+            "mid": "001icY1c4aloGn",
+            "file": {
+              "media_mid": "002tiOd802FLA6"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "2013 陈奕迅 Music Life 精选"
+            },
+            "interval": 205
+          },
+          {
+            "mid": "003sigjM0D8eBs",
+            "file": {
+              "media_mid": "003A9o8X3H9Vfn"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "重拾男人心"
+            },
+            "interval": 207
+          },
+          {
+            "mid": "003yHuUr12KGyp",
+            "file": {
+              "media_mid": "004QZNMQ1ftKLy"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "来生缘"
+            },
+            "interval": 205
+          },
+          {
+            "mid": "000eHDnG32rLTQ",
+            "file": {
+              "media_mid": "000eHDnG32rLTQ"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅"
+              }
+            ],
+            "album": {
+              "name": ""
+            },
+            "interval": 59
+          }
+        ]
+      },
+      {
+        "mid": "0029Zemv0kR1ur",
+        "file": {
+          "media_mid": "000mVAmc4SRnnN"
+        },
+        "title": "葡萄成熟时",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "U 87"
+        },
+        "interval": 277,
+        "grp": [
+          {
+            "mid": "004NOZ3O1pw0R2",
+            "file": {
+              "media_mid": "002cmAWs3bEVMu"
+            },
+            "title": "葡萄成熟时",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 280
+          },
+          {
+            "mid": "000LlwMP3ZSLBQ",
+            "file": {
+              "media_mid": "001pQGAB2arTCI"
+            },
+            "title": "葡萄成熟时",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "同步过冬2020 冀待晴空"
+            },
+            "interval": 279
+          },
+          {
+            "mid": "0028btB23qTDh5",
+            "file": {
+              "media_mid": "002XAP0O3x8IIY"
+            },
+            "title": "葡萄成熟时",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "好人歌集"
+            },
+            "interval": 280
+          },
+          {
+            "mid": "004QdO8o3PZKGa",
+            "file": {
+              "media_mid": "003LMTHy2mdGtu"
+            },
+            "title": "葡萄成熟时",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "最爱情歌集 2"
+            },
+            "interval": 279
+          },
+          {
+            "mid": "004UB7jP4Bvka7",
+            "file": {
+              "media_mid": "000j9q6O3id9nl"
+            },
+            "title": "葡萄成熟时",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Y100"
+            },
+            "interval": 279
+          },
+          {
+            "mid": "0029076Q0CmOfj",
+            "file": {
+              "media_mid": "0029076Q0CmOfj"
+            },
+            "title": "葡萄成熟时",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Y100 (Evil版) #"
+            },
+            "interval": 280
+          }
+        ]
+      }
+    ],
+    "粤语残片 Eason Chan": [
+      {
+        "mid": "000J9BOC3sAUqd",
+        "file": {
+          "media_mid": "003BGqJ14ak5uu"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "What's Going On...? (Remastered 2019)"
+        },
+        "interval": 272,
+        "grp": [
+          {
+            "mid": "000SX6cK3Se2WV",
+            "file": {
+              "media_mid": "004MotpJ2JgJfV"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...?"
+            },
+            "interval": 276
+          },
+          {
+            "mid": "000vPmze3aWPCm",
+            "file": {
+              "media_mid": "003zT5k51maUjQ"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 272
+          },
+          {
+            "mid": "00299LKs1nNO45",
+            "file": {
+              "media_mid": "00472xjp3xyEUl"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (2nd Edition)"
+            },
+            "interval": 276
+          }
+        ]
+      },
+      {
+        "mid": "0028qpYH1uolzX",
+        "file": {
+          "media_mid": "003254o74ZDKtG"
+        },
+        "title": "白色球鞋",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "认了吧"
+        },
+        "interval": 278
+      },
+      {
+        "mid": "003oAh0u3RTCv3",
+        "file": {
+          "media_mid": "0044VTIY1sLCbW"
+        },
+        "title": "粤语残片 (Live)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "Eason Moving On Stage 1 (Live)"
+        },
+        "interval": 277
+      },
+      {
+        "mid": "000iAWdB3V89ZR",
+        "file": {
+          "media_mid": "000iAWdB3V89ZR"
+        },
+        "title": "粤语残片 (2025 FEAR and DREAMS世界巡回演唱会澳门站)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 269
+      },
+      {
+        "mid": "003hFxQh276Cv5",
+        "file": {
+          "media_mid": "003C9fBv2K4x8b"
+        },
+        "title": "最佳损友",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "Life Continues"
+        },
+        "interval": 233,
+        "grp": [
+          {
+            "mid": "004FjF3x030GHh",
+            "file": {
+              "media_mid": "001wtmXq0gIYMy"
+            },
+            "title": "最佳损友",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 235
+          },
+          {
+            "mid": "004UKDNj2eOV35",
+            "file": {
+              "media_mid": "001BNGdJ3mAeZa"
+            },
+            "title": "最佳损友",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "细听... 细说"
+            },
+            "interval": 236
+          },
+          {
+            "mid": "003gSl9d05t74K",
+            "file": {
+              "media_mid": "001a1wxD0mb6M0"
+            },
+            "title": "最佳损友",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Love 07 情歌集"
+            },
+            "interval": 235
+          },
+          {
+            "mid": "001VP5BF3en2K4",
+            "file": {
+              "media_mid": "0025rYl5320AN7"
+            },
+            "title": "最佳损友",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Eric Kwok's Leet Collection"
+            },
+            "interval": 235
+          },
+          {
+            "mid": "003eD3fy178OTf",
+            "file": {
+              "media_mid": "002rreXN0IQxqf"
+            },
+            "title": "最佳损友",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "我最喜爱的Eric Kwok作品展"
+            },
+            "interval": 235
+          },
+          {
+            "mid": "003Ckibh24lPM6",
+            "file": {
+              "media_mid": "002Qvb7K0Kuncc"
+            },
+            "title": "最佳损友",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "港乐不息 Vol.3"
+            },
+            "interval": 235
+          },
+          {
+            "mid": "003vDXlV356TLK",
+            "file": {
+              "media_mid": "002BJSFx12VexF"
+            },
+            "title": "最佳损友",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "最爱情歌集"
+            },
+            "interval": 235
+          },
+          {
+            "mid": "002Jsa7V3TTq82",
+            "file": {
+              "media_mid": "001Vamoa3AW3le"
+            },
+            "title": "最佳损友",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Y100"
+            },
+            "interval": 237
+          },
+          {
+            "mid": "00163kDi09gRqj",
+            "file": {
+              "media_mid": "00163kDi09gRqj"
+            },
+            "title": "最佳损友",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Y100 (Evil版) #"
+            },
+            "interval": 235
+          }
+        ]
+      },
+      {
+        "mid": "001OyHbk2MSIi4",
+        "file": {
+          "media_mid": "002AIxAT3HZwiA"
+        },
+        "title": "十年",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "黑白灰"
+        },
+        "interval": 205,
+        "grp": [
+          {
+            "mid": "001ixp014Kmo7p",
+            "file": {
+              "media_mid": "0003Orc72Xkv7Z"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "七"
+            },
+            "interval": 204
+          },
+          {
+            "mid": "000mNhQt1gVcrg",
+            "file": {
+              "media_mid": "002TiJpg3MARRs"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "你的陈奕迅 国语精选"
+            },
+            "interval": 205
+          },
+          {
+            "mid": "000JxX9W1ftm9G",
+            "file": {
+              "media_mid": "000YiwVu3UpsPL"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "The First Eleven Years 然后呢 - 1997-2007陈奕迅跨世纪国语精选"
+            },
+            "interval": 205
+          },
+          {
+            "mid": "002dBjuI3hbAbF",
+            "file": {
+              "media_mid": "000408Y24VAK2i"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "The Best Moment 精选"
+            },
+            "interval": 205
+          },
+          {
+            "mid": "001icY1c4aloGn",
+            "file": {
+              "media_mid": "002tiOd802FLA6"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "2013 陈奕迅 Music Life 精选"
+            },
+            "interval": 205
+          },
+          {
+            "mid": "003sigjM0D8eBs",
+            "file": {
+              "media_mid": "003A9o8X3H9Vfn"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "重拾男人心"
+            },
+            "interval": 207
+          },
+          {
+            "mid": "003yHuUr12KGyp",
+            "file": {
+              "media_mid": "004QZNMQ1ftKLy"
+            },
+            "title": "十年",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "来生缘"
+            },
+            "interval": 205
+          }
+        ]
+      },
+      {
+        "mid": "00184ejM4XouuN",
+        "file": {
+          "media_mid": "0044JENG3wauKs"
+        },
+        "title": "孤独患者",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "?"
+        },
+        "interval": 273,
+        "grp": [
+          {
+            "mid": "002fTdfy3Yi9ZS",
+            "file": {
+              "media_mid": "003iMGMm3nJBER"
+            },
+            "title": "孤独患者",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "港乐不息 Vol.4"
+            },
+            "interval": 273
+          }
+        ]
+      },
+      {
+        "mid": "003aAPj81VWrbL",
+        "file": {
+          "media_mid": "001dXZ352YGvqU"
+        },
+        "title": "富士山下",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "What's Going On...?"
+        },
+        "interval": 259,
+        "grp": [
+          {
+            "mid": "003dtkNk26WhJD",
+            "file": {
+              "media_mid": "003Ips4s2x6QNa"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (Remastered 2019)"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "003XWY492TSVbG",
+            "file": {
+              "media_mid": "003nVgcd4eBWea"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 257
+          },
+          {
+            "mid": "004RqD2d10eSlu",
+            "file": {
+              "media_mid": "003nIv5T4Q4YRk"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (2nd Edition)"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "000q17Jj3cgSYO",
+            "file": {
+              "media_mid": "001mMgoy4KWdAV"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Love 07 情歌集"
+            },
+            "interval": 258
+          },
+          {
+            "mid": "001pVtIm0ADwAI",
+            "file": {
+              "media_mid": "000eHBg93WNfw6"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Celebration 45th Anniversary 环球志101"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "0021ZQv24LRRfS",
+            "file": {
+              "media_mid": "0021ZQv24LRRfS"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "逛街随身听 BGM (Explicit)"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "004bk9Xc2m1OVI",
+            "file": {
+              "media_mid": "003r17qO1Wxccp"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "环球主打热选指南"
+            },
+            "interval": 257
+          },
+          {
+            "mid": "002irOLa08Jb6A",
+            "file": {
+              "media_mid": "003TpOCl1SfeWh"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "最爱情歌集"
+            },
+            "interval": 258
+          },
+          {
+            "mid": "004fy05K1cfbUU",
+            "file": {
+              "media_mid": "0009uTIW2P9mlb"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Nights of Missing You (想你的夜)"
+            },
+            "interval": 259
+          }
+        ]
+      },
+      {
+        "mid": "0029dqHX0nuawd",
+        "file": {
+          "media_mid": "001rl53U1GyX4O"
+        },
+        "title": "淘汰",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "认了吧"
+        },
+        "interval": 285,
+        "grp": [
+          {
+            "mid": "0019iwvb1qQiEB",
+            "file": {
+              "media_mid": "003KAden09oD0i"
+            },
+            "title": "淘汰",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "尝味.人生 - 百味华语作品集"
+            },
+            "interval": 285
+          },
+          {
+            "mid": "003Ghyin3xwsj5",
+            "file": {
+              "media_mid": "001rWCol3XCDNW"
+            },
+            "title": "淘汰",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Love 07 情歌集 压轴篇"
+            },
+            "interval": 285
+          },
+          {
+            "mid": "0048X96S4M7FjB",
+            "file": {
+              "media_mid": "004U1EoR2fVmEZ"
+            },
+            "title": "淘汰",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "The First Eleven Years 然后呢 - 1997-2007陈奕迅跨世纪国语精选"
+            },
+            "interval": 287
+          },
+          {
+            "mid": "00040EG32Hs33p",
+            "file": {
+              "media_mid": "003NNGzq0RVjcL"
+            },
+            "title": "淘汰",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "爱你，那些年 国语情歌精选"
+            },
+            "interval": 285
+          },
+          {
+            "mid": "001jKUty2ZORYs",
+            "file": {
+              "media_mid": "003kPAEJ1X9ZLY"
+            },
+            "title": "淘汰",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Nights of Missing You (想你的夜)"
+            },
+            "interval": 284
+          }
+        ]
+      },
+      {
+        "mid": "004M3yRr3kOfnS",
+        "file": {
+          "media_mid": "003F61X945THrw"
+        },
+        "title": "好久不见",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "认了吧"
+        },
+        "interval": 250,
+        "grp": [
+          {
+            "mid": "002iRo9l0laGny",
+            "file": {
+              "media_mid": "002iRo9l0laGny"
+            },
+            "title": "好久不见",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Jing Dian Hui Fang Bao Jiang Jing Dian De Mei Li Gan (Explicit)"
+            },
+            "interval": 250
+          },
+          {
+            "mid": "000scCjw12aSEW",
+            "file": {
+              "media_mid": "002Py4nE0e6OdS"
+            },
+            "title": "好久不见",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "The First Eleven Years 然后呢 - 1997-2007陈奕迅跨世纪国语精选"
+            },
+            "interval": 250
+          }
+        ]
+      }
+    ],
+    "粤语残片": [
+      {
+        "mid": "000J9BOC3sAUqd",
+        "file": {
+          "media_mid": "003BGqJ14ak5uu"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "What's Going On...? (Remastered 2019)"
+        },
+        "interval": 272,
+        "grp": [
+          {
+            "mid": "000SX6cK3Se2WV",
+            "file": {
+              "media_mid": "004MotpJ2JgJfV"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...?"
+            },
+            "interval": 276
+          },
+          {
+            "mid": "000vPmze3aWPCm",
+            "file": {
+              "media_mid": "003zT5k51maUjQ"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 272
+          },
+          {
+            "mid": "00299LKs1nNO45",
+            "file": {
+              "media_mid": "00472xjp3xyEUl"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (2nd Edition)"
+            },
+            "interval": 276
+          }
+        ]
+      },
+      {
+        "mid": "003oAh0u3RTCv3",
+        "file": {
+          "media_mid": "0044VTIY1sLCbW"
+        },
+        "title": "粤语残片 (Live)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "Eason Moving On Stage 1 (Live)"
+        },
+        "interval": 277
+      },
+      {
+        "mid": "003aAPj81VWrbL",
+        "file": {
+          "media_mid": "001dXZ352YGvqU"
+        },
+        "title": "富士山下",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "What's Going On...?"
+        },
+        "interval": 259,
+        "grp": [
+          {
+            "mid": "003dtkNk26WhJD",
+            "file": {
+              "media_mid": "003Ips4s2x6QNa"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (Remastered 2019)"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "003XWY492TSVbG",
+            "file": {
+              "media_mid": "003nVgcd4eBWea"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 257
+          },
+          {
+            "mid": "004RqD2d10eSlu",
+            "file": {
+              "media_mid": "003nIv5T4Q4YRk"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (2nd Edition)"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "000q17Jj3cgSYO",
+            "file": {
+              "media_mid": "001mMgoy4KWdAV"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Love 07 情歌集"
+            },
+            "interval": 258
+          },
+          {
+            "mid": "001pVtIm0ADwAI",
+            "file": {
+              "media_mid": "000eHBg93WNfw6"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Celebration 45th Anniversary 环球志101"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "0021ZQv24LRRfS",
+            "file": {
+              "media_mid": "0021ZQv24LRRfS"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "逛街随身听 BGM (Explicit)"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "004bk9Xc2m1OVI",
+            "file": {
+              "media_mid": "003r17qO1Wxccp"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "环球主打热选指南"
+            },
+            "interval": 257
+          },
+          {
+            "mid": "002irOLa08Jb6A",
+            "file": {
+              "media_mid": "003TpOCl1SfeWh"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "最爱情歌集"
+            },
+            "interval": 258
+          },
+          {
+            "mid": "004fy05K1cfbUU",
+            "file": {
+              "media_mid": "0009uTIW2P9mlb"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Nights of Missing You (想你的夜)"
+            },
+            "interval": 259
+          }
+        ]
+      },
+      {
+        "mid": "0028qpYH1uolzX",
+        "file": {
+          "media_mid": "003254o74ZDKtG"
+        },
+        "title": "白色球鞋",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "认了吧"
+        },
+        "interval": 278
+      },
+      {
+        "mid": "000iAWdB3V89ZR",
+        "file": {
+          "media_mid": "000iAWdB3V89ZR"
+        },
+        "title": "粤语残片 (2025 FEAR and DREAMS世界巡回演唱会澳门站)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 269
+      },
+      {
+        "mid": "000wWq2w1LzD1n",
+        "file": {
+          "media_mid": "000wWq2w1LzD1n"
+        },
+        "title": "粤语残片 (Live)",
+        "singer": [
+          {
+            "name": "我唔系肥晴"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 73
+      },
+      {
+        "mid": "000dSwZh0izxIu",
+        "file": {
+          "media_mid": "000dSwZh0izxIu"
+        },
+        "title": "粤语残片 (女生氛围版)",
+        "singer": [
+          {
+            "name": "信知夏",
+            "mid": "000Gar9C1hq7al"
+          }
+        ],
+        "album": {
+          "name": "粤语残片(女生氛围版)"
+        },
+        "interval": 136
+      },
+      {
+        "mid": "001XMyfL3yXL65",
+        "file": {
+          "media_mid": "001XMyfL3yXL65"
+        },
+        "title": "粤语残片 (港风女声版)",
+        "singer": [
+          {
+            "name": "嘉欣",
+            "mid": "0015LMbI4WQdwT"
+          }
+        ],
+        "album": {
+          "name": "粤语残片（港风女声版）"
+        },
+        "interval": 284
+      },
+      {
+        "mid": "000VNlcM0udCXc",
+        "file": {
+          "media_mid": "000VNlcM0udCXc"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "狸昭昭Kumo",
+            "mid": "0011ndtR10IHcP"
+          }
+        ],
+        "album": {
+          "name": "粵語殘片"
+        },
+        "interval": 275
+      },
+      {
+        "mid": "002SRKJw2U4hxz",
+        "file": {
+          "media_mid": "002SRKJw2U4hxz"
+        },
+        "title": "白色球鞋(粤语残片)",
+        "singer": [
+          {
+            "name": "都叫我老詹",
+            "mid": "0029XCLe3K14VE"
+          }
+        ],
+        "album": {
+          "name": "白色球鞋"
+        },
+        "interval": 260
+      }
+    ]
+  },
+  "expect": "qq:000SX6cK3Se2WV",
+  "expectRule": "A",
+  "expectTop3": [
+    "qq:000SX6cK3Se2WV",
+    "qq:000J9BOC3sAUqd",
+    "qq:00299LKs1nNO45"
+  ]
+}

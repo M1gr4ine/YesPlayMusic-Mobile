@@ -1,0 +1,705 @@
+{
+  "name": "yueyu_canpian_live_65269",
+  "direction": "netease_to_qq",
+  "policy": "PLAYBACK",
+  "rule": "rule_a3_one_sided_live_year_same_live_album",
+  "description": "Real recorded NetEase 65269 粤语残片 (2007 Live) -> QQ 粤语残片 (Live) 003oAh0u3RTCv3 on exact same live album Eason Moving On Stage 1 (Live) (223ms gap), while 2025 tour live and covers stay rejected.",
+  "expandGrp": true,
+  "target": {
+    "id": "65269",
+    "title": "粤语残片 (2007 Live)",
+    "artist": "陈奕迅",
+    "album": "Eason Moving On Stage 1 (Live)",
+    "duration": 277223,
+    "provider": "netease",
+    "artistMembers": [
+      {
+        "name": "陈奕迅",
+        "providerId": "2116",
+        "aliases": [
+          "Eason Chan"
+        ]
+      }
+    ]
+  },
+  "responses": {
+    "粤语残片 (2007 Live) 陈奕迅": [
+      {
+        "mid": "001LyLbL26SHYQ",
+        "file": {
+          "media_mid": "001LyLbL26SHYQ"
+        },
+        "title": "粤语残片 (2007香港Eason's Moving On Stage 1 演唱会片段)",
+        "singer": [
+          {
+            "name": "陈奕迅歌迷汇"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 19
+      },
+      {
+        "mid": "000J9BOC3sAUqd",
+        "file": {
+          "media_mid": "003BGqJ14ak5uu"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "What's Going On...? (Remastered 2019)"
+        },
+        "interval": 272,
+        "grp": [
+          {
+            "mid": "000SX6cK3Se2WV",
+            "file": {
+              "media_mid": "004MotpJ2JgJfV"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...?"
+            },
+            "interval": 276
+          },
+          {
+            "mid": "000vPmze3aWPCm",
+            "file": {
+              "media_mid": "003zT5k51maUjQ"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 272
+          },
+          {
+            "mid": "00299LKs1nNO45",
+            "file": {
+              "media_mid": "00472xjp3xyEUl"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (2nd Edition)"
+            },
+            "interval": 276
+          }
+        ]
+      },
+      {
+        "mid": "0028qpYH1uolzX",
+        "file": {
+          "media_mid": "003254o74ZDKtG"
+        },
+        "title": "白色球鞋",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "认了吧"
+        },
+        "interval": 278
+      },
+      {
+        "mid": "003oAh0u3RTCv3",
+        "file": {
+          "media_mid": "0044VTIY1sLCbW"
+        },
+        "title": "粤语残片 (Live)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "Eason Moving On Stage 1 (Live)"
+        },
+        "interval": 277
+      },
+      {
+        "mid": "002SRKJw2U4hxz",
+        "file": {
+          "media_mid": "002SRKJw2U4hxz"
+        },
+        "title": "白色球鞋(粤语残片)",
+        "singer": [
+          {
+            "name": "都叫我老詹",
+            "mid": "0029XCLe3K14VE"
+          }
+        ],
+        "album": {
+          "name": "白色球鞋"
+        },
+        "interval": 260
+      },
+      {
+        "mid": "000dSwZh0izxIu",
+        "file": {
+          "media_mid": "000dSwZh0izxIu"
+        },
+        "title": "粤语残片 (女生氛围版)",
+        "singer": [
+          {
+            "name": "信知夏",
+            "mid": "000Gar9C1hq7al"
+          }
+        ],
+        "album": {
+          "name": "粤语残片(女生氛围版)"
+        },
+        "interval": 136
+      },
+      {
+        "mid": "001XMyfL3yXL65",
+        "file": {
+          "media_mid": "001XMyfL3yXL65"
+        },
+        "title": "粤语残片 (港风女声版)",
+        "singer": [
+          {
+            "name": "嘉欣",
+            "mid": "0015LMbI4WQdwT"
+          }
+        ],
+        "album": {
+          "name": "粤语残片（港风女声版）"
+        },
+        "interval": 284
+      },
+      {
+        "mid": "000iAWdB3V89ZR",
+        "file": {
+          "media_mid": "000iAWdB3V89ZR"
+        },
+        "title": "粤语残片 (2025 FEAR and DREAMS世界巡回演唱会澳门站)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 269
+      },
+      {
+        "mid": "001YzPkf18A8U4",
+        "file": {
+          "media_mid": "001YzPkf18A8U4"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "叫我阿顶",
+            "mid": "000miVmW351ktb"
+          }
+        ],
+        "album": {
+          "name": "顶级黑粉翻唱集"
+        },
+        "interval": 271
+      },
+      {
+        "mid": "000VNlcM0udCXc",
+        "file": {
+          "media_mid": "000VNlcM0udCXc"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "狸昭昭Kumo",
+            "mid": "0011ndtR10IHcP"
+          }
+        ],
+        "album": {
+          "name": "粵語殘片"
+        },
+        "interval": 275
+      }
+    ],
+    "粤语残片 (2007 Live) Eason Chan": [
+      {
+        "mid": "000J9BOC3sAUqd",
+        "file": {
+          "media_mid": "003BGqJ14ak5uu"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "What's Going On...? (Remastered 2019)"
+        },
+        "interval": 272,
+        "grp": [
+          {
+            "mid": "000SX6cK3Se2WV",
+            "file": {
+              "media_mid": "004MotpJ2JgJfV"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...?"
+            },
+            "interval": 276
+          },
+          {
+            "mid": "000vPmze3aWPCm",
+            "file": {
+              "media_mid": "003zT5k51maUjQ"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 272
+          },
+          {
+            "mid": "00299LKs1nNO45",
+            "file": {
+              "media_mid": "00472xjp3xyEUl"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (2nd Edition)"
+            },
+            "interval": 276
+          }
+        ]
+      },
+      {
+        "mid": "000dSwZh0izxIu",
+        "file": {
+          "media_mid": "000dSwZh0izxIu"
+        },
+        "title": "粤语残片 (女生氛围版)",
+        "singer": [
+          {
+            "name": "信知夏",
+            "mid": "000Gar9C1hq7al"
+          }
+        ],
+        "album": {
+          "name": "粤语残片(女生氛围版)"
+        },
+        "interval": 136
+      },
+      {
+        "mid": "001XMyfL3yXL65",
+        "file": {
+          "media_mid": "001XMyfL3yXL65"
+        },
+        "title": "粤语残片 (港风女声版)",
+        "singer": [
+          {
+            "name": "嘉欣",
+            "mid": "0015LMbI4WQdwT"
+          }
+        ],
+        "album": {
+          "name": "粤语残片（港风女声版）"
+        },
+        "interval": 284
+      },
+      {
+        "mid": "0028qpYH1uolzX",
+        "file": {
+          "media_mid": "003254o74ZDKtG"
+        },
+        "title": "白色球鞋",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "认了吧"
+        },
+        "interval": 278
+      },
+      {
+        "mid": "000VNlcM0udCXc",
+        "file": {
+          "media_mid": "000VNlcM0udCXc"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "狸昭昭Kumo",
+            "mid": "0011ndtR10IHcP"
+          }
+        ],
+        "album": {
+          "name": "粵語殘片"
+        },
+        "interval": 275
+      },
+      {
+        "mid": "001YzPkf18A8U4",
+        "file": {
+          "media_mid": "001YzPkf18A8U4"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "叫我阿顶",
+            "mid": "000miVmW351ktb"
+          }
+        ],
+        "album": {
+          "name": "顶级黑粉翻唱集"
+        },
+        "interval": 271
+      },
+      {
+        "mid": "000wWq2w1LzD1n",
+        "file": {
+          "media_mid": "000wWq2w1LzD1n"
+        },
+        "title": "粤语残片 (Live)",
+        "singer": [
+          {
+            "name": "我唔系肥晴"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 73
+      },
+      {
+        "mid": "002iyI3j2kwwPB",
+        "file": {
+          "media_mid": "002iyI3j2kwwPB"
+        },
+        "title": "粤语残片 (纯享版)",
+        "singer": [
+          {
+            "name": "刘艺哲",
+            "mid": "003SbBYW3W6UfY"
+          }
+        ],
+        "album": {
+          "name": "粤语残片(纯享版)"
+        },
+        "interval": 156
+      },
+      {
+        "mid": "0021OHcD1nJkEJ",
+        "file": {
+          "media_mid": "0019D8Mi1Kkhx5"
+        },
+        "title": "粤语残片 (Live)",
+        "singer": [
+          {
+            "name": "木白",
+            "mid": "003bggoZ3oTGDX"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 270
+      },
+      {
+        "mid": "0042Hy9q3wkzb7",
+        "file": {
+          "media_mid": "0042Hy9q3wkzb7"
+        },
+        "title": "粤语残片 (R&B版)",
+        "singer": [
+          {
+            "name": "金亦",
+            "mid": "00264jdm2wqcrm"
+          },
+          {
+            "name": "陆琪琪",
+            "mid": "003RsnEq23NUnP"
+          }
+        ],
+        "album": {
+          "name": "2026热门情歌R&B珍藏版"
+        },
+        "interval": 253
+      }
+    ],
+    "粤语残片 (2007 Live)": [
+      {
+        "mid": "000J9BOC3sAUqd",
+        "file": {
+          "media_mid": "003BGqJ14ak5uu"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "What's Going On...? (Remastered 2019)"
+        },
+        "interval": 272,
+        "grp": [
+          {
+            "mid": "000SX6cK3Se2WV",
+            "file": {
+              "media_mid": "004MotpJ2JgJfV"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...?"
+            },
+            "interval": 276
+          },
+          {
+            "mid": "000vPmze3aWPCm",
+            "file": {
+              "media_mid": "003zT5k51maUjQ"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 272
+          },
+          {
+            "mid": "00299LKs1nNO45",
+            "file": {
+              "media_mid": "00472xjp3xyEUl"
+            },
+            "title": "粤语残片",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (2nd Edition)"
+            },
+            "interval": 276
+          }
+        ]
+      },
+      {
+        "mid": "0028qpYH1uolzX",
+        "file": {
+          "media_mid": "003254o74ZDKtG"
+        },
+        "title": "白色球鞋",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "认了吧"
+        },
+        "interval": 278
+      },
+      {
+        "mid": "003oAh0u3RTCv3",
+        "file": {
+          "media_mid": "0044VTIY1sLCbW"
+        },
+        "title": "粤语残片 (Live)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "Eason Moving On Stage 1 (Live)"
+        },
+        "interval": 277
+      },
+      {
+        "mid": "000dSwZh0izxIu",
+        "file": {
+          "media_mid": "000dSwZh0izxIu"
+        },
+        "title": "粤语残片 (女生氛围版)",
+        "singer": [
+          {
+            "name": "信知夏",
+            "mid": "000Gar9C1hq7al"
+          }
+        ],
+        "album": {
+          "name": "粤语残片(女生氛围版)"
+        },
+        "interval": 136
+      },
+      {
+        "mid": "000iAWdB3V89ZR",
+        "file": {
+          "media_mid": "000iAWdB3V89ZR"
+        },
+        "title": "粤语残片 (2025 FEAR and DREAMS世界巡回演唱会澳门站)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 269
+      },
+      {
+        "mid": "001XMyfL3yXL65",
+        "file": {
+          "media_mid": "001XMyfL3yXL65"
+        },
+        "title": "粤语残片 (港风女声版)",
+        "singer": [
+          {
+            "name": "嘉欣",
+            "mid": "0015LMbI4WQdwT"
+          }
+        ],
+        "album": {
+          "name": "粤语残片（港风女声版）"
+        },
+        "interval": 284
+      },
+      {
+        "mid": "002SRKJw2U4hxz",
+        "file": {
+          "media_mid": "002SRKJw2U4hxz"
+        },
+        "title": "白色球鞋(粤语残片)",
+        "singer": [
+          {
+            "name": "都叫我老詹",
+            "mid": "0029XCLe3K14VE"
+          }
+        ],
+        "album": {
+          "name": "白色球鞋"
+        },
+        "interval": 260
+      },
+      {
+        "mid": "000VNlcM0udCXc",
+        "file": {
+          "media_mid": "000VNlcM0udCXc"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "狸昭昭Kumo",
+            "mid": "0011ndtR10IHcP"
+          }
+        ],
+        "album": {
+          "name": "粵語殘片"
+        },
+        "interval": 275
+      },
+      {
+        "mid": "000wWq2w1LzD1n",
+        "file": {
+          "media_mid": "000wWq2w1LzD1n"
+        },
+        "title": "粤语残片 (Live)",
+        "singer": [
+          {
+            "name": "我唔系肥晴"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 73
+      },
+      {
+        "mid": "001YzPkf18A8U4",
+        "file": {
+          "media_mid": "001YzPkf18A8U4"
+        },
+        "title": "粤语残片",
+        "singer": [
+          {
+            "name": "叫我阿顶",
+            "mid": "000miVmW351ktb"
+          }
+        ],
+        "album": {
+          "name": "顶级黑粉翻唱集"
+        },
+        "interval": 271
+      }
+    ]
+  },
+  "expect": "qq:003oAh0u3RTCv3",
+  "expectRule": "A"
+}

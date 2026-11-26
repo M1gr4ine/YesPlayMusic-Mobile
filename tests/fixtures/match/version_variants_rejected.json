@@ -1,0 +1,332 @@
+{
+  "name": "version_variants_rejected",
+  "direction": "netease_to_qq",
+  "policy": "PLAYBACK",
+  "rule": "hard_gate_version_blocks_vocal_dj_variants",
+  "description": "Real QQ hits for 最后派对 陈奕迅 with studio recording absent; 女版 (312s, 0.4s gap) and DJ/x/片段 variants stay rejected.",
+  "expandGrp": true,
+  "target": {
+    "id": "64288",
+    "title": "最后派对",
+    "artist": "陈奕迅",
+    "album": "Stranger Under My Skin",
+    "duration": 311600,
+    "provider": "netease",
+    "artistMembers": [
+      {
+        "name": "陈奕迅",
+        "providerId": "2116",
+        "aliases": [
+          "Eason Chan"
+        ]
+      }
+    ]
+  },
+  "responses": {
+    "最后派对 陈奕迅": [
+      {
+        "mid": "0042iavl0dwkCp",
+        "file": {
+          "media_mid": "0042iavl0dwkCp"
+        },
+        "title": "最后派对 (x)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 304
+      },
+      {
+        "mid": "0049hlmq0GsM7o",
+        "file": {
+          "media_mid": "0049hlmq0GsM7o"
+        },
+        "title": "最后派对 (片段版)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 30
+      },
+      {
+        "mid": "000YFcMU2INxHD",
+        "file": {
+          "media_mid": "000YFcMU2INxHD"
+        },
+        "title": "最后派对 (DJ Solstice晦朔版)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 242
+      },
+      {
+        "mid": "002V8NnW1Bxy5M",
+        "file": {
+          "media_mid": "002V8NnW1Bxy5M"
+        },
+        "title": "最后派对 (DJ LayE版)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 294
+      },
+      {
+        "mid": "003aAPj81VWrbL",
+        "file": {
+          "media_mid": "001dXZ352YGvqU"
+        },
+        "title": "富士山下",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "What's Going On...?"
+        },
+        "interval": 259,
+        "grp": [
+          {
+            "mid": "003dtkNk26WhJD",
+            "file": {
+              "media_mid": "003Ips4s2x6QNa"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (Remastered 2019)"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "003XWY492TSVbG",
+            "file": {
+              "media_mid": "003nVgcd4eBWea"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Solidays (2 CD)"
+            },
+            "interval": 257
+          },
+          {
+            "mid": "004RqD2d10eSlu",
+            "file": {
+              "media_mid": "003nIv5T4Q4YRk"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (2nd Edition)"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "000q17Jj3cgSYO",
+            "file": {
+              "media_mid": "001mMgoy4KWdAV"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Love 07 情歌集"
+            },
+            "interval": 258
+          },
+          {
+            "mid": "001pVtIm0ADwAI",
+            "file": {
+              "media_mid": "000eHBg93WNfw6"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Celebration 45th Anniversary 环球志101"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "0021ZQv24LRRfS",
+            "file": {
+              "media_mid": "0021ZQv24LRRfS"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "逛街随身听 BGM (Explicit)"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "004bk9Xc2m1OVI",
+            "file": {
+              "media_mid": "003r17qO1Wxccp"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "环球主打热选指南"
+            },
+            "interval": 257
+          },
+          {
+            "mid": "002irOLa08Jb6A",
+            "file": {
+              "media_mid": "003TpOCl1SfeWh"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "最爱情歌集"
+            },
+            "interval": 258
+          },
+          {
+            "mid": "004fy05K1cfbUU",
+            "file": {
+              "media_mid": "0009uTIW2P9mlb"
+            },
+            "title": "富士山下",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Nights of Missing You (想你的夜)"
+            },
+            "interval": 259
+          }
+        ]
+      },
+      {
+        "mid": "001z7iVD0jLf4s",
+        "file": {
+          "media_mid": "001z7iVD0jLf4s"
+        },
+        "title": "最后派对 (女版)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 312
+      },
+      {
+        "mid": "001kHdIp3KTxqD",
+        "file": {
+          "media_mid": "001kHdIp3KTxqD"
+        },
+        "title": "最后派对 (​DJ IónaLee版)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 417
+      },
+      {
+        "mid": "001bXj4R3J12NZ",
+        "file": {
+          "media_mid": "001KkAjz0PlpJt"
+        },
+        "title": "最后派对",
+        "singer": [
+          {
+            "name": "单",
+            "mid": "000C3JwC3vPhD7"
+          }
+        ],
+        "album": {
+          "name": "陈奕迅"
+        },
+        "interval": 114
+      },
+      {
+        "mid": "002xbMhR4Mb72f",
+        "file": {
+          "media_mid": "002xbMhR4Mb72f"
+        },
+        "title": "最后派对 (DJ 阿若版)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 256
+      }
+    ]
+  },
+  "expect": "reject",
+  "expectRule": "NONE"
+}

@@ -1,0 +1,52 @@
+{
+  "name": "duo_ampersand_vs_slash_rejected",
+  "direction": "netease_to_qq",
+  "policy": "PLAYBACK",
+  "rule": "grouping_conflict_ampersand_vs_slash_veto",
+  "description": "Structured single duo Simon & Garfunkel must not match split two-artist Simon / Garfunkel even on same album (vetoes both A and B).",
+  "expandGrp": false,
+  "target": {
+    "id": "21598326",
+    "title": "The Sound Of Silence",
+    "artist": "Simon & Garfunkel",
+    "album": "Sounds Of Silence",
+    "duration": 185626,
+    "provider": "netease",
+    "artistMembers": [
+      {
+        "name": "Simon & Garfunkel",
+        "providerId": "185017",
+        "aliases": [
+          "西蒙和加芬克尔"
+        ]
+      }
+    ]
+  },
+  "responses": {
+    "The Sound Of Silence Simon & Garfunkel": [
+      {
+        "mid": "000hzYbD0kNQrx",
+        "file": {
+          "media_mid": "001Rx7a62bU85N"
+        },
+        "title": "The Sound of Silence",
+        "singer": [
+          {
+            "name": "Simon",
+            "mid": "s1"
+          },
+          {
+            "name": "Garfunkel",
+            "mid": "s2"
+          }
+        ],
+        "album": {
+          "name": "Sounds Of Silence"
+        },
+        "interval": 185
+      }
+    ]
+  },
+  "expect": "reject",
+  "expectRule": "NONE"
+}

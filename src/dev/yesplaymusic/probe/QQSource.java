@@ -423,7 +423,7 @@ public final class QQSource {
         return file == null ? "" : validMid(file.opt("media_mid"));
     }
 
-    private static JSONObject toTrack(JSONObject song) throws Exception {
+    static JSONObject toTrack(JSONObject song) throws Exception {
         JSONArray singers = song.optJSONArray("singer");
         StringBuilder artist = new StringBuilder();
         for (int i = 0; singers != null && i < singers.length(); i++) {
@@ -448,6 +448,63 @@ public final class QQSource {
                 .put("duration", song.optLong("interval", 0) * 1000L);
         if (artistMembers.length() > 0) track.put("artistMembers", artistMembers);
         return track;
+    }
+
+    /**
+     * Converts raw QQ search hits into {@link TrackMatcher.Candidate}s for matching, optionally expanding
+     * {@code grp[]} child editions. Each child is independently validated for {@code mid} and
+     * {@code file.media_mid}, even when its parent lacks a playable file MID.
+     */
+    static List<TrackMatcher.Candidate> extractMatchCandidates(JSONArray songs, boolean expandGrp,
+                                                               MatchTrace trace, String round) throws Exception {
+        List<TrackMatcher.Candidate> out = new ArrayList<>();
+        if (songs == null) return out;
+        for (int i = 0; i < songs.length(); i++) {
+            JSONObject item = songs.optJSONObject(i);
+            String parentMid = songMid(item);
+            String parentMedia = fileMid(item);
+            if (parentMid.isEmpty() || parentMedia.isEmpty()) {
+                recordFilteredQqItem(item, parentMid, parentMedia, i, -1, "", trace, round);
+            } else {
+                Track track = Track.fromJson(toTrack(item));
+                if (track != null) {
+                    out.add(TrackMatcher.Candidate.fromTrack(track, i, -1, ""));
+                }
+            }
+            if (!expandGrp || item == null) continue;
+            JSONArray grp = item.optJSONArray("grp");
+            if (grp == null) continue;
+            for (int j = 0; j < grp.length(); j++) {
+                JSONObject child = grp.optJSONObject(j);
+                String childMid = songMid(child);
+                String childMedia = fileMid(child);
+                if (childMid.isEmpty() || childMedia.isEmpty()) {
+                    recordFilteredQqItem(child, childMid, childMedia, i, j, parentMid, trace, round);
+                    continue;
+                }
+                Track childTrack = Track.fromJson(toTrack(child));
+                if (childTrack != null) {
+                    out.add(TrackMatcher.Candidate.fromTrack(childTrack, i, j, parentMid));
+                }
+            }
+        }
+        return out;
+    }
+
+    private static void recordFilteredQqItem(JSONObject item, String mid, String media,
+                                             int listIndex, int grpIndex, String parentMid,
+                                             MatchTrace trace, String round) {
+        if (trace == null) return;
+        String title = item == null ? "" : item.optString("title", item.optString("name", ""));
+        long dur = item == null ? 0L : Math.max(0L, item.optLong("interval", 0L) * 1000L);
+        MatchText.TitleInfo info = MatchText.analyzeTitle(title);
+        trace.addCandidate(new MatchTrace.CandidateRecord(
+                mid.isEmpty() ? "" : "qq:" + mid, media, listIndex, grpIndex, parentMid, round,
+                title, "", "", dur, MatchTrace.durationGapOrNull(trace.target.durationMs, dur),
+                trace.target.mainTitle, info.mainTitle, trace.target.versionTags, info.versionKey,
+                null, null, "", MatchTrace.Outcome.FILTERED, MatchTrace.Rule.NONE,
+                mid.isEmpty() ? MatchTrace.Gate.INVALID_ID : MatchTrace.Gate.MISSING_MEDIA_MID,
+                null, -1, "", ""));
     }
 
     /** The provider reads used by playback. Tests supply recorded catalogue and vkey shapes. */

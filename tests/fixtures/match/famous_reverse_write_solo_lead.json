@@ -1,0 +1,248 @@
+{
+  "name": "famous_reverse_write_solo_lead",
+  "direction": "qq_to_netease",
+  "policy": "WRITE",
+  "rule": "famous_reverse_write_evidenced_lead_same_album",
+  "description": "Real recorded NetEase search for Famous Ye; QQ solo Ye (侃爷) matches NetEase 409736434 (40ms gap < 92ms reissue 484755737, identical artist IDs) via Rule A partial lead + same non-compilation album (A7).",
+  "expandGrp": false,
+  "target": {
+    "id": "qq:002XelTe31rBEE",
+    "title": "Famous (Explicit)",
+    "artist": "Ye (侃爷)",
+    "album": "The Life Of Pablo (Explicit)",
+    "duration": 196000,
+    "provider": "qq",
+    "artistMembers": [
+      {
+        "name": "Ye (侃爷)",
+        "providerId": "0025NhlN2yWrP4",
+        "aliases": []
+      }
+    ]
+  },
+  "responses": {
+    "Famous Ye": [
+      {
+        "id": 409736434,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 37520,
+            "name": "Kanye West",
+            "alias": [
+              "ye"
+            ],
+            "tns": [
+              "坎耶·维斯特"
+            ]
+          },
+          {
+            "id": 72724,
+            "name": "Rihanna",
+            "tns": [
+              "蕾哈娜"
+            ]
+          }
+        ],
+        "al": {
+          "name": "The Life Of Pablo"
+        },
+        "dt": 196040
+      },
+      {
+        "id": 484755737,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 37520,
+            "name": "Kanye West",
+            "alias": [
+              "ye"
+            ],
+            "tns": [
+              "坎耶·维斯特"
+            ]
+          },
+          {
+            "id": 72724,
+            "name": "Rihanna",
+            "tns": [
+              "蕾哈娜"
+            ]
+          }
+        ],
+        "al": {
+          "name": "The Life Of Pablo"
+        },
+        "dt": 196092
+      },
+      {
+        "id": 1461953934,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 46715802,
+            "name": "Luye"
+          }
+        ],
+        "al": {
+          "name": "The Spread"
+        },
+        "dt": 239674
+      },
+      {
+        "id": 1338465889,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 360823,
+            "name": "Mozzy"
+          },
+          {
+            "id": 792425,
+            "name": "Iamsu!"
+          },
+          {
+            "id": 84935,
+            "name": "Yo Gotti"
+          },
+          {
+            "id": 1024151,
+            "name": "Dej Loaf"
+          }
+        ],
+        "al": {
+          "name": "Gangland Landlord"
+        },
+        "dt": 205333
+      },
+      {
+        "id": 1947119077,
+        "name": "QueenTalk（公主说）",
+        "ar": [
+          {
+            "id": 13450286,
+            "name": "famouswangye",
+            "alias": [
+              "王崇禧"
+            ]
+          },
+          {
+            "id": 36522948,
+            "name": "Weslake",
+            "alias": [
+              "西湖哥"
+            ]
+          },
+          {
+            "id": 49086171,
+            "name": "kellomiii"
+          },
+          {
+            "id": 33021526,
+            "name": "Vinke VK"
+          }
+        ],
+        "al": {
+          "name": "QueenTalk（公主说）"
+        },
+        "dt": 145277
+      },
+      {
+        "id": 408440465,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 37520,
+            "name": "Kanye West",
+            "alias": [
+              "ye"
+            ],
+            "tns": [
+              "坎耶·维斯特"
+            ]
+          },
+          {
+            "id": 72724,
+            "name": "Rihanna",
+            "tns": [
+              "蕾哈娜"
+            ]
+          }
+        ],
+        "al": {
+          "name": "Famous"
+        },
+        "dt": 196040
+      },
+      {
+        "id": 1819490570,
+        "name": "☆Don' t say【prod ZS beatz】",
+        "ar": [
+          {
+            "id": 37621718,
+            "name": "tree"
+          },
+          {
+            "id": 13450286,
+            "name": "famouswangye",
+            "alias": [
+              "王崇禧"
+            ]
+          }
+        ],
+        "al": {
+          "name": "☆//不用多说Don' t say ☆"
+        },
+        "dt": 167902
+      },
+      {
+        "id": 2718608376,
+        "name": "FAMOUS",
+        "ar": [
+          {
+            "id": 98893138,
+            "name": "ALLDAY PROJECT"
+          }
+        ],
+        "al": {
+          "name": "FAMOUS"
+        },
+        "dt": 180353
+      },
+      {
+        "id": 522647397,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 12925126,
+            "name": "Ivy Adara",
+            "alias": [
+              "Kayla Rae Haywood"
+            ]
+          }
+        ],
+        "al": {
+          "name": "Famous"
+        },
+        "dt": 223591
+      },
+      {
+        "id": 2144392719,
+        "name": "famous",
+        "ar": [
+          {
+            "id": 52446054,
+            "name": "Nate Sib"
+          }
+        ],
+        "al": {
+          "name": "famous"
+        },
+        "dt": 106956
+      }
+    ]
+  },
+  "expect": "409736434",
+  "expectRule": "A"
+}

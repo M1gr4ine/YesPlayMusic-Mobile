@@ -1,0 +1,427 @@
+{
+  "name": "version_live_instrumental_mandarin",
+  "direction": "netease_to_qq",
+  "policy": "PLAYBACK",
+  "rule": "hard_gate_version_blocks_live_instrumental_language",
+  "description": "Real QQ Live/伴奏/钢琴版/DJ hits for 富士山下 陈奕迅 plus same-duration 国语版 variant; studio target rejects all.",
+  "expandGrp": true,
+  "target": {
+    "id": "65766",
+    "title": "富士山下",
+    "artist": "陈奕迅",
+    "album": "What's Going On…?",
+    "duration": 258902,
+    "provider": "netease",
+    "artistMembers": [
+      {
+        "name": "陈奕迅",
+        "providerId": "2116",
+        "aliases": [
+          "Eason Chan"
+        ]
+      }
+    ]
+  },
+  "responses": {
+    "富士山下 陈奕迅": [
+      {
+        "mid": "004Ddq6E4UpiZN",
+        "file": {
+          "media_mid": "004Ddq6E4UpiZN"
+        },
+        "title": "爱情转移+富士山下 (国粤语混唱版|伴奏)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 63
+      },
+      {
+        "mid": "003wPVhh3MAABs",
+        "file": {
+          "media_mid": "003wPVhh3MAABs"
+        },
+        "title": "k歌之王+shall we talk+单车+lonely christmas+明年今日+富士山下 (伴奏)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 628
+      },
+      {
+        "mid": "004ff6bV3wHhjt",
+        "file": {
+          "media_mid": "001HpQd41w3Hxd"
+        },
+        "title": "爱情转移",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "爱情呼叫转移"
+        },
+        "interval": 255,
+        "grp": [
+          {
+            "mid": "003u2qmP0Mp2pW",
+            "file": {
+              "media_mid": "001TmGUh00SDKn"
+            },
+            "title": "爱情转移",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "认了吧"
+            },
+            "interval": 259
+          },
+          {
+            "mid": "0032pX9223rBoa",
+            "file": {
+              "media_mid": "001OItKL12uXgt"
+            },
+            "title": "爱情转移",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "The First Eleven Years 然后呢 - 1997-2007陈奕迅跨世纪国语精选"
+            },
+            "interval": 262
+          }
+        ]
+      },
+      {
+        "mid": "004BnDqU46jmua",
+        "file": {
+          "media_mid": "003adu0g4YaDic"
+        },
+        "title": "富士山下 (Live)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 104
+      },
+      {
+        "mid": "003XidUC3fiVcq",
+        "file": {
+          "media_mid": "002K8PST11ULDN"
+        },
+        "title": "富士山下 (Live)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "Eason Chan Duo Concert 2010"
+        },
+        "interval": 298,
+        "grp": [
+          {
+            "mid": "001KuiPA3kZS7e",
+            "file": {
+              "media_mid": "002JMP3V2WyZI9"
+            },
+            "title": "富士山下 (Live)",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "Eason Moving On Stage 1 (Live)"
+            },
+            "interval": 266
+          },
+          {
+            "mid": "003X4x9T4X0Lbs",
+            "file": {
+              "media_mid": "0023td7c1yfYpo"
+            },
+            "title": "富士山下 (Live)",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (Remastered 2019)"
+            },
+            "interval": 292
+          }
+        ]
+      },
+      {
+        "mid": "001j8NFR2JgWUm",
+        "file": {
+          "media_mid": "002nKxUn0Gkx1g"
+        },
+        "title": "富士山下 (钢琴版)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 263
+      },
+      {
+        "mid": "004MRWSl1rUzaw",
+        "file": {
+          "media_mid": "0026Y5u00fRoF8"
+        },
+        "title": "富士山下+爱情转移 (2024 FEAR and DREAMS世界巡回演唱会厦门站)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 270
+      },
+      {
+        "mid": "003NSXXB2GDoSx",
+        "file": {
+          "media_mid": "003NSXXB2GDoSx"
+        },
+        "title": "富士山下 (DJ 慢摇版)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 173
+      },
+      {
+        "mid": "003MZFkO4WAkrA",
+        "file": {
+          "media_mid": "003MZFkO4WAkrA"
+        },
+        "title": "富士山下 + 钟无艳 + 人来人往 + 喜帖街 (网友改编)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          },
+          {
+            "name": "谢安琪",
+            "mid": "001YZBa22LLKce"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 169
+      },
+      {
+        "mid": "004BnDqU46jmua",
+        "file": {
+          "media_mid": "003adu0g4YaDic"
+        },
+        "title": "富士山下 (Live)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 104
+      },
+      {
+        "mid": "003XidUC3fiVcq",
+        "file": {
+          "media_mid": "002K8PST11ULDN"
+        },
+        "title": "富士山下 (Live)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "Eason Chan Duo Concert 2010"
+        },
+        "interval": 298,
+        "grp": [
+          {
+            "mid": "003X4x9T4X0Lbs",
+            "file": {
+              "media_mid": "0023td7c1yfYpo"
+            },
+            "title": "富士山下 (Live)",
+            "singer": [
+              {
+                "name": "陈奕迅",
+                "mid": "003Nz2So3XXYek"
+              }
+            ],
+            "album": {
+              "name": "What's Going On...? (Remastered 2019)"
+            },
+            "interval": 292
+          }
+        ]
+      },
+      {
+        "mid": "001KuiPA3kZS7e",
+        "file": {
+          "media_mid": "002JMP3V2WyZI9"
+        },
+        "title": "富士山下 (Live)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "Eason Moving On Stage 1 (Live)"
+        },
+        "interval": 266
+      },
+      {
+        "mid": "001j8NFR2JgWUm",
+        "file": {
+          "media_mid": "002nKxUn0Gkx1g"
+        },
+        "title": "富士山下 (钢琴版)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 263
+      },
+      {
+        "mid": "004MRWSl1rUzaw",
+        "file": {
+          "media_mid": "0026Y5u00fRoF8"
+        },
+        "title": "富士山下+爱情转移 (2024 FEAR and DREAMS世界巡回演唱会厦门站)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 270
+      },
+      {
+        "mid": "002fAKsk3AXfFp",
+        "file": {
+          "media_mid": "002fAKsk3AXfFp"
+        },
+        "title": "富士山下 (纯净女声版)",
+        "singer": [
+          {
+            "name": "吉拉朵",
+            "mid": "0006LI4l1MTc5b"
+          }
+        ],
+        "album": {
+          "name": "富士山下 (纯净女声版)"
+        },
+        "interval": 175
+      },
+      {
+        "mid": "003BQUJr13K9Hi",
+        "file": {
+          "media_mid": "002Ttf3b3R98Lf"
+        },
+        "title": "富士山下 (深情版)",
+        "singer": [
+          {
+            "name": "余超颖",
+            "mid": "004IKTJ41tsG27"
+          }
+        ],
+        "album": {
+          "name": "富士山下 (深情版)"
+        },
+        "interval": 255
+      },
+      {
+        "mid": "003NSXXB2GDoSx",
+        "file": {
+          "media_mid": "003NSXXB2GDoSx"
+        },
+        "title": "富士山下 (DJ 慢摇版)",
+        "singer": [
+          {
+            "name": "陈奕迅"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 173
+      },
+      {
+        "mid": "003aAPj81VWrbLman",
+        "file": {
+          "media_mid": "001dXZ352YGvqUman"
+        },
+        "title": "富士山下 (国语版)",
+        "singer": [
+          {
+            "name": "陈奕迅",
+            "mid": "003Nz2So3XXYek"
+          }
+        ],
+        "album": {
+          "name": "What's Going On...?"
+        },
+        "interval": 259
+      }
+    ]
+  },
+  "expect": "reject",
+  "expectRule": "NONE"
+}

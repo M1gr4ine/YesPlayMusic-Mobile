@@ -4,100 +4,121 @@ import static dev.yesplaymusic.probe.Check.that;
 
 import java.util.Arrays;
 import java.util.List;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+/** Synthetic rule-named unit tests for artist alias extraction, structured credits, and legacy bridge guards. */
 final class ArtistAliasesTest {
-    private static final String NEW_ISLAND = "新宝岛";
-    private static final String SAKANACTION = "サカナクション";
-    private static final String FISH_RHYME = "鱼韵";
-    private static final List<String> ALIASES = list("Sakanaction", FISH_RHYME);
+    private static final String TRACK_JP = "架空島";
+    private static final String ARTIST_KANA = "カタカナバンド";
+    private static final String ARTIST_ZH = "中文译名团";
+    private static final List<String> ALIASES = list("KanaBand", ARTIST_ZH);
 
     private ArtistAliasesTest() {}
 
     static void run() throws Exception {
-        that(ArtistAliases.score(NEW_ISLAND, SAKANACTION, ALIASES, 305000,
-                NEW_ISLAND, "sakanaction", list(), 306000) > 140, "requested aliases match the QQ credit");
-        that(ArtistAliases.score("多分、風。", SAKANACTION, ALIASES, 292000,
-                "多分、風。 (或许，是风。)", "sakanaction", list(), 294000) > 140, "aliases match a translated subtitle");
-        that(ArtistAliases.score(NEW_ISLAND, "sakanaction", list(), 305000,
-                NEW_ISLAND, SAKANACTION, ALIASES, 306000) > 140, "candidate aliases match too");
-        that(ArtistAliases.score(NEW_ISLAND, SAKANACTION, ALIASES, 305000,
-                NEW_ISLAND, "Cover Artist", list(), 306000) < 0, "an unrelated artist stays unmatched");
-        that(ArtistAliases.score(NEW_ISLAND, SAKANACTION, ALIASES, 305000,
-                NEW_ISLAND + " (Live)", "sakanaction", list(), 306000) < 0, "aliases keep the version guard");
-        that(ArtistAliases.score(NEW_ISLAND, SAKANACTION, ALIASES, 305000,
-                NEW_ISLAND, "sakanaction", list(), 314001) < 0, "aliases keep the duration guard");
-        that(ArtistAliases.score(NEW_ISLAND, "Artist A / Artist B", list("Sakanaction"), 305000,
-                NEW_ISLAND, "Sakanaction", list(), 306000) < 0, "a member alias cannot stand in for a collaboration");
-        that(ArtistAliases.score(NEW_ISLAND, SAKANACTION, list("Sakanaction"), 305000,
-                NEW_ISLAND, "Sakanaction / Guest", list("Sakanaction"), 306000) < 0, "nor for a candidate collaboration");
+        that(ArtistAliases.score(TRACK_JP, ARTIST_KANA, ALIASES, 305000,
+                TRACK_JP, "kanaband", list(), 306000) > 140, "requested aliases match candidate credit");
+        that(ArtistAliases.score("架空、風。", ARTIST_KANA, ALIASES, 292000,
+                "架空、風。 (中文副标题)", "kanaband", list(), 294000) > 140, "aliases match translated subtitle");
+        that(ArtistAliases.score(TRACK_JP, "kanaband", list(), 305000,
+                TRACK_JP, ARTIST_KANA, ALIASES, 306000) > 140, "candidate aliases match symmetrically");
+        that(ArtistAliases.score(TRACK_JP, ARTIST_KANA, ALIASES, 305000,
+                TRACK_JP, "Cover Artist", list(), 306000) < 0, "unrelated artist stays unmatched");
+        that(ArtistAliases.score(TRACK_JP, ARTIST_KANA, ALIASES, 305000,
+                TRACK_JP + " (Live)", "kanaband", list(), 306000) < 0, "aliases preserve version guard");
+        that(ArtistAliases.score(TRACK_JP, ARTIST_KANA, ALIASES, 305000,
+                TRACK_JP, "kanaband", list(), 314001) < 0, "aliases preserve duration guard");
+        that(ArtistAliases.score(TRACK_JP, "Artist A / Artist B", list("KanaBand"), 305000,
+                TRACK_JP, "KanaBand", list(), 306000) < 0, "unattributed flat alias cannot replace collaboration");
+        that(ArtistAliases.score(TRACK_JP, ARTIST_KANA, list("KanaBand"), 305000,
+                TRACK_JP, "KanaBand / Guest", list("KanaBand"), 306000) < 0, "nor for candidate collaboration");
 
-        List<ArtistAliases.Member> fmlMembers = members(
-                member("Kanye West", "37520", "Ye"),
-                member("The Weeknd", "2"));
-        that(ArtistAliases.bridgeAccepts("FML", "Kanye West / The Weeknd", fmlMembers, list(), "The Life Of Pablo", 236000,
-                "FML (Explicit)", "Ye (侃爷)", members(), list(), "The Life Of Pablo (Explicit)", 236120, true, 0),
-                "album bridge accepts an evidenced lead member identity");
-        that(!ArtistAliases.bridgeAccepts("Song", "Artist A / Artist B", list("Guest Alias"), "Short", 200000,
-                "Song", "Guest Alias", list(), "Short", 200000, true, 0),
-                "unattributed flat alias on a collaboration cannot justify album bridge");
-        that(ArtistAliases.bridgeAccepts("FML", "Kanye West / The Weeknd", list(), "The Life Of Pablo", 236000,
-                "FML (Explicit)", "Ye (侃爷)", list(), "The Life Of Pablo (Explicit)", 236120, true, 0), "distinctive album and bilingual candidate bridge without fetched aliases");
-        that(!ArtistAliases.bridgeAccepts("FML", "Kanye West / The Weeknd", list(), "Greatest Hits", 236000,
-                "FML", "Ye (侃爷)", list(), "Greatest Hits", 236120, true, 0), "generic compilation cannot justify album bridge");
-        that(!ArtistAliases.bridgeAccepts("FML", "Kanye West / The Weeknd", fmlMembers, list(), "The Life Of Pablo", 236000,
-                "FML (Explicit)", "Someone Else", members(), list(), "The Life Of Pablo", 236120, true, 0), "album bridge rejects contradictory Latin identity");
-        that(!ArtistAliases.bridgeAccepts("FML", "Kanye West / The Weeknd", fmlMembers, list(), "The Life Of Pablo", 236000,
-                "FML (Explicit)", "Ye (Taylor Swift)", members(), list(), "The Life Of Pablo", 236120, true, 0), "bridge rejects conflicting visible same-script names");
-        that(!ArtistAliases.bridgeAccepts("FML", "Kanye West / The Weeknd", fmlMembers, list(), "The Life Of Pablo", 236000,
-                "FML", "Ye / Stranger", members(), list(), "The Life Of Pablo", 236120, true, 0), "bridge rejects an ambiguous candidate collaboration");
-        that(ArtistAliases.bridgeAccepts("First Love", "宇多田ヒカル", list(), "", 257000,
-                "First Love", "宇多田光", list(), "", 257100, true, 0), "top artist query bridges cross-script credit");
-        that(!ArtistAliases.bridgeAccepts("First Love", "宇多田ヒカル", list(), "", 257000,
-                "First Love", "宇多田光", list(), "", 257100, true, 1), "lower ranked cross-script credit is ambiguous");
-        that(!ArtistAliases.bridgeAccepts("First Love", "宇多田ヒカル / Guest", list(), "", 257000,
-                "First Love", "宇多田光", list(), "", 257100, true, 0), "cross-script bridge rejects collaborations");
-        that(!ArtistAliases.bridgeAccepts("First Love", "宇多田ヒカル", list(), "", 257000,
-                "First Love", "宇多田光", list(), "", 262001, true, 0), "bridge enforces duration boundary");
-        that(ArtistAliases.score("Song", "Artist", list(), "Album", 200000,
-                "Song", "Artist", list(), "Album", 200000) == 200, "alias album overload adds album evidence");
+        List<ArtistAliases.Member> collabLeadAlias = members(
+                member("Lead Alpha", "1001", "ShortAlias"),
+                member("Guest Beta", "1002"));
+        that(ArtistAliases.bridgeAccepts("Track One", "Lead Alpha / Guest Beta", collabLeadAlias, list(),
+                "Distinctive Studio Album", 236000,
+                "Track One (Explicit)", "ShortAlias (别名)", members(), list(),
+                "Distinctive Studio Album (Explicit)", 236120, true, 0),
+                "legacy album bridge accepts evidenced lead member identity");
+        that(!ArtistAliases.bridgeAccepts("Track", "Artist A / Artist B", list("Guest Alias"), "Short", 200000,
+                "Track", "Guest Alias", list(), "Short", 200000, true, 0),
+                "unattributed flat alias on collaboration cannot justify legacy album bridge");
+        that(ArtistAliases.bridgeAccepts("Track One", "Lead Alpha / Guest Beta", list(),
+                "Distinctive Studio Album", 236000,
+                "Track One (Explicit)", "ShortAlias (别名)", list(),
+                "Distinctive Studio Album (Explicit)", 236120, true, 0),
+                "legacy distinctive album and bilingual credit bridge without aliases");
+        that(!ArtistAliases.bridgeAccepts("Track One", "Lead Alpha / Guest Beta", list(), "Greatest Hits", 236000,
+                "Track One", "ShortAlias (别名)", list(), "Greatest Hits", 236120, true, 0),
+                "generic compilation cannot justify legacy album bridge");
+        that(!ArtistAliases.bridgeAccepts("Track One", "Lead Alpha / Guest Beta", collabLeadAlias, list(),
+                "Distinctive Studio Album", 236000,
+                "Track One (Explicit)", "Someone Else", members(), list(),
+                "Distinctive Studio Album", 236120, true, 0),
+                "legacy album bridge rejects contradictory same-script identity");
+        that(!ArtistAliases.bridgeAccepts("Track One", "Lead Alpha / Guest Beta", collabLeadAlias, list(),
+                "Distinctive Studio Album", 236000,
+                "Track One (Explicit)", "ShortAlias (Conflict Name)", members(), list(),
+                "Distinctive Studio Album", 236120, true, 0),
+                "legacy bridge rejects conflicting visible same-script names");
+        that(!ArtistAliases.bridgeAccepts("Track One", "Lead Alpha / Guest Beta", collabLeadAlias, list(),
+                "Distinctive Studio Album", 236000,
+                "Track One", "ShortAlias / Stranger", members(), list(),
+                "Distinctive Studio Album", 236120, true, 0),
+                "legacy bridge rejects ambiguous candidate collaboration");
+        that(ArtistAliases.bridgeAccepts("Cross Track", "漢字カタカナ", list(), "", 257000,
+                "Cross Track", "汉字歌手", list(), "", 257100, true, 0),
+                "legacy rank-0 artist query bridges cross-script credit");
+        that(!ArtistAliases.bridgeAccepts("Cross Track", "漢字カタカナ", list(), "", 257000,
+                "Cross Track", "汉字歌手", list(), "", 257100, true, 1),
+                "legacy lower-ranked cross-script credit is rejected");
+        that(!ArtistAliases.bridgeAccepts("Cross Track", "漢字カタカナ / Guest", list(), "", 257000,
+                "Cross Track", "汉字歌手", list(), "", 257100, true, 0),
+                "legacy cross-script bridge rejects collaborations");
+        that(!ArtistAliases.bridgeAccepts("Cross Track", "漢字カタカナ", list(), "", 257000,
+                "Cross Track", "汉字歌手", list(), "", 262001, true, 0),
+                "legacy bridge enforces duration boundary");
+        that(ArtistAliases.score("Track", "Artist", list(), "Album", 200000,
+                "Track", "Artist", list(), "Album", 200000) == 200, "alias album overload adds album evidence");
+        that(ArtistAliases.score("Track", "Unknown Artist", list("Artist"), 200000,
+                "Track", "Artist", list(), 200000) < 0, "aliases cannot rescue unknown display credit");
 
-        that(ArtistAliases.score("Song", "Unknown Artist", list("Artist"), 200000,
-                "Song", "Artist", list(), 200000) < 0, "aliases cannot rescue an unknown display credit");
+        that(ArtistAliases.score("Track One", "Lead Alpha", list("shortalias"), 236000,
+                "Track One (Explicit)", "ShortAlias (别名)", list(), 240000) >= 140,
+                "official solo alias matches bilingual credit within four seconds");
+        that(ArtistAliases.score("Track One", "Lead Alpha", list("shortalias"), 0,
+                "Track One (Explicit)", "ShortAlias (别名)", list(), 0) >= 140,
+                "known alias and benign title match without duration");
+        that(ArtistAliases.score("Track One", "Lead Alpha", list("shortalias"), 236000,
+                "Track One (Live)", "ShortAlias (别名)", list(), 240000) < 0,
+                "known alias cannot bypass version mismatch");
 
-        that(ArtistAliases.score("FML", "Kanye West", list("ye"), 236000,
-                "FML (Explicit)", "Ye (侃爷)", list(), 240000) >= 140, "official solo alias matches base of bilingual credit with a four-second gap");
-        that(ArtistAliases.score("FML", "Kanye West", list("ye"), 0,
-                "FML (Explicit)", "Ye (侃爷)", list(), 0) >= 140, "known alias and benign title match without duration");
-        that(ArtistAliases.score("FML", "Kanye West", list("ye"), 236000,
-                "FML (Live)", "Ye (侃爷)", list(), 240000) < 0, "known alias cannot bypass version mismatch");
-
-        JSONArray artists = new JSONArray().put(new JSONObject().put("name", SAKANACTION)
-                .put("alias", new JSONArray().put("Sakanaction")).put("alia", new JSONArray().put("Sakanaction"))
-                .put("tns", new JSONArray().put(FISH_RHYME)).put("trans", "Fish Rhyme"));
-        that(ArtistAliases.fromArtists(artists).equals(list("Sakanaction", FISH_RHYME, "Fish Rhyme")),
+        JSONArray artists = new JSONArray().put(new JSONObject().put("name", ARTIST_KANA)
+                .put("alias", new JSONArray().put("KanaBand")).put("alia", new JSONArray().put("KanaBand"))
+                .put("tns", new JSONArray().put(ARTIST_ZH)).put("trans", "Trans Name"));
+        that(ArtistAliases.fromArtists(artists).equals(list("KanaBand", ARTIST_ZH, "Trans Name")),
                 "extracts deduplicated alternate names only");
 
         JSONObject response = new JSONObject().put("result", new JSONObject().put("songs", new JSONArray()
                 .put(song("999", "Wrong Artist", "wrong alias"))
-                .put(song("1372726248", SAKANACTION, FISH_RHYME))));
-        that(ArtistAliases.fromExactNeteaseSong(response, "1372726248").equals(list(FISH_RHYME)),
-                "alias recovery uses only the exact catalog song");
+                .put(song("10001", ARTIST_KANA, ARTIST_ZH))));
+        that(ArtistAliases.fromExactNeteaseSong(response, "10001").equals(list(ARTIST_ZH)),
+                "alias recovery uses only exact catalog song");
         that(ArtistAliases.fromExactNeteaseSong(response, "888").isEmpty(), "alias recovery fails closed");
 
-        that(ArtistAliases.searchQueries(NEW_ISLAND, SAKANACTION, ALIASES)
-                .equals(list(NEW_ISLAND + " Sakanaction", NEW_ISLAND + " " + FISH_RHYME)), "one retry per alias");
-        that(ArtistAliases.searchQueries(NEW_ISLAND, "Sakanaction", list("SAKANACTION", "Sakanaction", "Fish Rhyme"))
-                .equals(list(NEW_ISLAND + " Fish Rhyme")), "retries skip the canonical name and duplicates");
-        that(ArtistAliases.searchQueries(NEW_ISLAND, SAKANACTION, list("Sakanaction", FISH_RHYME, "Third")).size() == 2,
+        that(ArtistAliases.searchQueries(TRACK_JP, ARTIST_KANA, ALIASES)
+                .equals(list(TRACK_JP + " KanaBand", TRACK_JP + " " + ARTIST_ZH)), "one retry per alias");
+        that(ArtistAliases.searchQueries(TRACK_JP, "KanaBand", list("KANABAND", "KanaBand", "Trans Name"))
+                .equals(list(TRACK_JP + " Trans Name")), "retries skip canonical name and duplicates");
+        that(ArtistAliases.searchQueries(TRACK_JP, ARTIST_KANA, list("KanaBand", ARTIST_ZH, "Third")).size() == 2,
                 "retries are capped at two");
-        that(ArtistAliases.searchQueries(NEW_ISLAND, "Artist A / Artist B", list("Sakanaction")).isEmpty(),
-                "collaborations are never split into member queries");
-        that(ArtistAliases.searchQueries(NEW_ISLAND, SAKANACTION, list("Sakanaction / Guest", FISH_RHYME))
-                .equals(list(NEW_ISLAND + " " + FISH_RHYME)), "collaboration aliases are dropped whole");
-        that(ArtistAliases.searchQueries(NEW_ISLAND, SAKANACTION, list()).isEmpty(), "no bare-title fallback");
+        that(ArtistAliases.searchQueries(TRACK_JP, "Artist A / Artist B", list("KanaBand")).isEmpty(),
+                "legacy flat collaboration queries never split into member queries");
+        that(ArtistAliases.searchQueries(TRACK_JP, ARTIST_KANA, list("KanaBand / Guest", ARTIST_ZH))
+                .equals(list(TRACK_JP + " " + ARTIST_ZH)), "collaboration aliases are dropped whole");
+        that(ArtistAliases.searchQueries(TRACK_JP, ARTIST_KANA, list()).isEmpty(), "legacy alias helper adds no bare query");
 
         structuredMemberMatching();
         evidencedBridgeAndConflictGuards();
@@ -105,195 +126,198 @@ final class ArtistAliasesTest {
     }
 
     private static void structuredMemberMatching() {
-        List<ArtistAliases.Member> kanyeRihanna = members(
-                member("Kanye West", "37520", "ye", "坎耶·维斯特"),
-                member("Rihanna", "72724"));
-        List<ArtistAliases.Member> yeRihanna = members(
-                member("Ye (侃爷)", "0025NhlN2yWrP4"),
-                member("Rihanna", "001Ri"));
-        that(ArtistAliases.score("Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "The Life Of Pablo", 196040,
-                "Famous", "Ye (侃爷) / Rihanna", yeRihanna, list(), "Famous", 195000) >= 140,
-                "per-member official alias matches Famous collaboration forward");
-        that(ArtistAliases.score("Famous", "Ye (侃爷) / Rihanna", yeRihanna, list(), "Famous", 195000,
-                "Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "The Life Of Pablo", 196040) >= 140,
-                "per-member official alias matches Famous collaboration in reverse");
-        that(ArtistAliases.score("Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "The Life Of Pablo", 196040,
-                "Famous", "Ye. (侃爷) / Rihanna", members(member("Ye. (侃爷)", ""), member("Rihanna", "")), list(),
-                "Famous", 195000) >= 140, "Ye. with period matches through member alias");
-        that(ArtistAliases.score("Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "The Life Of Pablo", 196040,
-                "Famous", "Kanye West / Rihanna", members(), list(), "Famous", 30000) < 0,
+        List<ArtistAliases.Member> sourceCollab = members(
+                member("Lead Alpha", "1001", "shortalias", "中文主唱"),
+                member("Guest Beta", "1002"));
+        List<ArtistAliases.Member> targetCollab = members(
+                member("ShortAlias (别名)", "qqLead"),
+                member("Guest Beta", "qqGuest"));
+        that(ArtistAliases.score("Anthem", "Lead Alpha / Guest Beta", sourceCollab, list(), "Studio Album", 196040,
+                "Anthem", "ShortAlias (别名) / Guest Beta", targetCollab, list(), "Single", 195000) >= 140,
+                "per-member official alias matches collaboration forward");
+        that(ArtistAliases.score("Anthem", "ShortAlias (别名) / Guest Beta", targetCollab, list(), "Single", 195000,
+                "Anthem", "Lead Alpha / Guest Beta", sourceCollab, list(), "Studio Album", 196040) >= 140,
+                "per-member official alias matches collaboration in reverse");
+        that(ArtistAliases.score("Anthem", "Lead Alpha / Guest Beta", sourceCollab, list(), "Studio Album", 196040,
+                "Anthem", "ShortAlias. (别名) / Guest Beta",
+                members(member("ShortAlias. (别名)", ""), member("Guest Beta", "")), list(),
+                "Single", 195000) >= 140, "trailing punctuation matches through member alias");
+        that(ArtistAliases.score("Anthem", "Lead Alpha / Guest Beta", sourceCollab, list(), "Studio Album", 196040,
+                "Anthem", "Lead Alpha / Guest Beta", members(), list(), "Single", 30000) < 0,
                 "30-second snippet stays rejected");
-        that(ArtistAliases.score("Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "The Life Of Pablo", 196040,
-                "Famous", "Ye (侃爷) / Stranger", members(member("Ye (侃爷)", ""), member("Stranger", "")), list(),
-                "The Life Of Pablo", 196000) < 0, "mismatched collaborator is rejected");
-        that(ArtistAliases.score("Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "The Life Of Pablo", 196040,
-                "Famous", "Someone Else / Rihanna", members(member("Someone Else", ""), member("Rihanna", "")), list(),
-                "The Life Of Pablo", 196000) < 0, "shared guest cannot override different lead");
-        that(ArtistAliases.score("FML", "Kanye West", members(member("Kanye West", "37520", "ye")), list(),
-                "The Life Of Pablo", 236000, "FML", "Ye (Taylor Swift)", members(), list(),
-                "The Life Of Pablo", 236000) < 0, "strict score rejects conflicting same-script bracketed name");
+        that(ArtistAliases.score("Anthem", "Lead Alpha / Guest Beta", sourceCollab, list(), "Studio Album", 196040,
+                "Anthem", "ShortAlias (别名) / Stranger",
+                members(member("ShortAlias (别名)", ""), member("Stranger", "")), list(),
+                "Studio Album", 196000) < 0, "mismatched collaborator is rejected");
+        that(ArtistAliases.score("Anthem", "Lead Alpha / Guest Beta", sourceCollab, list(), "Studio Album", 196040,
+                "Anthem", "Someone Else / Guest Beta",
+                members(member("Someone Else", ""), member("Guest Beta", "")), list(),
+                "Studio Album", 196000) < 0, "shared guest cannot override different lead");
+        that(ArtistAliases.score("Track One", "Lead Alpha", members(member("Lead Alpha", "1001", "shortalias")), list(),
+                "Studio Album", 236000, "Track One", "ShortAlias (Conflict Name)", members(), list(),
+                "Studio Album", 236000) < 0, "strict score rejects conflicting same-script bracketed name");
 
-        // Official single member with internal separator ("A & B", "AC/DC", "Tyler, The Creator") keeps member count 1,
-        // while conflicting explicit display grouping ("A / B" paired with [Member("A & B")]) is rejected.
-        List<ArtistAliases.Member> duoMember = members(member("A & B", "10"));
-        List<ArtistAliases.Member> twoArtists = members(member("A", "11"), member("B", "12"));
-        that(ArtistAliases.score("Song", "A & B", duoMember, list(), "Album", 200000,
-                "Song", "A / B", twoArtists, list(), "Album", 200000) < 0,
-                "single structured duo A & B cannot match two-artist credit A / B");
-        that(ArtistAliases.score("Song", "A / B", twoArtists, list(), "Album", 200000,
-                "Song", "A & B", duoMember, list(), "Album", 200000) < 0,
-                "two-artist credit A / B cannot match single structured duo A & B");
-        that(ArtistAliases.score("Song", "A / B", duoMember, list(), "Album", 200000,
-                "Song", "A & B", duoMember, list(), "Album", 200000) < 0,
-                "display credit A / B with conflicting single member A & B cannot match A & B");
-        that(ArtistAliases.score("Song", "A & B", duoMember, list(), "Album", 200000,
-                "Song", "A & B", duoMember, list(), "Album", 200000) >= 140,
-                "matching single structured duo A & B succeeds");
-        List<ArtistAliases.Member> acdc = members(member("AC/DC", "30", "埃西迪西"));
-        that(ArtistAliases.score("Back In Black", "AC/DC", acdc, list(), "Back In Black", 255000,
-                "Back In Black", "AC/DC", members(member("AC/DC", "qq30")), list(), "Back In Black", 255000) >= 140,
-                "single structured band name AC/DC is preserved");
-        that(ArtistAliases.score("Back In Black", "AC/DC", acdc, list(), "Back In Black", 255000,
-                "Back In Black", "埃西迪西", members(member("埃西迪西", "qq30")), list(), "Back In Black", 255000) >= 140,
-                "single structured band name AC/DC retains its official alias");
-        that(ArtistAliases.score("Back In Black", "AC/DC", acdc, list(), "Back In Black", 255000,
-                "Back In Black", "AC / DC", members(member("AC", "1"), member("DC", "2")), list(), "Back In Black", 255000) < 0,
-                "single structured band AC/DC cannot match two-artist credit AC / DC");
-        that(ArtistAliases.score("Like Him", "Tyler, The Creator",
-                members(member("Tyler, The Creator", "50", "造物主泰勒")), list(), "CHROMAKOPIA", 278000,
-                "Like Him", "造物主泰勒", members(member("造物主泰勒", "qq50")), list(), "CHROMAKOPIA", 278000) >= 140,
+        // Official single member with internal punctuation keeps member count 1 while rejecting split credits.
+        List<ArtistAliases.Member> duoMember = members(member("DuoA & DuoB", "10"));
+        List<ArtistAliases.Member> twoArtists = members(member("DuoA", "11"), member("DuoB", "12"));
+        that(ArtistAliases.score("Track", "DuoA & DuoB", duoMember, list(), "Album", 200000,
+                "Track", "DuoA / DuoB", twoArtists, list(), "Album", 200000) < 0,
+                "single structured duo DuoA & DuoB cannot match two-artist credit DuoA / DuoB");
+        that(ArtistAliases.score("Track", "DuoA / DuoB", twoArtists, list(), "Album", 200000,
+                "Track", "DuoA & DuoB", duoMember, list(), "Album", 200000) < 0,
+                "two-artist credit DuoA / DuoB cannot match single structured duo DuoA & DuoB");
+        that(ArtistAliases.score("Track", "DuoA / DuoB", duoMember, list(), "Album", 200000,
+                "Track", "DuoA & DuoB", duoMember, list(), "Album", 200000) < 0,
+                "contradictory display credit DuoA / DuoB with single member DuoA & DuoB cannot match DuoA & DuoB");
+        that(ArtistAliases.score("Track", "DuoA & DuoB", duoMember, list(), "Album", 200000,
+                "Track", "DuoA & DuoB", duoMember, list(), "Album", 200000) >= 140,
+                "matching single structured duo DuoA & DuoB succeeds");
+        List<ArtistAliases.Member> slashBand = members(member("BandX/BandY", "30", "乐队译名"));
+        that(ArtistAliases.score("Rock Track", "BandX/BandY", slashBand, list(), "Rock Album", 255000,
+                "Rock Track", "BandX/BandY", members(member("BandX/BandY", "qq30")), list(), "Rock Album", 255000) >= 140,
+                "single structured slash band name is preserved");
+        that(ArtistAliases.score("Rock Track", "BandX/BandY", slashBand, list(), "Rock Album", 255000,
+                "Rock Track", "乐队译名", members(member("乐队译名", "qq30")), list(), "Rock Album", 255000) >= 140,
+                "single structured slash band retains its official alias");
+        that(ArtistAliases.score("Rock Track", "BandX/BandY", slashBand, list(), "Rock Album", 255000,
+                "Rock Track", "BandX / BandY", members(member("BandX", "1"), member("BandY", "2")), list(),
+                "Rock Album", 255000) < 0,
+                "single structured slash band cannot match split two-artist credit");
+        that(ArtistAliases.score("Comma Track", "Artist, The Suffix",
+                members(member("Artist, The Suffix", "50", "带逗号歌手")), list(), "Studio Album", 278000,
+                "Comma Track", "带逗号歌手", members(member("带逗号歌手", "qq50")), list(), "Studio Album", 278000) >= 140,
                 "single structured artist with comma uses official member alias");
 
-        // CARNIVAL: ¥$ is preserved at index 0; Kanye West is member #2 with alias ye.
-        List<ArtistAliases.Member> carnivalNetease = members(
+        // Symbol-only lead preserved in 3-member credit with non-lead alias resolution.
+        List<ArtistAliases.Member> trioSource = members(
                 member("¥$", "99001"),
-                member("Kanye West", "37520", "ye", "坎耶·维斯特"),
-                member("Ty Dolla $ign", "88001"));
-        List<ArtistAliases.Member> carnivalQq = members(
+                member("Lead Alpha", "1001", "shortalias", "中文主唱"),
+                member("Guest Gamma", "88001"));
+        List<ArtistAliases.Member> trioTarget = members(
                 member("¥$", "qq0"),
-                member("Ye (侃爷)", "qq1"),
-                member("Ty Dolla $ign", "qq2"));
-        that(ArtistAliases.score("CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", carnivalNetease, list(),
-                "VULTURES 1", 264000, "CARNIVAL", "¥$ / Ye (侃爷) / Ty Dolla $ign", carnivalQq, list(),
-                "VULTURES 1", 264000) >= 140, "CARNIVAL 3-member credit matches with symbol artist preserved");
-        that(ArtistAliases.score("CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", carnivalNetease, list(),
-                "VULTURES 1", 264000, "CARNIVAL", "Ye (侃爷) / Ty Dolla $ign", members(), list(),
-                "VULTURES 1", 264000) < 0, "CARNIVAL rejects candidate that drops ¥$");
-        that(ArtistAliases.score("CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", carnivalNetease, list(),
-                "VULTURES 1", 264000, "CARNIVAL",
-                "¥$ / Ye (侃爷) / Ty Dolla $ign / Rich The Kid / Playboi Carti", members(), list(),
-                "VULTURES 1", 264000) < 0, "CARNIVAL rejects 5-member credit against 3-member target");
-        that(ArtistAliases.score("CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", carnivalNetease, list(),
-                "VULTURES 1", 264000, "CARNIVAL (Acapella)", "¥$ / Ye (侃爷) / Ty Dolla $ign", carnivalQq, list(),
-                "VULTURES 1", 264000) < 0, "CARNIVAL rejects acapella version");
-        that(ArtistAliases.score("CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", carnivalNetease, list(),
-                "VULTURES 1", 264000, "CARNIVAL (HOOLIGANS VERSION)", "¥$ / Ye (侃爷) / Ty Dolla $ign", carnivalQq, list(),
-                "VULTURES 1", 264000) < 0, "CARNIVAL rejects HOOLIGANS VERSION");
+                member("ShortAlias (别名)", "qq1"),
+                member("Guest Gamma", "qq2"));
+        that(ArtistAliases.score("Symbol Track", "¥$ / Lead Alpha / Guest Gamma", trioSource, list(),
+                "Album Vol 1", 264000, "Symbol Track", "¥$ / ShortAlias (别名) / Guest Gamma", trioTarget, list(),
+                "Album Vol 1", 264000) >= 140, "3-member credit matches with symbol artist preserved");
+        that(ArtistAliases.score("Symbol Track", "¥$ / Lead Alpha / Guest Gamma", trioSource, list(),
+                "Album Vol 1", 264000, "Symbol Track", "ShortAlias (别名) / Guest Gamma", members(), list(),
+                "Album Vol 1", 264000) < 0, "dropping symbol-only lead is rejected");
+        that(ArtistAliases.score("Symbol Track", "¥$ / Lead Alpha / Guest Gamma", trioSource, list(),
+                "Album Vol 1", 264000, "Symbol Track",
+                "¥$ / ShortAlias (别名) / Guest Gamma / Extra One / Extra Two", members(), list(),
+                "Album Vol 1", 264000) < 0, "legacy strict score rejects 5-member credit against 3-member target");
+        that(ArtistAliases.score("Symbol Track", "¥$ / Lead Alpha / Guest Gamma", trioSource, list(),
+                "Album Vol 1", 264000, "Symbol Track (Acapella)", "¥$ / ShortAlias (别名) / Guest Gamma",
+                trioTarget, list(), "Album Vol 1", 264000) < 0, "acapella version is rejected");
+        that(ArtistAliases.score("Symbol Track", "¥$ / Lead Alpha / Guest Gamma", trioSource, list(),
+                "Album Vol 1", 264000, "Symbol Track (CUSTOM VERSION)", "¥$ / ShortAlias (别名) / Guest Gamma",
+                trioTarget, list(), "Album Vol 1", 264000) < 0, "non-benign custom version is rejected");
 
-        // Contradictory or partial structured members can never overwrite or drop the visible artist credit.
-        that(ArtistAliases.score("Famous", "Someone Else", members(member("Kanye West", "37520", "ye")), list(),
-                "The Life Of Pablo", 196000, "Famous", "Ye (侃爷)", members(), list(),
-                "The Life Of Pablo", 196000) < 0, "contradictory structured member cannot override visible artist");
-        that(ArtistAliases.score("Famous", "Kanye West / Rihanna", members(member("Kanye West", "37520", "ye")), list(),
-                "The Life Of Pablo", 196000, "Famous", "Ye (侃爷)", members(), list(),
-                "The Life Of Pablo", 196000) < 0, "partial structured members cannot drop visible collaborator");
-        that(ArtistAliases.score("Famous", "Kanye West / Rihanna",
-                members(member("Kanye West", "37520", "ye"), member("Wrong Artist", "99", "rihanna")), list(),
-                "The Life Of Pablo", 196000, "Famous", "Ye (侃爷) / Rihanna", yeRihanna, list(),
-                "The Life Of Pablo", 196000) < 0, "mismatched member entry invalidates structured aliases");
+        // Contradictory or partial structured members can never overwrite visible artist credits.
+        that(ArtistAliases.score("Anthem", "Someone Else", members(member("Lead Alpha", "1001", "shortalias")), list(),
+                "Studio Album", 196000, "Anthem", "ShortAlias (别名)", members(), list(),
+                "Studio Album", 196000) < 0, "contradictory structured member cannot override visible artist");
+        that(ArtistAliases.score("Anthem", "Lead Alpha / Guest Beta",
+                members(member("Lead Alpha", "1001", "shortalias")), list(),
+                "Studio Album", 196000, "Anthem", "ShortAlias (别名)", members(), list(),
+                "Studio Album", 196000) < 0, "partial structured members cannot drop visible collaborator");
+        that(ArtistAliases.score("Anthem", "Lead Alpha / Guest Beta",
+                members(member("Lead Alpha", "1001", "shortalias"), member("Wrong Artist", "99", "guestbeta")), list(),
+                "Studio Album", 196000, "Anthem", "ShortAlias (别名) / Guest Beta", targetCollab, list(),
+                "Studio Album", 196000) < 0, "mismatched member entry invalidates structured aliases");
     }
 
     private static void evidencedBridgeAndConflictGuards() {
-        List<ArtistAliases.Member> kanyeRihanna = members(
-                member("Kanye West", "37520", "ye", "坎耶·维斯特"),
-                member("Rihanna", "72724"));
-        List<ArtistAliases.Member> yeSolo = members(member("Ye (侃爷)", "0025NhlN2yWrP4"));
+        List<ArtistAliases.Member> collab = members(
+                member("Lead Alpha", "1001", "shortalias", "中文主唱"),
+                member("Guest Beta", "1002"));
+        List<ArtistAliases.Member> soloLead = members(member("ShortAlias (别名)", "qqLead"));
 
         that(ArtistAliases.evidencedLeadAlbumBridge(
-                "Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "The Life Of Pablo", 196040,
-                "Famous (Explicit)", "Ye (侃爷)", yeSolo, list(), "The Life Of Pablo (Explicit)", 196000),
-                "forward evidenced album bridge accepts solo lead on same album");
+                "Anthem", "Lead Alpha / Guest Beta", collab, list(), "Studio Album", 196040,
+                "Anthem (Explicit)", "ShortAlias (别名)", soloLead, list(), "Studio Album (Explicit)", 196000),
+                "legacy forward evidenced album bridge accepts solo lead on same album");
         that(ArtistAliases.evidencedLeadAlbumBridge(
-                "Famous (Explicit)", "Ye (侃爷)", yeSolo, list(), "The Life Of Pablo (Explicit)", 196000,
-                "Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "The Life Of Pablo", 196040),
-                "reverse evidenced album bridge accepts QQ solo lead against NetEase collaboration");
+                "Anthem (Explicit)", "ShortAlias (别名)", soloLead, list(), "Studio Album (Explicit)", 196000,
+                "Anthem", "Lead Alpha / Guest Beta", collab, list(), "Studio Album", 196040),
+                "legacy reverse evidenced album bridge accepts solo lead against collaboration");
         that(ArtistAliases.evidencedLeadAlbumBridge(
-                "Bound 2", "Kanye West / Charlie Wilson",
-                members(member("Kanye West", "37520", "ye"), member("Charlie Wilson", "2")), list(), "Yeezus", 229253,
-                "Bound 2 (Album Version|Explicit)", "Ye (侃爷)", yeSolo, list(), "Yeezus (Explicit)", 229000),
-                "evidenced album bridge accepts short real studio album Yeezus");
+                "Track Two", "Lead Alpha / Guest Delta",
+                members(member("Lead Alpha", "1001", "shortalias"), member("Guest Delta", "2")), list(), "ShortAl", 229253,
+                "Track Two (Album Version|Explicit)", "ShortAlias (别名)", soloLead, list(), "ShortAl (Explicit)", 229000),
+                "legacy evidenced album bridge accepts short real studio album");
         that(!ArtistAliases.evidencedLeadAlbumBridge(
-                "Runaway", "Kanye West / Pusha T",
-                members(member("Kanye West", "37520", "ye"), member("Pusha T", "3")), list(),
-                "My Beautiful Dark Twisted Fantasy", 548200,
-                "Runaway", "Ye (侃爷)", yeSolo, list(),
-                "My Beautiful Dark Twisted Fantasy", 339000),
-                "Runaway album version rejects 339s single edit");
+                "Long Track", "Lead Alpha / Guest Echo",
+                members(member("Lead Alpha", "1001", "shortalias"), member("Guest Echo", "3")), list(),
+                "Long Studio Album", 548200,
+                "Long Track", "ShortAlias (别名)", soloLead, list(), "Long Studio Album", 339000),
+                "legacy evidenced album bridge rejects radio edit with large duration gap");
         that(!ArtistAliases.evidencedLeadAlbumBridge(
-                "Stronger", "Kanye West / Daft Punk",
-                members(member("Kanye West", "37520", "ye"), member("Daft Punk", "4")), list(), "Graduation", 311000,
-                "Stronger (Explicit)", "Ye (侃爷)", yeSolo, list(), "Graduation (UK Version) [Explicit]", 311000),
-                "Stronger does not prefix-merge distinct album editions");
+                "Edition Track", "Lead Alpha / Guest Foxtrot",
+                members(member("Lead Alpha", "1001", "shortalias"), member("Guest Foxtrot", "4")), list(), "AlbumBase", 311000,
+                "Edition Track (Explicit)", "ShortAlias (别名)", soloLead, list(), "AlbumBase (UK Version) [Explicit]", 311000),
+                "distinct album editions do not prefix-merge");
         that(!ArtistAliases.evidencedLeadAlbumBridge(
-                "Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "The Life Of Pablo", 196040,
-                "Famous", "Rihanna", members(member("Rihanna", "")), list(), "The Life Of Pablo", 196000),
-                "guest-only solo credit is rejected by evidenced album bridge");
+                "Anthem", "Lead Alpha / Guest Beta", collab, list(), "Studio Album", 196040,
+                "Anthem", "Guest Beta", members(member("Guest Beta", "")), list(), "Studio Album", 196000),
+                "guest-only solo credit is rejected");
         that(!ArtistAliases.evidencedLeadAlbumBridge(
-                "Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "Greatest Hits", 196040,
-                "Famous", "Ye (侃爷)", yeSolo, list(), "Greatest Hits", 196000),
-                "generic compilation cannot justify evidenced album bridge");
+                "Anthem", "Lead Alpha / Guest Beta", collab, list(), "Greatest Hits", 196040,
+                "Anthem", "ShortAlias (别名)", soloLead, list(), "Greatest Hits", 196000),
+                "generic compilation cannot justify evidenced bridge");
         that(!ArtistAliases.evidencedLeadAlbumBridge(
-                "FML", "Kanye West / The Weeknd", members(), list(), "The Life Of Pablo", 236000,
-                "FML (Explicit)", "Ye (侃爷)", yeSolo, list(), "The Life Of Pablo (Explicit)", 236120),
-                "evidenced album bridge requires official identity proof (no weak fallback)");
+                "Track One", "Lead Alpha / Guest Beta", members(), list(), "Studio Album", 236000,
+                "Track One (Explicit)", "ShortAlias (别名)", soloLead, list(), "Studio Album (Explicit)", 236120),
+                "evidenced album bridge requires official identity proof");
 
-        // Known identity conflicts must never fall through into the legacy weak bridge.
+        // Identity conflict guards on legacy bridge.
         that(!ArtistAliases.bridgeAccepts(
-                "Famous", "Kanye West / Rihanna", members(), list(), "The Life Of Pablo", 196040,
-                "Famous", "Rihanna (蕾哈娜)", members(), list(), "The Life Of Pablo", 196000, true, 0),
-                "guest-only bilingual credit cannot slip through weak album bridge");
+                "Anthem", "Lead Alpha / Guest Beta", members(), list(), "Studio Album", 196040,
+                "Anthem", "Guest Beta (客串译名)", members(), list(), "Studio Album", 196000, true, 0),
+                "guest-only bilingual credit cannot slip through legacy weak bridge");
         that(!ArtistAliases.bridgeAccepts(
-                "Famous", "Kanye West / Rihanna", kanyeRihanna, list(), "The Life Of Pablo", 196040,
-                "Famous", "Drake (德雷克)", members(), list(), "The Life Of Pablo", 196000, true, 0),
+                "Anthem", "Lead Alpha / Guest Beta", collab, list(), "Studio Album", 196040,
+                "Anthem", "Stranger (陌生人)", members(), list(), "Studio Album", 196000, true, 0),
                 "stranger bilingual lead is rejected when official lead aliases exist");
         that(!ArtistAliases.bridgeAccepts(
-                NEW_ISLAND, SAKANACTION, members(), ALIASES, "", 305000,
-                NEW_ISLAND, "Coldplay", members(), list(), "", 305000, true, 0),
-                "unrelated same-script artist cannot bypass known official alias via cross-script rank 0");
+                TRACK_JP, ARTIST_KANA, members(), ALIASES, "", 305000,
+                TRACK_JP, "Unrelated Band", members(), list(), "", 305000, true, 0),
+                "unrelated same-script artist cannot bypass known official alias via rank 0");
     }
 
     private static void structuredSerializationAndQueries() throws Exception {
-        JSONArray qqSingers = new JSONArray()
+        JSONArray singers = new JSONArray()
                 .put(new JSONObject().put("mid", "qqSym").put("name", "¥$"))
-                .put(new JSONObject().put("mid", "0025NhlN2yWrP4").put("name", "Ye (侃爷)"))
-                .put(new JSONObject().put("mid", "qqTy").put("name", "Ty Dolla $ign"));
-        List<ArtistAliases.Member> parsed = ArtistAliases.membersFromArtists(qqSingers);
-        that(parsed.size() == 3 && "¥$".equals(parsed.get(0).name) && "0025NhlN2yWrP4".equals(parsed.get(1).providerId),
-                "QQ singer[] preserves order, symbol-only names, and provider mid");
+                .put(new JSONObject().put("mid", "qqLead").put("name", "ShortAlias (别名)"))
+                .put(new JSONObject().put("mid", "qqGuest").put("name", "Guest Gamma"));
+        List<ArtistAliases.Member> parsed = ArtistAliases.membersFromArtists(singers);
+        that(parsed.size() == 3 && "¥$".equals(parsed.get(0).name) && "qqLead".equals(parsed.get(1).providerId),
+                "provider singer[] preserves order, symbol-only names, and provider mid");
         List<ArtistAliases.Member> roundTripped = ArtistAliases.membersFromJson(ArtistAliases.membersToJson(parsed));
-        that(roundTripped.size() == 3 && "Ye (侃爷)".equals(roundTripped.get(1).name),
+        that(roundTripped.size() == 3 && "ShortAlias (别名)".equals(roundTripped.get(1).name),
                 "artistMembers round-trips through JSON");
 
         List<String> reverseQueries = ArtistAliases.searchQueries(
-                "Famous (Explicit)", "Ye (侃爷)", members(member("Ye (侃爷)", "0025")), list());
-        that(reverseQueries.equals(list("Famous Ye")),
+                "Anthem (Explicit)", "ShortAlias (别名)", members(member("ShortAlias (别名)", "qqLead")), list());
+        that(reverseQueries.equals(list("Anthem ShortAlias")),
                 "reverse query strips benign Explicit and bracketed alias");
         List<String> liveQueries = ArtistAliases.searchQueries(
-                "Famous (Live)", "Ye (侃爷)", members(member("Ye (侃爷)", "0025")), list());
-        that(liveQueries.equals(list("Famous (Live) Ye")),
+                "Anthem (Live)", "ShortAlias (别名)", members(member("ShortAlias (别名)", "qqLead")), list());
+        that(liveQueries.equals(list("Anthem (Live) ShortAlias")),
                 "recall query preserves Live version marker");
 
         List<String> collabQueries = ArtistAliases.searchQueries(
-                "Famous", "Kanye West / Rihanna",
-                members(member("Kanye West", "37520", "ye", "坎耶·维斯特"), member("Rihanna", "72724")), list());
-        that(collabQueries.contains("Famous ye Rihanna") && collabQueries.contains("Famous ye"),
+                "Anthem", "Lead Alpha / Guest Beta",
+                members(member("Lead Alpha", "1001", "shortalias", "中文主唱"), member("Guest Beta", "1002")), list());
+        that(collabQueries.contains("Anthem shortalias Guest Beta") && collabQueries.contains("Anthem shortalias"),
                 "collaboration alias queries substitute official member alias and lead alias");
 
-        List<String> carnivalQueries = ArtistAliases.searchQueries(
-                "CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign",
-                members(member("¥$", "1"), member("Kanye West", "37520", "ye"), member("Ty Dolla $ign", "2")), list());
-        that(carnivalQueries.contains("CARNIVAL ¥$ ye Ty Dolla $ign"),
-                "non-lead alias substitution builds CARNIVAL recall query");
+        List<String> nonLeadQueries = ArtistAliases.searchQueries(
+                "Symbol Track", "¥$ / Lead Alpha / Guest Gamma",
+                members(member("¥$", "1"), member("Lead Alpha", "1001", "shortalias"), member("Guest Gamma", "2")), list());
+        that(nonLeadQueries.contains("Symbol Track ¥$ shortalias Guest Gamma"),
+                "non-lead alias substitution builds multi-member recall query");
     }
 
     private static ArtistAliases.Member member(String name, String id, String... aliases) {

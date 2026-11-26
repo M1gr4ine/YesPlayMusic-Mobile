@@ -7,6 +7,7 @@ public final class AllTests {
     public static void main(String[] args) throws Exception {
         ArtistAliasesTest.run();
         LrcLinesTest.run();
+        MatchFixtureTest.run();
         MatchTextTest.run();
         MatchTraceTest.run();
         MusicApiTest.run();
@@ -19,6 +20,7 @@ public final class AllTests {
         QQMatchTest.run();
         QQSourceTest.run();
         RecentPlaybackStoreTest.run();
+        TrackMatcherTest.run();
         TrackTest.run();
         System.out.println("Java tests passed: " + Check.count() + " checks");
     }

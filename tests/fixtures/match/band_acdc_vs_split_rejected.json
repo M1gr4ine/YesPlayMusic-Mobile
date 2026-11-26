@@ -1,0 +1,50 @@
+{
+  "name": "band_acdc_vs_split_rejected",
+  "direction": "netease_to_qq",
+  "policy": "PLAYBACK",
+  "rule": "grouping_conflict_acdc_vs_split_veto",
+  "description": "Structured single band AC/DC must not match split two-artist AC / DC even on same album (vetoes both A and B).",
+  "expandGrp": false,
+  "target": {
+    "id": "3880691",
+    "title": "Back In Black",
+    "artist": "AC/DC",
+    "album": "Back In Black",
+    "duration": 255626,
+    "provider": "netease",
+    "artistMembers": [
+      {
+        "name": "AC/DC",
+        "providerId": "85502",
+        "aliases": []
+      }
+    ]
+  },
+  "responses": {
+    "Back In Black AC/DC": [
+      {
+        "mid": "001KtqEb0jd0hf",
+        "file": {
+          "media_mid": "002SnUBN20WZok"
+        },
+        "title": "Back In Black",
+        "singer": [
+          {
+            "name": "AC",
+            "mid": "a1"
+          },
+          {
+            "name": "DC",
+            "mid": "a2"
+          }
+        ],
+        "album": {
+          "name": "Back In Black"
+        },
+        "interval": 255
+      }
+    ]
+  },
+  "expect": "reject",
+  "expectRule": "NONE"
+}

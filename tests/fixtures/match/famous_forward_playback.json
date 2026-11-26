@@ -1,0 +1,588 @@
+{
+  "name": "famous_forward_playback",
+  "direction": "netease_to_qq",
+  "policy": "PLAYBACK",
+  "rule": "famous_forward_rule_a_album_priority",
+  "description": "Real recorded QQ search for Famous Kanye West Rihanna; both Ye (侃爷) [The Life Of Pablo, 40ms gap] and Ye (侃爷)/Rihanna [Famous, 1040ms gap] pass Rule A, with same-album ranked #1; 30s snippet and tributes rejected.",
+  "expandGrp": true,
+  "target": {
+    "id": "409736434",
+    "title": "Famous",
+    "artist": "Kanye West / Rihanna",
+    "album": "The Life Of Pablo",
+    "duration": 196040,
+    "provider": "netease",
+    "artistMembers": [
+      {
+        "name": "Kanye West",
+        "providerId": "37520",
+        "aliases": [
+          "ye",
+          "坎耶·维斯特"
+        ]
+      },
+      {
+        "name": "Rihanna",
+        "providerId": "72724",
+        "aliases": [
+          "蕾哈娜"
+        ]
+      }
+    ]
+  },
+  "responses": {
+    "Famous Kanye West Rihanna": [
+      {
+        "mid": "003Z0JlC3c9Jwx",
+        "file": {
+          "media_mid": "003t2vmR3o4RZp"
+        },
+        "title": "Famous",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          },
+          {
+            "name": "Rihanna",
+            "mid": "002MiBdR19HQWx"
+          }
+        ],
+        "album": {
+          "name": "Famous"
+        },
+        "interval": 195
+      },
+      {
+        "mid": "0023yUmC3Ss6Xm",
+        "file": {
+          "media_mid": "0023yUmC3Ss6Xm"
+        },
+        "title": "Famous",
+        "singer": [
+          {
+            "name": "Kanye West"
+          },
+          {
+            "name": "Rihanna"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 30
+      },
+      {
+        "mid": "002XelTe31rBEE",
+        "file": {
+          "media_mid": "003jtglT1Tyh8x"
+        },
+        "title": "Famous (Explicit)",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "The Life Of Pablo (Explicit)"
+        },
+        "interval": 196,
+        "grp": [
+          {
+            "mid": "000GOFgD48q1Sm",
+            "file": {
+              "media_mid": "0016vfYF0b9BVD"
+            },
+            "title": "Famous",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": "The Life Of Pablo"
+            },
+            "interval": 196
+          }
+        ]
+      },
+      {
+        "mid": "001UZxoK4XLYlg",
+        "file": {
+          "media_mid": "001UZxoK4XLYlg"
+        },
+        "title": "FAMOUS",
+        "singer": [
+          {
+            "name": "ALLDAY PROJECT",
+            "mid": "004BtMuq2HOoKQ"
+          }
+        ],
+        "album": {
+          "name": "FAMOUS"
+        },
+        "interval": 180
+      },
+      {
+        "mid": "000pl7mF3CfoEP",
+        "file": {
+          "media_mid": "000pl7mF3CfoEP"
+        },
+        "title": "WICKED",
+        "singer": [
+          {
+            "name": "ALLDAY PROJECT",
+            "mid": "004BtMuq2HOoKQ"
+          }
+        ],
+        "album": {
+          "name": "FAMOUS"
+        },
+        "interval": 157
+      },
+      {
+        "mid": "0017wuQH0MYRWe",
+        "file": {
+          "media_mid": "000UVou54AscoY"
+        },
+        "title": "Famous",
+        "singer": [
+          {
+            "name": "Ivy Adara",
+            "mid": "0047T7v41u5td6"
+          },
+          {
+            "name": "Jon Hume",
+            "mid": "001jvtpa32InYo"
+          },
+          {
+            "name": "Lindsey Raymond Jackson",
+            "mid": "002mVx9I01OzpJ"
+          },
+          {
+            "name": "Jean Sebastian",
+            "mid": "000rWcrg4IQkTG"
+          }
+        ],
+        "album": {
+          "name": "Famous"
+        },
+        "interval": 223,
+        "grp": [
+          {
+            "mid": "0046QXhM2rkfH5",
+            "file": {
+              "media_mid": "002YZotA0dAx3e"
+            },
+            "title": "Famous",
+            "singer": [
+              {
+                "name": "Ivy Adara",
+                "mid": "0047T7v41u5td6"
+              },
+              {
+                "name": "Jon Hume",
+                "mid": "001jvtpa32InYo"
+              },
+              {
+                "name": "Lindsey Raymond Jackson",
+                "mid": "002mVx9I01OzpJ"
+              },
+              {
+                "name": "Jean Sebastian",
+                "mid": "000rWcrg4IQkTG"
+              }
+            ],
+            "album": {
+              "name": "Intraduction"
+            },
+            "interval": 223
+          }
+        ]
+      },
+      {
+        "mid": "001jtazC0mpE2m",
+        "file": {
+          "media_mid": "001jtazC0mpE2m"
+        },
+        "title": "Famous (I'm The One) (Explicit)",
+        "singer": [
+          {
+            "name": "Mozzy",
+            "mid": "001jRXaD07KhbH"
+          },
+          {
+            "name": "Iamsu!",
+            "mid": "000q6Jab4RJNHZ"
+          },
+          {
+            "name": "Yo Gotti",
+            "mid": "002lXtSc3TwE9R"
+          },
+          {
+            "name": "Dej Loaf",
+            "mid": "000jM4KQ41RsXn"
+          }
+        ],
+        "album": {
+          "name": "Gangland Landlord (Explicit)"
+        },
+        "interval": 205
+      },
+      {
+        "mid": "004NAaGP2OmFjR",
+        "file": {
+          "media_mid": "000oT2la089snz"
+        },
+        "title": "Famous - Tribute to Kanye West and Rihanna and Swizz Beatz (Explicit)",
+        "singer": [
+          {
+            "name": "Billboard Masters",
+            "mid": "001EXyJT4gc3hZ"
+          }
+        ],
+        "album": {
+          "name": "Famous - Tribute to Kanye West and Rihanna and Swizz Beatz (Explicit)"
+        },
+        "interval": 200
+      },
+      {
+        "mid": "001EMRd82cwidQ",
+        "file": {
+          "media_mid": "002ZEEj00VeKql"
+        },
+        "title": "Famous - Tribute to Kanye West and Rihanna and Swizz Beatz (Instrumental Version)",
+        "singer": [
+          {
+            "name": "Billboard Masters",
+            "mid": "001EXyJT4gc3hZ"
+          }
+        ],
+        "album": {
+          "name": "Famous - Tribute to Kanye West and Rihanna and Swizz Beatz (Explicit)"
+        },
+        "interval": 200
+      },
+      {
+        "mid": "001wHoED2rqhvs",
+        "file": {
+          "media_mid": "001wHoED2rqhvs"
+        },
+        "title": "Famous (Korean Ver.)",
+        "singer": [
+          {
+            "name": "泰民",
+            "mid": "003YQgHW3Hw05h"
+          }
+        ],
+        "album": {
+          "name": "Never Gonna Dance Again : Act 1 - The 3rd Album"
+        },
+        "interval": 179
+      }
+    ],
+    "Famous Kanye West": [
+      {
+        "mid": "002XelTe31rBEE",
+        "file": {
+          "media_mid": "003jtglT1Tyh8x"
+        },
+        "title": "Famous (Explicit)",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "The Life Of Pablo (Explicit)"
+        },
+        "interval": 196,
+        "grp": [
+          {
+            "mid": "000GOFgD48q1Sm",
+            "file": {
+              "media_mid": "0016vfYF0b9BVD"
+            },
+            "title": "Famous",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": "The Life Of Pablo"
+            },
+            "interval": 196
+          }
+        ]
+      },
+      {
+        "mid": "003Z0JlC3c9Jwx",
+        "file": {
+          "media_mid": "003t2vmR3o4RZp"
+        },
+        "title": "Famous",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          },
+          {
+            "name": "Rihanna",
+            "mid": "002MiBdR19HQWx"
+          }
+        ],
+        "album": {
+          "name": "Famous"
+        },
+        "interval": 195
+      },
+      {
+        "mid": "0023yUmC3Ss6Xm",
+        "file": {
+          "media_mid": "0023yUmC3Ss6Xm"
+        },
+        "title": "Famous",
+        "singer": [
+          {
+            "name": "Kanye West"
+          },
+          {
+            "name": "Rihanna"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 30
+      },
+      {
+        "mid": "001T9hPY0XrXda",
+        "file": {
+          "media_mid": "000pFbKV2IoLcJ"
+        },
+        "title": "Famous (Remix)",
+        "singer": [
+          {
+            "name": "French Montana",
+            "mid": "002pZx9U1Zwpv8"
+          },
+          {
+            "name": "Adam Levine",
+            "mid": "001L0rMR1Rfq2q"
+          }
+        ],
+        "album": {
+          "name": "Famous (Remix)"
+        },
+        "interval": 226
+      },
+      {
+        "mid": "001UZxoK4XLYlg",
+        "file": {
+          "media_mid": "001UZxoK4XLYlg"
+        },
+        "title": "FAMOUS",
+        "singer": [
+          {
+            "name": "ALLDAY PROJECT",
+            "mid": "004BtMuq2HOoKQ"
+          }
+        ],
+        "album": {
+          "name": "FAMOUS"
+        },
+        "interval": 180
+      },
+      {
+        "mid": "002w6TZZ1GawAL",
+        "file": {
+          "media_mid": "00289foJ3mBbzS"
+        },
+        "title": "Never See Me Again",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "Eyes Closed"
+        },
+        "interval": 506,
+        "grp": [
+          {
+            "mid": "0015Mkcn0K4X7y",
+            "file": {
+              "media_mid": "0015Mkcn0K4X7y"
+            },
+            "title": "Never See Me Again",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": ""
+            },
+            "interval": 537
+          }
+        ]
+      },
+      {
+        "mid": "000TXUt30QgnXv",
+        "file": {
+          "media_mid": "002wUHXe0H8toL"
+        },
+        "title": "Pretty Girl Rock",
+        "singer": [
+          {
+            "name": "Keri Hilson",
+            "mid": "002sVref33sO57"
+          },
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "No Boys Allowed"
+        },
+        "interval": 256,
+        "grp": [
+          {
+            "mid": "002MQfid0yA5az",
+            "file": {
+              "media_mid": "000YRAr818sKQC"
+            },
+            "title": "Pretty Girl Rock",
+            "singer": [
+              {
+                "name": "Keri Hilson",
+                "mid": "002sVref33sO57"
+              },
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": "Pretty Girl Rock"
+            },
+            "interval": 256
+          }
+        ]
+      },
+      {
+        "mid": "0017wuQH0MYRWe",
+        "file": {
+          "media_mid": "000UVou54AscoY"
+        },
+        "title": "Famous",
+        "singer": [
+          {
+            "name": "Ivy Adara",
+            "mid": "0047T7v41u5td6"
+          },
+          {
+            "name": "Jon Hume",
+            "mid": "001jvtpa32InYo"
+          },
+          {
+            "name": "Lindsey Raymond Jackson",
+            "mid": "002mVx9I01OzpJ"
+          },
+          {
+            "name": "Jean Sebastian",
+            "mid": "000rWcrg4IQkTG"
+          }
+        ],
+        "album": {
+          "name": "Famous"
+        },
+        "interval": 223,
+        "grp": [
+          {
+            "mid": "0046QXhM2rkfH5",
+            "file": {
+              "media_mid": "002YZotA0dAx3e"
+            },
+            "title": "Famous",
+            "singer": [
+              {
+                "name": "Ivy Adara",
+                "mid": "0047T7v41u5td6"
+              },
+              {
+                "name": "Jon Hume",
+                "mid": "001jvtpa32InYo"
+              },
+              {
+                "name": "Lindsey Raymond Jackson",
+                "mid": "002mVx9I01OzpJ"
+              },
+              {
+                "name": "Jean Sebastian",
+                "mid": "000rWcrg4IQkTG"
+              }
+            ],
+            "album": {
+              "name": "Intraduction"
+            },
+            "interval": 223
+          }
+        ]
+      },
+      {
+        "mid": "002tDDTz3LLzgs",
+        "file": {
+          "media_mid": "00263ssr4cv3eD"
+        },
+        "title": "Only One",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          },
+          {
+            "name": "Paul McCartney",
+            "mid": "000gBzCP1pH9wn"
+          }
+        ],
+        "album": {
+          "name": "Only One"
+        },
+        "interval": 280
+      },
+      {
+        "mid": "004NAaGP2OmFjR",
+        "file": {
+          "media_mid": "000oT2la089snz"
+        },
+        "title": "Famous - Tribute to Kanye West and Rihanna and Swizz Beatz (Explicit)",
+        "singer": [
+          {
+            "name": "Billboard Masters",
+            "mid": "001EXyJT4gc3hZ"
+          }
+        ],
+        "album": {
+          "name": "Famous - Tribute to Kanye West and Rihanna and Swizz Beatz (Explicit)"
+        },
+        "interval": 200
+      }
+    ]
+  },
+  "expect": "qq:002XelTe31rBEE",
+  "expectRule": "A",
+  "expectTop3": [
+    "qq:002XelTe31rBEE",
+    "qq:000GOFgD48q1Sm",
+    "qq:003Z0JlC3c9Jwx"
+  ]
+}

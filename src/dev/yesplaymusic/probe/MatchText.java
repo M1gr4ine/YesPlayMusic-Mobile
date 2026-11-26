@@ -134,6 +134,83 @@ final class MatchText {
         return result.toString();
     }
 
+    static final class TitleInfo {
+        static final String LIVE_YEAR_CONFLICT = "<conflict>";
+
+        final String mainTitle;
+        final Set<String> versionTags;
+        final String versionKey;
+        final String liveYear;
+        final boolean hasLiveTag;
+
+        TitleInfo(String mainTitle, Set<String> versionTags, String versionKey, String liveYear) {
+            this.mainTitle = mainTitle;
+            this.versionTags = versionTags;
+            this.versionKey = versionKey;
+            this.liveYear = liveYear;
+            this.hasLiveTag = versionTags.contains("live");
+        }
+    }
+
+    static TitleInfo analyzeTitle(String title) {
+        String text = fold(title);
+        Set<String> tags = java.util.Collections.unmodifiableSet(versionTags(title));
+        StringBuilder keyBuilder = new StringBuilder();
+        for (String tag : tags) keyBuilder.append(tag).append('|');
+        String vKey = keyBuilder.toString();
+
+        Matcher brackets = MatchRules.BRACKET.matcher(text);
+        StringBuffer result = new StringBuffer();
+        String liveYear = "";
+        while (brackets.find()) {
+            String annotation = brackets.group(1).trim();
+            boolean benign = MatchRules.isBenignAnnotation(annotation);
+            boolean variant = annotation.endsWith(FOLDED_VARIANT_SUFFIX) && !benign;
+            boolean translation = !variant && CJK.matcher(annotation).find() && versionTags(annotation).isEmpty();
+            if (benign || translation) {
+                brackets.appendReplacement(result, "");
+                continue;
+            }
+            Matcher pureLive = MatchRules.PURE_LIVE_BRACKET.matcher(annotation);
+            if (pureLive.matches()) {
+                String year = pureLive.group(1) != null ? pureLive.group(1)
+                        : (pureLive.group(2) != null ? pureLive.group(2) : "");
+                if (!year.isEmpty()) {
+                    if (liveYear.isEmpty()) liveYear = year;
+                    else if (!liveYear.equals(year)) liveYear = TitleInfo.LIVE_YEAR_CONFLICT;
+                }
+                brackets.appendReplacement(result, "");
+                continue;
+            }
+            brackets.appendReplacement(result, Matcher.quoteReplacement(brackets.group()));
+        }
+        brackets.appendTail(result);
+        return new TitleInfo(normalize(result.toString()), tags, vKey, liveYear);
+    }
+
+    static boolean isLiveAlbum(String album) {
+        if (album == null || album.trim().isEmpty() || isCompilationAlbum(album)) return false;
+        return MatchRules.LIVE_ALBUM_MARKER.matcher(fold(album)).find();
+    }
+
+    static boolean sameAlbumTitle(String leftAlbum, String rightAlbum) {
+        if (!knownArtist(leftAlbum) || !knownArtist(rightAlbum)) return false;
+        TitleInfo left = analyzeTitle(leftAlbum);
+        TitleInfo right = analyzeTitle(rightAlbum);
+        if (left.mainTitle.isEmpty() || right.mainTitle.isEmpty()) return false;
+        if (TitleInfo.LIVE_YEAR_CONFLICT.equals(left.liveYear) || TitleInfo.LIVE_YEAR_CONFLICT.equals(right.liveYear)) {
+            return false;
+        }
+        return left.mainTitle.equals(right.mainTitle)
+                && left.versionTags.equals(right.versionTags)
+                && left.liveYear.equals(right.liveYear);
+    }
+
+    static boolean sameNonCompilationAlbum(String leftAlbum, String rightAlbum) {
+        return !isCompilationAlbum(leftAlbum) && !isCompilationAlbum(rightAlbum)
+                && sameAlbumTitle(leftAlbum, rightAlbum);
+    }
+
     static String mainTitle(String title) {
         String text = fold(title);
         Matcher brackets = MatchRules.BRACKET.matcher(text);

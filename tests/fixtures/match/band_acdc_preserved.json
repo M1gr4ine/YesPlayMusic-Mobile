@@ -1,0 +1,565 @@
+{
+  "name": "band_acdc_preserved",
+  "direction": "netease_to_qq",
+  "policy": "PLAYBACK",
+  "rule": "structured_band_slash_preserved",
+  "description": "Real NetEase & QQ recordings of Back In Black by structured single band AC/DC.",
+  "expandGrp": true,
+  "target": {
+    "id": "3880691",
+    "title": "Back In Black",
+    "artist": "AC/DC",
+    "album": "Back In Black",
+    "duration": 255626,
+    "provider": "netease",
+    "artistMembers": [
+      {
+        "name": "AC/DC",
+        "providerId": "85502",
+        "aliases": []
+      }
+    ]
+  },
+  "responses": {
+    "Back In Black AC/DC": [
+      {
+        "mid": "001KtqEb0jd0hf",
+        "file": {
+          "media_mid": "002SnUBN20WZok"
+        },
+        "title": "Back In Black",
+        "singer": [
+          {
+            "name": "AC/DC",
+            "mid": "0032vFuN45QYoW"
+          }
+        ],
+        "album": {
+          "name": "Back In Black"
+        },
+        "interval": 255,
+        "grp": [
+          {
+            "mid": "000rQ4Pp2TFMdb",
+            "file": {
+              "media_mid": "002cW4Uc1ehQPn"
+            },
+            "title": "Back In Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Iron Man 2"
+            },
+            "interval": 257
+          },
+          {
+            "mid": "002dYf5A1YlIGc",
+            "file": {
+              "media_mid": "001q0KV24XNvwN"
+            },
+            "title": "Back In Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Bonfire"
+            },
+            "interval": 255
+          },
+          {
+            "mid": "003QiMEv4Vh7Tq",
+            "file": {
+              "media_mid": "001kCHOX2mEKNz"
+            },
+            "title": "Back in black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "White Christmas"
+            },
+            "interval": 255
+          },
+          {
+            "mid": "004BxoBZ2HhsBC",
+            "file": {
+              "media_mid": "004BxoBZ2HhsBC"
+            },
+            "title": "Back In Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Highway To Melbourne 1988 (HQ Remastered)"
+            },
+            "interval": 251
+          },
+          {
+            "mid": "000jQE2W2DR6uy",
+            "file": {
+              "media_mid": "000jQE2W2DR6uy"
+            },
+            "title": "Back In Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Melbourne, 1981 (HQ 2025 Remastered)"
+            },
+            "interval": 261
+          },
+          {
+            "mid": "004AaCtC1zjfQz",
+            "file": {
+              "media_mid": "002nu4Hb3sMtP9"
+            },
+            "title": "Back In Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Gold Album (1974-2000)"
+            },
+            "interval": 255
+          },
+          {
+            "mid": "0040Yjsj4ZGyab",
+            "file": {
+              "media_mid": "0048ey0v0CLlXS"
+            },
+            "title": "Back In Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "RollingStone The 500 Greatest Songs Of All Time."
+            },
+            "interval": 255
+          },
+          {
+            "mid": "001aCM2s3Da53K",
+            "file": {
+              "media_mid": "004AGlSk3ZdVoT"
+            },
+            "title": "Back In Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Rolling Stone Magazine's 100 Greatest Guitar Songs of All Time"
+            },
+            "interval": 255
+          },
+          {
+            "mid": "002Sr0ea0TEqOn",
+            "file": {
+              "media_mid": "002Sr0ea0TEqOn"
+            },
+            "title": "Back in Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Toronto Rocks"
+            },
+            "interval": 263
+          }
+        ]
+      },
+      {
+        "mid": "002P2rHb4J9i0x",
+        "file": {
+          "media_mid": "001EiVGS0nn4DG"
+        },
+        "title": "Back in black (Single Version)",
+        "singer": [
+          {
+            "name": "AC/DC",
+            "mid": "0032vFuN45QYoW"
+          }
+        ],
+        "album": {
+          "name": "White Christmas"
+        },
+        "interval": 255,
+        "grp": [
+          {
+            "mid": "000Qxv2B1IqY1R",
+            "file": {
+              "media_mid": "000Qxv2B1IqY1R"
+            },
+            "title": "Back in Black (Single Version)",
+            "singer": [
+              {
+                "name": "AC/DC"
+              }
+            ],
+            "album": {
+              "name": ""
+            },
+            "interval": 245
+          }
+        ]
+      },
+      {
+        "mid": "003K17L91ICirS",
+        "file": {
+          "media_mid": "001Jm3Bw2yQYZv"
+        },
+        "title": "Back in Black (Live at River Plate)",
+        "singer": [
+          {
+            "name": "AC/DC",
+            "mid": "0032vFuN45QYoW"
+          }
+        ],
+        "album": {
+          "name": "Live at River Plate"
+        },
+        "interval": 255
+      },
+      {
+        "mid": "004btYxr2HXvA9",
+        "file": {
+          "media_mid": "004bonA419AOgc"
+        },
+        "title": "Back In Black (Live - 1991)",
+        "singer": [
+          {
+            "name": "AC/DC",
+            "mid": "0032vFuN45QYoW"
+          }
+        ],
+        "album": {
+          "name": "Live (Collector's Edition)"
+        },
+        "interval": 267
+      },
+      {
+        "mid": "000p2mN92RAAHj",
+        "file": {
+          "media_mid": "000p2mN92RAAHj"
+        },
+        "title": "Back in Black",
+        "singer": [
+          {
+            "name": "AC/DC",
+            "mid": "0032vFuN45QYoW"
+          }
+        ],
+        "album": {
+          "name": "Greatest Hits Broadcast Collection"
+        },
+        "interval": 220,
+        "grp": [
+          {
+            "mid": "000FPI9O0OPvaL",
+            "file": {
+              "media_mid": "000FPI9O0OPvaL"
+            },
+            "title": "Back In Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Tokyo 1981 (HQ 2025 Remastered)"
+            },
+            "interval": 220
+          },
+          {
+            "mid": "003YoePn2lcNQ3",
+            "file": {
+              "media_mid": "003YoePn2lcNQ3"
+            },
+            "title": "Back In Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Paris 1980 (HQ 2025 Remastered, Bonus Track Version)"
+            },
+            "interval": 219
+          },
+          {
+            "mid": "004DxJw03qW7O9",
+            "file": {
+              "media_mid": "004DxJw03qW7O9"
+            },
+            "title": "Back In Black",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Greatest Hits, The Broadcast Collection (HQ 2024 Remastered)"
+            },
+            "interval": 220
+          }
+        ]
+      },
+      {
+        "mid": "003JsMx70720KA",
+        "file": {
+          "media_mid": "003JsMx70720KA"
+        },
+        "title": "Back In Black (Live)",
+        "singer": [
+          {
+            "name": "AC/DC",
+            "mid": "0032vFuN45QYoW"
+          }
+        ],
+        "album": {
+          "name": "Guitar Gods Vol. 2 (Live) [Explicit]"
+        },
+        "interval": 215
+      },
+      {
+        "mid": "0006RwXL1PwUR2",
+        "file": {
+          "media_mid": "0006RwXL1PwUR2"
+        },
+        "title": "Back In Black (Live|Explicit)",
+        "singer": [
+          {
+            "name": "AC/DC",
+            "mid": "0032vFuN45QYoW"
+          }
+        ],
+        "album": {
+          "name": "Ultimate 80s Rock (Live) [Explicit]"
+        },
+        "interval": 215
+      },
+      {
+        "mid": "004ECAYl0OoHel",
+        "file": {
+          "media_mid": "003YcxGj4Hr84i"
+        },
+        "title": "Back In Black (Live Capital Center, Landover MD, Dec. 21, 1981)",
+        "singer": [
+          {
+            "name": "AC/DC",
+            "mid": "0032vFuN45QYoW"
+          }
+        ],
+        "album": {
+          "name": "Backtracks"
+        },
+        "interval": 259
+      },
+      {
+        "mid": "004F1oOO0h02WQ",
+        "file": {
+          "media_mid": "0045NdiV2et0w0"
+        },
+        "title": "Shoot to Thrill",
+        "singer": [
+          {
+            "name": "AC/DC",
+            "mid": "0032vFuN45QYoW"
+          }
+        ],
+        "album": {
+          "name": "Back In Black"
+        },
+        "interval": 317,
+        "grp": [
+          {
+            "mid": "003R8pEi2z3P8N",
+            "file": {
+              "media_mid": "000jEGgx2mKs6m"
+            },
+            "title": "Shoot to Thrill",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Bonfire"
+            },
+            "interval": 319
+          },
+          {
+            "mid": "004ToKj80Pnk5s",
+            "file": {
+              "media_mid": "004ToKj80Pnk5s"
+            },
+            "title": "Shoot to Thrill",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Greatest Hits Broadcast Collection"
+            },
+            "interval": 321
+          },
+          {
+            "mid": "001SajSj01T8W9",
+            "file": {
+              "media_mid": "0025vIZJ3XLCu0"
+            },
+            "title": "Shoot To Thrill",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Iron Man 2"
+            },
+            "interval": 319
+          },
+          {
+            "mid": "003f7hzZ19t2NC",
+            "file": {
+              "media_mid": "003f7hzZ19t2NC"
+            },
+            "title": "Shoot To Thrill",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Greatest Hits, The Broadcast Collection (HQ 2024 Remastered)"
+            },
+            "interval": 321
+          }
+        ]
+      },
+      {
+        "mid": "000p9BHV2x0NUh",
+        "file": {
+          "media_mid": "001gzk0Q32r28z"
+        },
+        "title": "Highway To Hell",
+        "singer": [
+          {
+            "name": "AC/DC",
+            "mid": "0032vFuN45QYoW"
+          }
+        ],
+        "album": {
+          "name": "Highway to hell"
+        },
+        "interval": 208,
+        "grp": [
+          {
+            "mid": "0042tpeT1iKClX",
+            "file": {
+              "media_mid": "0014AQq902HqLO"
+            },
+            "title": "Highway To Hell",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Iron Man 2"
+            },
+            "interval": 208
+          },
+          {
+            "mid": "000jlixE3tO70B",
+            "file": {
+              "media_mid": "00082aj43V4b45"
+            },
+            "title": "Highway To Hell",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Gold Album (1974-2000)"
+            },
+            "interval": 208
+          },
+          {
+            "mid": "004FMYvN2w2WkJ",
+            "file": {
+              "media_mid": "004FMYvN2w2WkJ"
+            },
+            "title": "Highway to Hell",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "Live at Towson State College 1979 (Live)"
+            },
+            "interval": 207
+          },
+          {
+            "mid": "00227mQI08gnyl",
+            "file": {
+              "media_mid": "0014AQq902HqLO"
+            },
+            "title": "Highway To Hell",
+            "singer": [
+              {
+                "name": "AC/DC",
+                "mid": "0032vFuN45QYoW"
+              }
+            ],
+            "album": {
+              "name": "RollingStone The 500 Greatest Songs Of All Time."
+            },
+            "interval": 208
+          }
+        ]
+      }
+    ]
+  },
+  "expect": "qq:001KtqEb0jd0hf",
+  "expectRule": "A"
+}

@@ -73,6 +73,15 @@ final class MatchRules {
                     + "remaster(?:ed)?(?: (?:\\d{4}|version))?|\\d{4} remaster(?:ed)?|"
                     + "原版|完整版|专辑版|正式版)$");
 
+    /** Pure live/concert bracket with optional 4-digit year, e.g. "Live", "2007 Live", "Live - 1991", "2007 现场". */
+    static final Pattern PURE_LIVE_BRACKET = Pattern.compile(
+            "^(?:((?:19|20)\\d{2})\\s*年?\\s*(?:live|现场|演唱会)|"
+                    + "(?:live|现场|演唱会)(?:\\s*[-/]?\\s*((?:19|20)\\d{2})\\s*年?)?)$");
+
+    /** General markers identifying a live/concert album title (evaluated on folded text). */
+    static final Pattern LIVE_ALBUM_MARKER = Pattern.compile(
+            "\\b(live|concert|tour|unplugged|stage)\\b|现场|演唱会");
+
     static final String[] COMPILATION_KEYWORDS = {
             "greatesthits", "bestof", "collection", "compilation", "精选", "合辑"
     };

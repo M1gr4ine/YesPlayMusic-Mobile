@@ -1,0 +1,866 @@
+{
+  "name": "fml_forward_no_alias_rule_b",
+  "direction": "netease_to_qq",
+  "policy": "PLAYBACK",
+  "rule": "rule_b_disjoint_same_album_unique",
+  "description": "Real recorded QQ search for FML Kanye West The Weeknd when alias metadata is absent; 0005toRJ3QqtAx is the unique hard-gate passer on same non-compilation album The Life Of Pablo (Rule B under A2 & A6).",
+  "expandGrp": false,
+  "target": {
+    "id": "409736441",
+    "title": "FML",
+    "artist": "Kanye West / The Weeknd",
+    "album": "The Life Of Pablo",
+    "duration": 236120,
+    "provider": "netease"
+  },
+  "responses": {
+    "FML Kanye West The Weeknd": [
+      {
+        "mid": "001XQWbl4CZcX9",
+        "file": {
+          "media_mid": "002ETMtG3mm528"
+        },
+        "title": "손오공 (Super) (孙悟空)",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 200
+      },
+      {
+        "mid": "0005toRJ3QqtAx",
+        "file": {
+          "media_mid": "003mHViD1MfUDY"
+        },
+        "title": "FML (Explicit)",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "The Life Of Pablo (Explicit)"
+        },
+        "interval": 236,
+        "grp": [
+          {
+            "mid": "003rrnm81JqHS2",
+            "file": {
+              "media_mid": "0029Ua2J18oYKj"
+            },
+            "title": "FML",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": "The Life Of Pablo"
+            },
+            "interval": 236
+          }
+        ]
+      },
+      {
+        "mid": "002E5gdV4dJxNG",
+        "file": {
+          "media_mid": "0048xXgS2lVzwD"
+        },
+        "title": "F*ck My Life",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 202
+      },
+      {
+        "mid": "002hxjzz3pnC6i",
+        "file": {
+          "media_mid": "002hxjzz3pnC6i"
+        },
+        "title": "FML (伴奏)",
+        "singer": [
+          {
+            "name": "Kanye West"
+          },
+          {
+            "name": "The Weeknd"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 18
+      },
+      {
+        "mid": "003HGm5Q1r7gxp",
+        "file": {
+          "media_mid": "003HGm5Q1r7gxp"
+        },
+        "title": "FML (R.O Flip)",
+        "singer": [
+          {
+            "name": "R.O"
+          },
+          {
+            "name": "Kanye West"
+          }
+        ],
+        "album": {
+          "name": "FML (R.O Flip)"
+        },
+        "interval": 270
+      },
+      {
+        "mid": "0000GsCt0AUEN7",
+        "file": {
+          "media_mid": "004T4iWt2hvOxo"
+        },
+        "title": "I Don't Understand But I Luv U",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 209
+      },
+      {
+        "mid": "003dCWqs1gmMfc",
+        "file": {
+          "media_mid": "000FvZrS4YpBbN"
+        },
+        "title": "April shower",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 212
+      },
+      {
+        "mid": "001Na8350PSsvQ",
+        "file": {
+          "media_mid": "001Na8350PSsvQ"
+        },
+        "title": "태어나 (FML (F**k My Life))",
+        "singer": [
+          {
+            "name": "NO:EL",
+            "mid": "003PDjQF2DxbLp"
+          }
+        ],
+        "album": {
+          "name": "TRIPONOEL"
+        },
+        "interval": 207
+      },
+      {
+        "mid": "002iFll70kx1Hp",
+        "file": {
+          "media_mid": "001iue0245yOZB"
+        },
+        "title": "Fire",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 158
+      },
+      {
+        "mid": "001N7U8Y1TBesh",
+        "file": {
+          "media_mid": "00485I6s4g3Th8"
+        },
+        "title": "FML (Explicit)",
+        "singer": [
+          {
+            "name": "Arizona Zervas",
+            "mid": "000HCKZU0bf2wb"
+          }
+        ],
+        "album": {
+          "name": "Living Facts (Explicit)"
+        },
+        "interval": 223,
+        "grp": [
+          {
+            "mid": "000CkVd118azbF",
+            "file": {
+              "media_mid": "000CkVd118azbF"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Beachside Summer Hits (Explicit)"
+            },
+            "interval": 222
+          },
+          {
+            "mid": "000GVZpY0HeW4m",
+            "file": {
+              "media_mid": "000GVZpY0HeW4m"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Melhores Músicas Internacionais 2022 (Explicit)"
+            },
+            "interval": 223
+          },
+          {
+            "mid": "002OHfuF3C0cyU",
+            "file": {
+              "media_mid": "002OHfuF3C0cyU"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Pop Internacional 2022 (Explicit)"
+            },
+            "interval": 222
+          },
+          {
+            "mid": "001V37QL2w4sYJ",
+            "file": {
+              "media_mid": "001V37QL2w4sYJ"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Internacionais Mais Tocadas (Explicit)"
+            },
+            "interval": 222
+          },
+          {
+            "mid": "001DQObR3MiSa1",
+            "file": {
+              "media_mid": "001DQObR3MiSa1"
+            },
+            "title": "FML",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "FML"
+            },
+            "interval": 225
+          }
+        ]
+      }
+    ],
+    "FML Kanye West": [
+      {
+        "mid": "001XQWbl4CZcX9",
+        "file": {
+          "media_mid": "002ETMtG3mm528"
+        },
+        "title": "손오공 (Super) (孙悟空)",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 200
+      },
+      {
+        "mid": "0005toRJ3QqtAx",
+        "file": {
+          "media_mid": "003mHViD1MfUDY"
+        },
+        "title": "FML (Explicit)",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "The Life Of Pablo (Explicit)"
+        },
+        "interval": 236,
+        "grp": [
+          {
+            "mid": "003rrnm81JqHS2",
+            "file": {
+              "media_mid": "0029Ua2J18oYKj"
+            },
+            "title": "FML",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": "The Life Of Pablo"
+            },
+            "interval": 236
+          }
+        ]
+      },
+      {
+        "mid": "002E5gdV4dJxNG",
+        "file": {
+          "media_mid": "0048xXgS2lVzwD"
+        },
+        "title": "F*ck My Life",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 202
+      },
+      {
+        "mid": "002hxjzz3pnC6i",
+        "file": {
+          "media_mid": "002hxjzz3pnC6i"
+        },
+        "title": "FML (伴奏)",
+        "singer": [
+          {
+            "name": "Kanye West"
+          },
+          {
+            "name": "The Weeknd"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 18
+      },
+      {
+        "mid": "003HGm5Q1r7gxp",
+        "file": {
+          "media_mid": "003HGm5Q1r7gxp"
+        },
+        "title": "FML (R.O Flip)",
+        "singer": [
+          {
+            "name": "R.O"
+          },
+          {
+            "name": "Kanye West"
+          }
+        ],
+        "album": {
+          "name": "FML (R.O Flip)"
+        },
+        "interval": 270
+      },
+      {
+        "mid": "0000GsCt0AUEN7",
+        "file": {
+          "media_mid": "004T4iWt2hvOxo"
+        },
+        "title": "I Don't Understand But I Luv U",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 209
+      },
+      {
+        "mid": "003dCWqs1gmMfc",
+        "file": {
+          "media_mid": "000FvZrS4YpBbN"
+        },
+        "title": "April shower",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 212
+      },
+      {
+        "mid": "001Na8350PSsvQ",
+        "file": {
+          "media_mid": "001Na8350PSsvQ"
+        },
+        "title": "태어나 (FML (F**k My Life))",
+        "singer": [
+          {
+            "name": "NO:EL",
+            "mid": "003PDjQF2DxbLp"
+          }
+        ],
+        "album": {
+          "name": "TRIPONOEL"
+        },
+        "interval": 207
+      },
+      {
+        "mid": "002iFll70kx1Hp",
+        "file": {
+          "media_mid": "001iue0245yOZB"
+        },
+        "title": "Fire",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 158
+      },
+      {
+        "mid": "001N7U8Y1TBesh",
+        "file": {
+          "media_mid": "00485I6s4g3Th8"
+        },
+        "title": "FML (Explicit)",
+        "singer": [
+          {
+            "name": "Arizona Zervas",
+            "mid": "000HCKZU0bf2wb"
+          }
+        ],
+        "album": {
+          "name": "Living Facts (Explicit)"
+        },
+        "interval": 223,
+        "grp": [
+          {
+            "mid": "000CkVd118azbF",
+            "file": {
+              "media_mid": "000CkVd118azbF"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Beachside Summer Hits (Explicit)"
+            },
+            "interval": 222
+          },
+          {
+            "mid": "000GVZpY0HeW4m",
+            "file": {
+              "media_mid": "000GVZpY0HeW4m"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Melhores Músicas Internacionais 2022 (Explicit)"
+            },
+            "interval": 223
+          },
+          {
+            "mid": "002OHfuF3C0cyU",
+            "file": {
+              "media_mid": "002OHfuF3C0cyU"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Pop Internacional 2022 (Explicit)"
+            },
+            "interval": 222
+          },
+          {
+            "mid": "001V37QL2w4sYJ",
+            "file": {
+              "media_mid": "001V37QL2w4sYJ"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Internacionais Mais Tocadas (Explicit)"
+            },
+            "interval": 222
+          },
+          {
+            "mid": "001DQObR3MiSa1",
+            "file": {
+              "media_mid": "001DQObR3MiSa1"
+            },
+            "title": "FML",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "FML"
+            },
+            "interval": 225
+          }
+        ]
+      }
+    ],
+    "FML": [
+      {
+        "mid": "001XQWbl4CZcX9",
+        "file": {
+          "media_mid": "002ETMtG3mm528"
+        },
+        "title": "손오공 (Super) (孙悟空)",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 200
+      },
+      {
+        "mid": "0005toRJ3QqtAx",
+        "file": {
+          "media_mid": "003mHViD1MfUDY"
+        },
+        "title": "FML (Explicit)",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "The Life Of Pablo (Explicit)"
+        },
+        "interval": 236,
+        "grp": [
+          {
+            "mid": "003rrnm81JqHS2",
+            "file": {
+              "media_mid": "0029Ua2J18oYKj"
+            },
+            "title": "FML",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": "The Life Of Pablo"
+            },
+            "interval": 236
+          }
+        ]
+      },
+      {
+        "mid": "002E5gdV4dJxNG",
+        "file": {
+          "media_mid": "0048xXgS2lVzwD"
+        },
+        "title": "F*ck My Life",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 202
+      },
+      {
+        "mid": "002hxjzz3pnC6i",
+        "file": {
+          "media_mid": "002hxjzz3pnC6i"
+        },
+        "title": "FML (伴奏)",
+        "singer": [
+          {
+            "name": "Kanye West"
+          },
+          {
+            "name": "The Weeknd"
+          }
+        ],
+        "album": {
+          "name": ""
+        },
+        "interval": 18
+      },
+      {
+        "mid": "003HGm5Q1r7gxp",
+        "file": {
+          "media_mid": "003HGm5Q1r7gxp"
+        },
+        "title": "FML (R.O Flip)",
+        "singer": [
+          {
+            "name": "R.O"
+          },
+          {
+            "name": "Kanye West"
+          }
+        ],
+        "album": {
+          "name": "FML (R.O Flip)"
+        },
+        "interval": 270
+      },
+      {
+        "mid": "0000GsCt0AUEN7",
+        "file": {
+          "media_mid": "004T4iWt2hvOxo"
+        },
+        "title": "I Don't Understand But I Luv U",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 209
+      },
+      {
+        "mid": "003dCWqs1gmMfc",
+        "file": {
+          "media_mid": "000FvZrS4YpBbN"
+        },
+        "title": "April shower",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 212
+      },
+      {
+        "mid": "001Na8350PSsvQ",
+        "file": {
+          "media_mid": "001Na8350PSsvQ"
+        },
+        "title": "태어나 (FML (F**k My Life))",
+        "singer": [
+          {
+            "name": "NO:EL",
+            "mid": "003PDjQF2DxbLp"
+          }
+        ],
+        "album": {
+          "name": "TRIPONOEL"
+        },
+        "interval": 207
+      },
+      {
+        "mid": "002iFll70kx1Hp",
+        "file": {
+          "media_mid": "001iue0245yOZB"
+        },
+        "title": "Fire",
+        "singer": [
+          {
+            "name": "SEVENTEEN",
+            "mid": "00039PXm1tClwo"
+          }
+        ],
+        "album": {
+          "name": "SEVENTEEN 10th Mini Album 'FML'"
+        },
+        "interval": 158
+      },
+      {
+        "mid": "001N7U8Y1TBesh",
+        "file": {
+          "media_mid": "00485I6s4g3Th8"
+        },
+        "title": "FML (Explicit)",
+        "singer": [
+          {
+            "name": "Arizona Zervas",
+            "mid": "000HCKZU0bf2wb"
+          }
+        ],
+        "album": {
+          "name": "Living Facts (Explicit)"
+        },
+        "interval": 223,
+        "grp": [
+          {
+            "mid": "000CkVd118azbF",
+            "file": {
+              "media_mid": "000CkVd118azbF"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Beachside Summer Hits (Explicit)"
+            },
+            "interval": 222
+          },
+          {
+            "mid": "000GVZpY0HeW4m",
+            "file": {
+              "media_mid": "000GVZpY0HeW4m"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Melhores Músicas Internacionais 2022 (Explicit)"
+            },
+            "interval": 223
+          },
+          {
+            "mid": "002OHfuF3C0cyU",
+            "file": {
+              "media_mid": "002OHfuF3C0cyU"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Pop Internacional 2022 (Explicit)"
+            },
+            "interval": 222
+          },
+          {
+            "mid": "001V37QL2w4sYJ",
+            "file": {
+              "media_mid": "001V37QL2w4sYJ"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "Internacionais Mais Tocadas (Explicit)"
+            },
+            "interval": 222
+          },
+          {
+            "mid": "001DQObR3MiSa1",
+            "file": {
+              "media_mid": "001DQObR3MiSa1"
+            },
+            "title": "FML",
+            "singer": [
+              {
+                "name": "Arizona Zervas",
+                "mid": "000HCKZU0bf2wb"
+              }
+            ],
+            "album": {
+              "name": "FML"
+            },
+            "interval": 225
+          }
+        ]
+      }
+    ]
+  },
+  "expect": "qq:0005toRJ3QqtAx",
+  "expectRule": "B"
+}
