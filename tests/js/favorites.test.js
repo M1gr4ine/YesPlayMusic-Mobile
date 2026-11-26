@@ -58,11 +58,13 @@ test('a NetEase catalog song is favorited by its own ID even when QQ supplies th
 
 test('a QQ catalog song is favorited through its matched NetEase ID, forwarding artist aliases', async () => {
   const favorites = createFavorites();
-  const track = Object.assign({}, qqTrack, { artistAliases: ['Fujii Kaze'] });
+  const track = Object.assign({}, qqTrack, { artistAliases: ['Fujii Kaze'],
+    artistMembers: [{ name: '藤井风', aliases: ['Fujii Kaze'] }] });
   await play(favorites, track);
   await favorites.app.toggleFavorite();
   assert.deepEqual(favorites.methods(), ['matchTrack', 'likeStatus', 'setLiked']);
   assert.deepEqual(favorites.calls[0].args.artistAliases, ['Fujii Kaze']);
+  assert.deepEqual(favorites.calls[0].args.artistMembers, track.artistMembers);
   assert.equal(favorites.calls[2].args.id, '918273');
   assert.equal(favorites.calls[2].args.liked, true);
 });

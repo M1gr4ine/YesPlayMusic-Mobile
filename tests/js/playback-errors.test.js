@@ -7,7 +7,7 @@ const { loadAppFunctions } = require('./support/app-harness');
 test('playTracks remaps clicked index when earlier entries are invalid', () => {
   const sent = [];
   let opened = false;
-  const app = loadAppFunctions(['artistNames', 'artistAliasNames', 'artistRefs', 'normalizeTrack', 'playTracks'], {
+  const app = loadAppFunctions(['artistNames', 'artistAliasNames', 'artistMembers', 'artistRefs', 'normalizeTrack', 'playTracks'], {
     safeHttpsUrl: value => String(value || ''),
     nativeReady: () => true,
     window: { Native: { command: payload => sent.push(JSON.parse(payload)) } },
@@ -29,7 +29,7 @@ test('playTracks remaps clicked index when earlier entries are invalid', () => {
 });
 
 test('normalizeMediaState preserves structured error codes and playbackErrorMessage distinguishes causes', () => {
-  const app = loadAppFunctions(['artistNames', 'artistAliasNames', 'artistRefs', 'normalizeTrack', 'mediaQueue', 'normalizeLyricTarget', 'normalizeMediaState', 'playbackErrorMessage'], {
+  const app = loadAppFunctions(['artistNames', 'artistAliasNames', 'artistMembers', 'artistRefs', 'normalizeTrack', 'mediaQueue', 'normalizeLyricTarget', 'normalizeMediaState', 'playbackErrorMessage'], {
     safeHttpsUrl: value => String(value || ''),
     mediaQueueCache: { version: -1, queue: [] },
     window: { Native: {} }

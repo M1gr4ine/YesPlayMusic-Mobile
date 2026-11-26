@@ -89,8 +89,16 @@ final class QQSourceTest {
     }
 
     private static JSONObject song(String mid, String file, String title, String artist, String album, int seconds) throws Exception {
+        return song(mid, file, title, new String[]{artist}, album, seconds);
+    }
+
+    private static JSONObject song(String mid, String file, String title, String[] singers, String album, int seconds) throws Exception {
+        JSONArray singerArray = new JSONArray();
+        for (int i = 0; i < singers.length; i++) {
+            singerArray.put(new JSONObject().put("mid", "singer" + i).put("name", singers[i]));
+        }
         return new JSONObject().put("mid", mid).put("file", new JSONObject().put("media_mid", file))
-                .put("title", title).put("singer", new JSONArray().put(new JSONObject().put("name", artist)))
+                .put("title", title).put("singer", singerArray)
                 .put("album", new JSONObject().put("name", album)).put("interval", seconds);
     }
 
@@ -106,6 +114,9 @@ final class QQSourceTest {
     }
 
     private static void matching() throws Exception {
+        List<ArtistAliases.Member> fmlMembers = Arrays.asList(
+                new ArtistAliases.Member("Kanye West", "37520", Collections.singletonList("ye")),
+                new ArtistAliases.Member("The Weeknd", "", Collections.emptyList()));
         Fake api = new Fake();
         api.results.put("FML Kanye West The Weeknd", new JSONArray().put(
                 song("0005toRJ3QqtAx", "003mHViD1MfUDY", "FML (Explicit)", "Ye (侃爷)", "The Life Of Pablo (Explicit)", 236))
@@ -114,18 +125,18 @@ final class QQSourceTest {
                 .put(song("other3", "otherfile3", "Other Three", "Other", "Other", 236))
                 .put(song("other4", "otherfile4", "Other Four", "Other", "Other", 236))
                 .put(song("flashing", "flashingfile", "Flashing Lights (Explicit)", "Ye", "Other", 237)));
-        api.artistAliases = Arrays.asList("ye");
+        api.structuredMembers = fmlMembers;
         api.results.put("FML", new JSONArray().put(
                 song("bareConflict", "bareFile", "FML", "Random Artist", "Other", 236)));
         List<JSONObject> resolved = QQSource.lookupAttempts(target(), api, "0");
         that("0005toRJ3QqtAx".equals(resolved.get(0).getString("qqMid")), "FML resolves to the intended QQ recording");
-        that(api.aliasTracks.size() == 1 && api.aliasTracks.get(0).artistIds.contains("37520"),
-                "official NetEase artist ID reaches alias lookup");
+        that(api.memberTracks.size() == 1 && api.memberTracks.get(0).artistIds.contains("37520"),
+                "official NetEase artist ID reaches structured alias lookup");
         that(api.requests.size() == 1, "first playable candidate returns without extra vkey requests");
 
         Fake leadQuery = new Fake();
         leadQuery.results.put("FML Kanye West", api.results.get("FML Kanye West The Weeknd"));
-        leadQuery.artistAliases = Collections.singletonList("ye");
+        leadQuery.structuredMembers = fmlMembers;
         that("0005toRJ3QqtAx".equals(QQSource.lookupAttempts(target(), leadQuery, "0").get(0).getString("qqMid")),
                 "search with only the lead artist reaches the observed QQ result for a collaborative track");
 
@@ -149,9 +160,100 @@ final class QQSourceTest {
         ambiguous.results.put("FML Kanye West The Weeknd", new JSONArray()
                 .put(song("one", "fileOne", "FML", "Ye (侃爷)", "The Life Of Pablo", 236))
                 .put(song("two", "fileTwo", "FML", "Someone Else", "The Life Of Pablo", 236)));
-        ambiguous.artistAliases = Arrays.asList("ye");
+        ambiguous.structuredMembers = fmlMembers;
         expectError(target(), ambiguous, "0", "match_not_found", null);
         that(ambiguous.requests.isEmpty(), "ambiguous same-title recordings never request a vkey");
+
+        famousAndStructuredCatalogCases();
+    }
+
+    private static void famousAndStructuredCatalogCases() throws Exception {
+        Track famousNetease = Track.fromJson(new JSONObject()
+                .put("id", "409736434").put("title", "Famous")
+                .put("artist", "Kanye West / Rihanna").put("album", "The Life Of Pablo")
+                .put("duration", 196040)
+                .put("artistRefs", new JSONArray()
+                        .put(new JSONObject().put("id", "37520").put("name", "Kanye West"))
+                        .put(new JSONObject().put("id", "72724").put("name", "Rihanna"))));
+
+        JSONArray famousPrimaryHits = new JSONArray()
+                .put(song("003Z0JlC3c9Jwx", "fileCollab", "Famous", new String[]{"Ye (侃爷)", "Rihanna"}, "Famous", 195))
+                .put(song("0023yUmC3Ss6Xm", "file30s", "Famous", new String[]{"Kanye West", "Rihanna"}, "Famous", 30))
+                .put(song("002XelTe31rBEE", "fileAlbum", "Famous (Explicit)", new String[]{"Ye (侃爷)"}, "The Life Of Pablo (Explicit)", 196));
+        List<ArtistAliases.Member> famousMembers = Arrays.asList(
+                new ArtistAliases.Member("Kanye West", "37520", Arrays.asList("ye", "坎耶·维斯特")),
+                new ArtistAliases.Member("Rihanna", "72724", Collections.emptyList()));
+
+        // Full-credit collaboration wins first; structured lookup avoids duplicate legacy aliases() calls.
+        Fake famous = new Fake();
+        famous.results.put("Famous Kanye West Rihanna", famousPrimaryHits);
+        famous.structuredMembers = famousMembers;
+        List<JSONObject> resolvedFamous = QQSource.lookupAttempts(famousNetease, famous, "0");
+        that("003Z0JlC3c9Jwx".equals(resolvedFamous.get(0).getString("qqMid")),
+                "Famous resolves to full-credit Ye (侃爷) / Rihanna first");
+        that(famous.requests.size() == 1 && famous.memberTracks.size() == 1 && famous.aliasTracks.isEmpty(),
+                "structured member lookup avoids redundant legacy alias request and stops after first playable candidate");
+
+        // If the full-credit single has no_purl, the evidenced same-album solo-lead version backs it up without veto.
+        Fake famousFallback = new Fake();
+        famousFallback.results.put("Famous Kanye West Rihanna", famousPrimaryHits);
+        famousFallback.structuredMembers = famousMembers;
+        famousFallback.noPurl.add("003Z0JlC3c9Jwx");
+        List<JSONObject> albumFallback = QQSource.lookupAttempts(famousNetease, famousFallback, "0");
+        that("002XelTe31rBEE".equals(albumFallback.get(0).getString("qqMid")),
+                "Famous falls back to same-album Ye (侃爷) recording when single has no purl");
+        that(famousFallback.requests.size() == 2
+                && !"0023yUmC3Ss6Xm".equals(famousFallback.requests.get(0).getJSONArray("songmid").getString(0))
+                && !"0023yUmC3Ss6Xm".equals(famousFallback.requests.get(1).getJSONArray("songmid").getString(0)),
+                "30-second snippet never triggers a vkey request");
+
+        // Bound 2 (short real album Yeezus) resolves via evidenced lead album bridge.
+        Track bound2 = Track.fromJson(new JSONObject()
+                .put("id", "26599525").put("title", "Bound 2")
+                .put("artist", "Kanye West / Charlie Wilson").put("album", "Yeezus")
+                .put("duration", 229253));
+        Fake bound2Api = new Fake();
+        bound2Api.results.put("Bound 2 Kanye West Charlie Wilson", new JSONArray()
+                .put(song("00Bound2Mid", "fileBound2", "Bound 2 (Album Version|Explicit)",
+                        new String[]{"Ye (侃爷)"}, "Yeezus (Explicit)", 229)));
+        bound2Api.structuredMembers = Arrays.asList(
+                new ArtistAliases.Member("Kanye West", "37520", Collections.singletonList("ye")),
+                new ArtistAliases.Member("Charlie Wilson", "99", Collections.emptyList()));
+        that("00Bound2Mid".equals(QQSource.lookupAttempts(bound2, bound2Api, "0").get(0).getString("qqMid")),
+                "Bound 2 resolves through evidenced Yeezus album bridge");
+
+        // CARNIVAL: non-lead Kanye alias query finds 3-artist ¥$ / Ye (侃爷) / Ty Dolla $ign, rejecting bad variants.
+        Track carnival = Track.fromJson(new JSONObject()
+                .put("id", "2125735002").put("title", "CARNIVAL")
+                .put("artist", "¥$ / Kanye West / Ty Dolla $ign").put("album", "VULTURES 1")
+                .put("duration", 264000));
+        Fake carnivalApi = new Fake();
+        carnivalApi.results.put("CARNIVAL ¥$ Kanye West Ty Dolla $ign", new JSONArray()
+                .put(song("bad5", "f5", "CARNIVAL",
+                        new String[]{"¥$", "Ye (侃爷)", "Ty Dolla $ign", "Rich The Kid", "Playboi Carti"}, "VULTURES 1", 264))
+                .put(song("badDrop", "fDrop", "CARNIVAL", new String[]{"Ye (侃爷)", "Ty Dolla $ign"}, "VULTURES 1", 264))
+                .put(song("badAca", "fAca", "CARNIVAL (Acapella)", new String[]{"¥$", "Ye (侃爷)", "Ty Dolla $ign"}, "VULTURES 1", 264))
+                .put(song("badHool", "fHool", "CARNIVAL (HOOLIGANS VERSION)", new String[]{"¥$", "Ye (侃爷)", "Ty Dolla $ign"}, "VULTURES 1", 264)));
+        carnivalApi.results.put("CARNIVAL ¥$ ye Ty Dolla $ign", new JSONArray()
+                .put(song("000cThFa1hAdAV", "fileCarnival", "CARNIVAL",
+                        new String[]{"¥$", "Ye (侃爷)", "Ty Dolla $ign"}, "VULTURES 1", 264)));
+        carnivalApi.structuredMembers = Arrays.asList(
+                new ArtistAliases.Member("¥$", "99001", Collections.emptyList()),
+                new ArtistAliases.Member("Kanye West", "37520", Collections.singletonList("ye")),
+                new ArtistAliases.Member("Ty Dolla $ign", "88001", Collections.emptyList()));
+        List<JSONObject> carnivalResolved = QQSource.lookupAttempts(carnival, carnivalApi, "0");
+        that("000cThFa1hAdAV".equals(carnivalResolved.get(0).getString("qqMid")),
+                "CARNIVAL resolves to the exact 3-artist QQ recording via non-lead alias query");
+        that(carnivalApi.requests.size() == 1, "rejected CARNIVAL variants never request a vkey");
+
+        // Competing Ye / Stranger or guest-only Rihanna still vetoes the album bridge.
+        Fake strangerCompete = new Fake();
+        strangerCompete.results.put("Famous Kanye West Rihanna", new JSONArray()
+                .put(song("002XelTe31rBEE", "fileAlbum", "Famous (Explicit)", new String[]{"Ye (侃爷)"}, "The Life Of Pablo (Explicit)", 196))
+                .put(song("badStranger", "fileStranger", "Famous", new String[]{"Ye (侃爷)", "Stranger"}, "The Life Of Pablo", 196)));
+        strangerCompete.structuredMembers = famousMembers;
+        expectError(famousNetease, strangerCompete, "0", "match_not_found", null);
+        that(strangerCompete.requests.isEmpty(), "Ye / Stranger competing hit still vetoes album bridge");
     }
 
     private static void cachedAndNative() throws Exception {
@@ -474,8 +576,10 @@ final class QQSourceTest {
         final Map<String, JSONObject> details = new LinkedHashMap<>();
         final List<String> queries = new ArrayList<>(), detailCalls = new ArrayList<>(), noPurl = new ArrayList<>();
         final List<Track> aliasTracks = new ArrayList<>();
+        final List<Track> memberTracks = new ArrayList<>();
         final List<JSONObject> requests = new ArrayList<>();
         List<String> artistAliases = Collections.emptyList();
+        List<ArtistAliases.Member> structuredMembers = null;
         JSONArray sips = new JSONArray().put("https://a.qqmusic.qq.com/");
         int retcode, rowCode;
         boolean reverse, wrongRowMid, interruptSearch;
@@ -488,6 +592,11 @@ final class QQSourceTest {
         }
         public JSONObject detail(String mid) { detailCalls.add(mid); return details.get(mid); }
         public List<String> aliases(Track track) { aliasTracks.add(track); return artistAliases; }
+        @Override public List<ArtistAliases.Member> artistMembers(Track track) {
+            if (structuredMembers == null) return null;
+            memberTracks.add(track);
+            return structuredMembers;
+        }
         public JSONObject vkey(JSONObject params) throws Exception {
             requests.add(new JSONObject(params.toString()));
             String mid = params.getJSONArray("songmid").getString(0);

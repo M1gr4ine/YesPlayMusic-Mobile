@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadAppFunctions } = require('./support/app-harness');
 
-const app = loadAppFunctions(['artistNames', 'artistAliasNames', 'artistRefs', 'normalizeTrack'], { safeHttpsUrl: value => String(value || '') });
+const app = loadAppFunctions(['artistNames', 'artistAliasNames', 'artistMembers', 'artistRefs', 'normalizeTrack'], { safeHttpsUrl: value => String(value || '') });
 const normalize = raw => JSON.parse(JSON.stringify(app.normalizeTrack(raw, 'netease')));
 
 test('collects provider artist aliases without changing the displayed artist', () => {
@@ -18,6 +18,26 @@ test('collects provider artist aliases without changing the displayed artist', (
 test('keeps aliases when queued metadata is normalized again', () => {
   const track = normalize({ id: '1', title: 'Song', artist: 'Artist', artistAliases: ['Alias'], provider: 'netease' });
   assert.deepEqual(track.artistAliases, ['Alias']);
+});
+
+test('keeps each collaborator and their own aliases through a queue round trip', () => {
+  const track = normalize({ id: 2125538091, name: 'CARNIVAL', ar: [
+    { id: 59188409, name: '¥$' }, { id: 37520, name: 'Kanye West', alias: ['ye'] },
+    { id: 789235, name: 'Ty Dolla $ign' }
+  ] });
+  assert.deepEqual(track.artistMembers, [{ providerId: '59188409', name: '¥$' },
+    { providerId: '37520', name: 'Kanye West', aliases: ['ye'] },
+    { providerId: '789235', name: 'Ty Dolla $ign' }]);
+  assert.deepEqual(normalize(track).artistMembers, track.artistMembers);
+  assert.deepEqual(track.artistAliases, []);
+
+  const qq = normalize({ id: 'qq:single', title: 'Famous', singer: [{ id: 12, name: 'Ye (侃爷)' }] });
+  assert.equal(qq.artistMembers[0].providerId, '12');
+  assert.equal(qq.artistRefs, undefined);
+
+  const stale = normalize({ id: 'qq:old', title: 'Famous', artist: 'Another Artist',
+    artistMembers: [{ name: 'Kanye West', aliases: ['ye'] }], artistAliases: ['ye'] });
+  assert.deepEqual(stale.artistAliases, []);
 });
 
 test('accepts only trimmed, deduplicated string aliases plus a translation field', () => {

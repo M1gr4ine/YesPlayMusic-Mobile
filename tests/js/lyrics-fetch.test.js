@@ -28,7 +28,7 @@ function createLyricsHarness(responder) {
   };
   let rawStateJson = '';
   const app = loadAppFunctions([
-    'artistNames', 'artistAliasNames', 'artistRefs', 'normalizeTrack', 'mediaQueue',
+    'artistNames', 'artistAliasNames', 'artistMembers', 'artistRefs', 'normalizeTrack', 'mediaQueue',
     'normalizeLyricTarget', 'normalizeMediaState', 'lyricsText', 'resolveLyricsTargets',
     'lyricsTimelinesCompatible', 'resetLyricsSession', 'requestLyricTarget',
     'fetchLyricsForCurrent', 'pollMediaState'

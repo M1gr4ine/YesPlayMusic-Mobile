@@ -62,5 +62,14 @@ final class TrackTest {
         that("サカナクション".equals(published.optString("artist")), "aliases never replace the display artist");
         that(aliases.toString().equals(String.valueOf(published.optJSONArray("artistAliases"))),
                 "aliases survive parsing and source resolution");
+        JSONArray members = new JSONArray().put(new JSONObject().put("name", "Kanye West").put("providerId", "37520")
+                .put("aliases", new JSONArray().put("ye"))).put(new JSONObject().put("name", "Rihanna"));
+        Track duet = Track.fromJson(new JSONObject().put("id", "409736434").put("artist", "Kanye West / Rihanna")
+                .put("artistMembers", members));
+        Track restored = Track.fromJson(duet.withVerifiedQqMid("Famous", "albumFile").toJson(false));
+        that("37520".equals(restored.artistMembers.get(0).providerId)
+                && restored.artistMembers.get(0).aliases.contains("ye") && restored.artistMembers.get(1).aliases.isEmpty(),
+                "queue metadata preserves alias ownership");
+        that("7".equals(verified.artistMembers.get(0).providerId), "older named NetEase refs restore member identity");
     }
 }

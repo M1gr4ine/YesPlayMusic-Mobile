@@ -22,6 +22,9 @@ public final class QQMatch {
             "女版", "男版", "女声", "男声", "女生版", "男生版", "烟嗓", "片段", "高潮版", "铃声", "戏腔"
     };
     private static final Pattern NON_WORD = Pattern.compile("[^\\p{L}\\p{N}]");
+    private static final Pattern SYMBOL_CHAR = Pattern.compile("\\p{S}");
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    private static final String SYMBOL_PREFIX = "\u0000";
     private static final Pattern ARTIST_SEPARATOR = Pattern.compile("(?i)\\s*(?:[/、,&，;；]|\\b(?:feat\\.?|ft\\.?|featuring|with|vs\\.?)\\b|\\s+x\\s+)\\s*");
     private static final Pattern SLASH = Pattern.compile("\\s*/\\s*");
     private static final Pattern BRACKET = Pattern.compile("[（(\\[【]([^）)\\]】]+)[）)\\]】]");
@@ -38,8 +41,38 @@ public final class QQMatch {
         }
         return result.toString();
     }
+    static String foldCompact(String text) {
+        return WHITESPACE.matcher(fold(text)).replaceAll(" ").trim();
+    }
+    static boolean matchesDisplayCredit(String displayArtist, java.util.List<String> memberNames) {
+        String foldedDisplay = foldCompact(displayArtist);
+        if (foldedDisplay.isEmpty() || memberNames == null || memberNames.isEmpty()) return false;
+        int pos = 0;
+        for (int i = 0; i < memberNames.size(); i++) {
+            String member = foldCompact(memberNames.get(i));
+            if (member.isEmpty()) return false;
+            if (i > 0) {
+                Matcher sep = ARTIST_SEPARATOR.matcher(foldedDisplay);
+                sep.region(pos, foldedDisplay.length());
+                if (!sep.lookingAt() || sep.end() == pos) return false;
+                pos = sep.end();
+            }
+            if (!foldedDisplay.startsWith(member, pos)) return false;
+            pos += member.length();
+        }
+        return pos == foldedDisplay.length();
+    }
     public static String normalize(String text) {
         return NON_WORD.matcher(fold(text)).replaceAll("");
+    }
+    static String normalizeArtistToken(String text) {
+        String normalized = normalize(text);
+        if (!normalized.isEmpty()) return normalized;
+        String collapsed = WHITESPACE.matcher(fold(text)).replaceAll("");
+        if (!collapsed.isEmpty() && SYMBOL_CHAR.matcher(collapsed).find()) {
+            return SYMBOL_PREFIX + collapsed;
+        }
+        return "";
     }
     private static boolean isBenignAnnotation(String annotation) {
         String trimmed = annotation == null ? "" : annotation.trim();
@@ -49,6 +82,38 @@ public final class QQMatch {
             if (!BENIGN.matcher(part.trim()).matches()) return false;
         }
         return true;
+    }
+
+    /** Strips only recognized benign edition markers (e.g. Explicit) for recall queries, keeping version tags intact. */
+    static String cleanSearchTitle(String title) {
+        String raw = title == null ? "" : title.trim();
+        if (raw.isEmpty()) return "";
+        Matcher brackets = BRACKET.matcher(raw);
+        StringBuffer result = new StringBuffer();
+        while (brackets.find()) {
+            String annotation = fold(brackets.group(1)).trim();
+            brackets.appendReplacement(result, isBenignAnnotation(annotation) ? "" : Matcher.quoteReplacement(brackets.group()));
+        }
+        brackets.appendTail(result);
+        String cleaned = WHITESPACE.matcher(result.toString()).replaceAll(" ").trim();
+        return cleaned.isEmpty() ? raw : cleaned;
+    }
+
+    /** Strips bracketed alternate names inside artist credits for cleaner recall queries only. */
+    static String cleanSearchArtist(String artist) {
+        String raw = artist == null ? "" : artist.trim();
+        if (raw.isEmpty()) return "";
+        String[] segments = SLASH.split(raw);
+        StringBuilder joined = new StringBuilder();
+        for (String segment : segments) {
+            String trimmed = segment.trim();
+            if (trimmed.isEmpty()) continue;
+            String base = WHITESPACE.matcher(BRACKET.matcher(trimmed).replaceAll(" ")).replaceAll(" ").trim();
+            String token = base.isEmpty() ? trimmed : base;
+            if (joined.length() > 0) joined.append(" / ");
+            joined.append(token);
+        }
+        return joined.length() > 0 ? joined.toString() : raw;
     }
 
     private static String version(String value) {
@@ -96,24 +161,31 @@ public final class QQMatch {
         String a = mainTitle(left), b = mainTitle(right);
         return !a.isEmpty() && a.equals(b) && version(left).equals(version(right));
     }
+    static java.util.Set<String> memberAtomNames(String memberName) {
+        java.util.Set<String> names = new java.util.LinkedHashSet<>();
+        if (memberName == null) return names;
+        String folded = fold(memberName);
+        Matcher brackets = BRACKET.matcher(folded);
+        StringBuffer base = new StringBuffer();
+        while (brackets.find()) {
+            String alias = normalizeArtistToken(brackets.group(1));
+            if (!alias.isEmpty()) names.add(alias);
+            brackets.appendReplacement(base, "");
+        }
+        brackets.appendTail(base);
+        String name = normalizeArtistToken(base.toString());
+        if (!name.isEmpty()) names.add(name);
+        return names;
+    }
     static java.util.Set<String> artistNames(String credit) {
         java.util.Set<String> names = new java.util.LinkedHashSet<>();
         if (credit == null) return names;
         for (String part : ARTIST_SEPARATOR.split(fold(credit))) {
-            Matcher brackets = BRACKET.matcher(part);
-            StringBuffer base = new StringBuffer();
-            while (brackets.find()) {
-                String alias = normalize(brackets.group(1));
-                if (!alias.isEmpty()) names.add(alias);
-                brackets.appendReplacement(base, "");
-            }
-            brackets.appendTail(base);
-            String name = normalize(base.toString());
-            if (!name.isEmpty()) names.add(name);
+            names.addAll(memberAtomNames(part));
         }
         return names;
     }
-    private static java.util.List<java.util.Set<String>> artistParts(String credit) {
+    static java.util.List<java.util.Set<String>> artistParts(String credit) {
         java.util.List<java.util.Set<String>> parts = new java.util.ArrayList<>();
         if (credit != null) for (String part : ARTIST_SEPARATOR.split(fold(credit))) {
             java.util.Set<String> names = artistNames(part);
@@ -121,15 +193,25 @@ public final class QQMatch {
         }
         return parts;
     }
+    static java.util.List<String> artistRawParts(String credit) {
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        if (credit != null) for (String part : ARTIST_SEPARATOR.split(credit)) {
+            String trimmed = part.trim();
+            if (!artistNames(trimmed).isEmpty()) parts.add(trimmed);
+        }
+        return parts;
+    }
     static boolean knownArtist(String credit) {
         String value = normalize(credit);
-        return !value.isEmpty() && !value.equals("unknown") && !value.equals("unknownartist")
-                && !value.equals("未知") && !value.equals("未知歌手") && !value.equals("未知艺术家")
-                && !value.equals("variousartists") && !value.equals("群星") && !value.equals("null");
+        if (!value.isEmpty()) {
+            return !value.equals("unknown") && !value.equals("unknownartist")
+                    && !value.equals("未知") && !value.equals("未知歌手") && !value.equals("未知艺术家")
+                    && !value.equals("variousartists") && !value.equals("群星") && !value.equals("null");
+        }
+        return !artistParts(credit).isEmpty();
     }
-    private static boolean sameArtistCredit(String left, String right) {
-        java.util.List<java.util.Set<String>> a = artistParts(left), b = artistParts(right);
-        if (a.isEmpty() || a.size() != b.size()) return false;
+    static boolean sameArtistParts(java.util.List<java.util.Set<String>> a, java.util.List<java.util.Set<String>> b) {
+        if (a == null || b == null || a.isEmpty() || a.size() != b.size()) return false;
         boolean[] used = new boolean[b.size()];
         for (java.util.Set<String> names : a) {
             int match = -1;
@@ -144,17 +226,27 @@ public final class QQMatch {
         }
         return true;
     }
+    private static boolean sameArtistCredit(String left, String right) {
+        return sameArtistParts(artistParts(left), artistParts(right));
+    }
     public static int score(String title, String artist, long duration, String candidateTitle, String candidateArtist, long candidateDuration) {
         return score(title, artist, "", duration, candidateTitle, candidateArtist, "", candidateDuration);
     }
     public static int score(String title, String artist, String album, long duration, String candidateTitle, String candidateArtist, String candidateAlbum, long candidateDuration) {
+        if (!knownArtist(artist) || !knownArtist(candidateArtist)) return -1;
+        return scoreParts(title, artistParts(artist), artist, album, duration,
+                candidateTitle, artistParts(candidateArtist), candidateArtist, candidateAlbum, candidateDuration);
+    }
+    static int scoreParts(String title, java.util.List<java.util.Set<String>> leftParts, String leftCredit, String album, long duration,
+                          String candidateTitle, java.util.List<java.util.Set<String>> rightParts, String rightCredit, String candidateAlbum, long candidateDuration) {
         String a = normalize(title), b = normalize(candidateTitle);
         if (a.isEmpty() || b.isEmpty() || !version(title).equals(version(candidateTitle))) return -1;
         int score = sameRecordingTitle(title, candidateTitle) ? 100 : -1;
         if (score < 0) return -1;
-        if (!knownArtist(artist) || !knownArtist(candidateArtist) || !sameArtistCredit(artist, candidateArtist)) return -1;
-        java.util.List<java.util.Set<String>> parts = artistParts(artist);
-        score += parts.size() == 1 || normalize(artist).equals(normalize(candidateArtist)) ? 60 : 40;
+        if (!sameArtistParts(leftParts, rightParts)) return -1;
+        String leftNorm = normalize(leftCredit), rightNorm = normalize(rightCredit);
+        boolean exactCredit = !leftNorm.isEmpty() && leftNorm.equals(rightNorm);
+        score += leftParts.size() == 1 || exactCredit ? 60 : 40;
         if (knownArtist(album) && knownArtist(candidateAlbum) && sameRecordingTitle(album, candidateAlbum)) score += 10;
         if (duration > 0 && candidateDuration > 0) {
             long difference = Math.abs(duration - candidateDuration);

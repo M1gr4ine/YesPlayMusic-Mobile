@@ -434,7 +434,8 @@ public final class QQSource {
         JSONObject album = song.optJSONObject("album");
         String albumMid = album == null ? "" : validMid(album.opt("mid"));
         String mid = songMid(song);
-        return new JSONObject().put("id", "qq:" + mid).put("provider", "qq")
+        JSONArray artistMembers = ArtistAliases.membersToJson(ArtistAliases.membersFromArtists(singers));
+        JSONObject track = new JSONObject().put("id", "qq:" + mid).put("provider", "qq")
                 .put("qqMid", mid).put("mediaMid", fileMid(song))
                 .put("title", song.optString("title", song.optString("name", "")))
                 .put("artist", artist.toString())
@@ -442,13 +443,18 @@ public final class QQSource {
                 .put("album", album == null ? "" : album.optString("name", ""))
                 .put("artwork", albumMid.isEmpty() ? "" : "https://y.gtimg.cn/music/photo_new/T002R800x800M000" + albumMid + ".jpg")
                 .put("duration", song.optLong("interval", 0) * 1000L);
+        if (artistMembers.length() > 0) track.put("artistMembers", artistMembers);
+        return track;
     }
 
-    /** The four provider reads used by playback. Tests supply recorded catalogue and vkey shapes. */
+    /** The provider reads used by playback. Tests supply recorded catalogue and vkey shapes. */
     interface Lookup {
         JSONArray search(String query) throws Exception;
         JSONObject detail(String mid) throws Exception;
         List<String> aliases(Track track) throws Exception;
+        default List<ArtistAliases.Member> artistMembers(Track track) throws Exception {
+            return null;
+        }
         JSONObject vkey(JSONObject params) throws Exception;
     }
 
@@ -486,40 +492,74 @@ public final class QQSource {
         }
     }
 
-    private static int strictScore(Track target, List<String> aliases, Track song) {
-        return ArtistAliases.score(target.title, target.artist, aliases, target.album, target.duration,
-                song.title, song.artist, song.artistAliases, song.album, song.duration);
+    private static int strictScore(Track target, List<ArtistAliases.Member> members, List<String> aliases, Track song) {
+        return ArtistAliases.score(target.title, target.artist, members, aliases, target.album, target.duration,
+                song.title, song.artist, song.artistMembers, song.artistAliases, song.album, song.duration);
     }
 
-    private static boolean hasCompetingCredit(Track target, Track selected, List<SearchHit> hits) {
+    private static boolean hasCompetingCredit(Track target, List<ArtistAliases.Member> members,
+                                              List<String> aliases, Track selected, List<SearchHit> hits) {
         for (SearchHit hit : hits) {
             if (!hit.artistQuery) continue;
             Track other = hit.song;
             if (other.id.equals(selected.id) || other.artist.isEmpty()
-                    || other.duration <= 0 || Math.abs(other.duration - target.duration) > 5000
+                    || other.duration <= 0 || Math.abs(other.duration - target.duration) > QQMatch.UNM_DURATION_MS
                     || !QQMatch.sameRecordingTitle(target.title, other.title)) continue;
-            if (strictScore(selected, selected.artistAliases, other) < 0) return true;
+            if (strictScore(selected, selected.artistMembers, selected.artistAliases, other) >= 0) continue;
+            if (strictScore(target, members, aliases, other) >= 0) continue;
+            if (ArtistAliases.evidencedLeadAlbumBridge(
+                    target.title, target.artist, members, aliases, target.album, target.duration,
+                    other.title, other.artist, other.artistMembers, other.artistAliases, other.album, other.duration)) {
+                continue;
+            }
+            return true;
         }
         return false;
     }
 
-    private static List<Candidate> rankCandidates(Track target, List<String> aliases, List<SearchHit> hits) {
+    private static long durationGap(Track target, Track candidate) {
+        return target.duration > 0 && candidate.duration > 0
+                ? Math.abs(target.duration - candidate.duration) : Long.MAX_VALUE;
+    }
+
+    private static List<Candidate> rankCandidates(Track target, List<ArtistAliases.Member> members,
+                                                  List<String> aliases, List<SearchHit> hits) {
         Map<Track,Integer> scores = new LinkedHashMap<>();
         for (SearchHit hit : hits) {
-            int score = strictScore(target, aliases, hit.song);
+            int score = strictScore(target, members, aliases, hit.song);
             if (score >= 0) scores.put(hit.song, score);
         }
         List<Track> ranked = new ArrayList<>(scores.keySet());
-        ranked.sort((left, right) -> Integer.compare(scores.get(right), scores.get(left)));
+        ranked.sort((left, right) -> {
+            int byScore = Integer.compare(scores.get(right), scores.get(left));
+            if (byScore != 0) return byScore;
+            return Long.compare(durationGap(target, left), durationGap(target, right));
+        });
         Map<String,Candidate> accepted = new LinkedHashMap<>();
         for (Track song : ranked) accepted.putIfAbsent(song.id, new Candidate(song, "artist_title"));
+
+        // Evidenced same-album solo-lead versions can safely back up full-credit matches if rights differ.
+        List<Track> evidencedBridges = new ArrayList<>();
+        for (SearchHit hit : hits) {
+            Track song = hit.song;
+            if (accepted.containsKey(song.id)) continue;
+            if (ArtistAliases.evidencedLeadAlbumBridge(
+                    target.title, target.artist, members, aliases, target.album, target.duration,
+                    song.title, song.artist, song.artistMembers, song.artistAliases, song.album, song.duration)
+                    && !hasCompetingCredit(target, members, aliases, song, hits)) {
+                evidencedBridges.add(song);
+            }
+        }
+        evidencedBridges.sort((left, right) -> Long.compare(durationGap(target, left), durationGap(target, right)));
+        for (Track song : evidencedBridges) accepted.putIfAbsent(song.id, new Candidate(song, "album_bridge"));
+
         if (accepted.isEmpty()) {
             for (SearchHit hit : hits) {
                 Track song = hit.song;
-                if (ArtistAliases.bridgeAccepts(target.title, target.artist, aliases, target.album,
-                        target.duration, song.title, song.artist, song.artistAliases, song.album,
+                if (ArtistAliases.bridgeAccepts(target.title, target.artist, members, aliases, target.album,
+                        target.duration, song.title, song.artist, song.artistMembers, song.artistAliases, song.album,
                         song.duration, hit.artistQuery, hit.rank)
-                        && !hasCompetingCredit(target, song, hits)) {
+                        && !hasCompetingCredit(target, members, aliases, song, hits)) {
                     accepted.putIfAbsent(song.id, new Candidate(song, "catalog_bridge"));
                 }
             }
@@ -532,25 +572,36 @@ public final class QQSource {
         String primary = QQMatch.keyword(target.title, target.artist);
         checkCancelled();
         addHits(hits, api.search(primary), !target.artist.trim().isEmpty());
+        List<ArtistAliases.Member> members = target.artistMembers;
         List<String> aliases = target.artistAliases;
-        List<Candidate> matches = rankCandidates(target, aliases, hits);
+        List<Candidate> matches = rankCandidates(target, members, aliases, hits);
         if (!matches.isEmpty() && "artist_title".equals(matches.get(0).reason)) return matches;
 
         checkCancelled();
         try {
-            LinkedHashSet<String> augmented = new LinkedHashSet<>(aliases);
-            augmented.addAll(api.aliases(target));
-            aliases = new ArrayList<>(augmented);
+            List<ArtistAliases.Member> fetchedMembers = api.artistMembers(target);
+            if (fetchedMembers != null) {
+                if (!fetchedMembers.isEmpty()) members = fetchedMembers;
+                if (members.size() == 1 && !members.get(0).aliases.isEmpty()) {
+                    LinkedHashSet<String> augmented = new LinkedHashSet<>(aliases);
+                    augmented.addAll(members.get(0).aliases);
+                    aliases = new ArrayList<>(augmented);
+                }
+            } else {
+                LinkedHashSet<String> augmented = new LinkedHashSet<>(aliases);
+                augmented.addAll(api.aliases(target));
+                aliases = new ArrayList<>(augmented);
+            }
         } catch (InterruptedException e) {
             throw e;
         } catch (Exception ignored) {
             // Alias metadata is optional. Every remaining route still verifies identity.
         }
         checkCancelled();
-        matches = rankCandidates(target, aliases, hits);
+        matches = rankCandidates(target, members, aliases, hits);
         if (!matches.isEmpty()) return matches;
         LinkedHashSet<String> queries = new LinkedHashSet<>(
-                ArtistAliases.searchQueries(target.title, target.artist, aliases));
+                ArtistAliases.searchQueries(target.title, target.artist, members, aliases));
         // The QQ catalogue can credit just the lead performer of a collaboration.
         int separator = target.artist.indexOf(" / ");
         if (separator > 0) queries.add(QQMatch.keyword(target.title, target.artist.substring(0, separator)));
@@ -558,14 +609,15 @@ public final class QQSource {
         for (String query : queries) {
             checkCancelled();
             addHits(hits, api.search(query), true);
-            matches = rankCandidates(target, aliases, hits);
+            matches = rankCandidates(target, members, aliases, hits);
             if (!matches.isEmpty()) return matches;
         }
-        if (!target.title.trim().equals(primary)) {
+        String bareTitle = QQMatch.cleanSearchTitle(target.title);
+        if (!bareTitle.isEmpty() && !bareTitle.equals(primary)) {
             checkCancelled();
-            addHits(hits, api.search(target.title.trim()), false);
+            addHits(hits, api.search(bareTitle), false);
         }
-        return rankCandidates(target, aliases, hits);
+        return rankCandidates(target, members, aliases, hits);
     }
 
     private static void checkCancelled() throws InterruptedException {
@@ -724,7 +776,7 @@ public final class QQSource {
             if (detail == null || fileMid(detail).isEmpty()) return null;
             Track candidate = Track.fromJson(toTrack(detail));
             // A legacy hint alone cannot provide a ranked search context for an alias bridge.
-            return candidate != null && strictScore(track, track.artistAliases, candidate) >= 0
+            return candidate != null && strictScore(track, track.artistMembers, track.artistAliases, candidate) >= 0
                     ? new Candidate(candidate, "legacy_reverified") : null;
         }
         String file = fileMid(detail);
@@ -788,9 +840,13 @@ public final class QQSource {
                 return request("music.pf_song_detail_svr", "get_song_detail",
                         new JSONObject().put("song_mid", mid), cookie).optJSONObject("track_info");
             }
-            public List<String> aliases(Track track) throws Exception {
+            public List<String> aliases(Track track) {
+                return Collections.emptyList();
+            }
+            @Override public List<ArtistAliases.Member> artistMembers(Track track) throws Exception {
                 if (!"netease".equals(track.provider)) return Collections.emptyList();
-                return MusicApi.get(appContext).findNeteaseArtistAliases(track.id, track.title, track.artist, track.artistIds);
+                return MusicApi.get(appContext).findNeteaseArtistMembers(
+                        track.id, track.title, track.artist, track.artistMembers, track.artistIds);
             }
             public JSONObject vkey(JSONObject params) throws Exception {
                 return request("vkey.GetVkeyServer", "CgiGetVkey", params, cookie);

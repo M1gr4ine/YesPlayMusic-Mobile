@@ -60,5 +60,35 @@ final class QQMatchTest {
 
         that(QQMatch.keyword("Song", "A / B").equals("Song A B"), "keyword joins every artist");
         that(QQMatch.keyword("Song", "").equals("Song"), "keyword without artist");
+
+        // Symbol-only artist names (e.g. ¥$ on CARNIVAL) remain part of the credit and never collapse.
+        that(QQMatch.knownArtist("¥$"), "symbol-only artist credit is recognized");
+        that(!QQMatch.knownArtist("---") && !QQMatch.knownArtist("..."), "pure punctuation is not a known artist");
+        that(QQMatch.score("CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", 264000,
+                "CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", 264000) > 140, "exact symbol-only member matches");
+        that(QQMatch.score("CARNIVAL", "￥$ / Kanye West / Ty Dolla $ign", 264000,
+                "CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", 264000) > 140, "NFKC folds fullwidth symbol artist");
+        that(QQMatch.score("CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", 264000,
+                "CARNIVAL", "Kanye West / Ty Dolla $ign", 264000) < 0, "dropping symbol-only member is rejected");
+        that(QQMatch.score("CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", 264000,
+                "CARNIVAL", "$ / Kanye West / Ty Dolla $ign", 264000) < 0, "different symbol artist is rejected");
+        that(QQMatch.score("CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", 264000,
+                "CARNIVAL (Acapella)", "¥$ / Kanye West / Ty Dolla $ign", 264000) < 0, "acapella version is rejected");
+        that(QQMatch.score("CARNIVAL", "¥$ / Kanye West / Ty Dolla $ign", 264000,
+                "CARNIVAL (HOOLIGANS VERSION)", "¥$ / Kanye West / Ty Dolla $ign", 264000) < 0,
+                "HOOLIGANS VERSION is not treated as benign");
+        that(QQMatch.score("Famous", "Ye.", 196000, "Famous (Explicit)", "Ye (侃爷)", 196000) >= 140,
+                "trailing period in Ye. normalizes cleanly");
+
+        // Recall query cleanup strips only benign edition annotations and bracketed artist aliases.
+        that("Famous".equals(QQMatch.cleanSearchTitle("Famous (Explicit)")), "cleanSearchTitle strips Explicit");
+        that("Bound 2".equals(QQMatch.cleanSearchTitle("Bound 2 (Album Version|Explicit)")),
+                "cleanSearchTitle strips pipe-separated benign markers");
+        that("Famous (Live)".equals(QQMatch.cleanSearchTitle("Famous (Live)")),
+                "cleanSearchTitle preserves Live tag");
+        that("CARNIVAL (HOOLIGANS VERSION)".equals(QQMatch.cleanSearchTitle("CARNIVAL (HOOLIGANS VERSION)")),
+                "cleanSearchTitle preserves non-benign version tags");
+        that("Ye / Rihanna".equals(QQMatch.cleanSearchArtist("Ye (侃爷) / Rihanna")),
+                "cleanSearchArtist strips bracketed alias for recall");
     }
 }

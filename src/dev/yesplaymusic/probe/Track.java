@@ -14,6 +14,7 @@ final class Track {
     final String title;
     final String artist;
     final List<String> artistAliases;
+    final List<ArtistAliases.Member> artistMembers;
     final String album;
     final String artwork;
     final long duration;
@@ -26,13 +27,15 @@ final class Track {
     private final String artistRefsJson;
     final String url;
 
-    private Track(String id, String title, String artist, List<String> artistAliases, String album, String artwork,
+    private Track(String id, String title, String artist, List<String> artistAliases,
+                  List<ArtistAliases.Member> artistMembers, String album, String artwork,
                   long duration, String provider, String qqMid, String mediaMid, int qqMidVersion,
                   String albumId, List<String> artistIds, String artistRefsJson, String url) {
         this.id = id;
         this.title = title;
         this.artist = artist;
         this.artistAliases = artistAliases;
+        this.artistMembers = artistMembers;
         this.album = album;
         this.artwork = artwork;
         this.duration = duration;
@@ -102,11 +105,14 @@ final class Track {
                 if (!refId.isEmpty() && !artistIds.contains(refId)) artistIds.add(refId);
             }
         }
+        List<ArtistAliases.Member> members = ArtistAliases.membersFromJson(value.optJSONArray("artistMembers"));
+        if (members.isEmpty() && "netease".equals(provider)) members = ArtistAliases.membersFromArtists(refs);
         return new Track(
                 id,
                 title,
                 artist,
                 artistAliases,
+                members,
                 clean(value.optString("album", ""), 512),
                 clean(value.optString("artwork", ""), 2048),
                 duration,
@@ -143,7 +149,7 @@ final class Track {
     }
 
     private Track copy(String mid, String fileMid, int version) {
-        return new Track(id, title, artist, artistAliases, album, artwork, duration,
+        return new Track(id, title, artist, artistAliases, artistMembers, album, artwork, duration,
                 provider, mid, fileMid, version, albumId, artistIds, artistRefsJson, url);
     }
 
@@ -155,6 +161,7 @@ final class Track {
             value.put("artist", artist);
             JSONArray aliases = ArtistAliases.toJsonArray(artistAliases);
             if (aliases.length() > 0) value.put("artistAliases", aliases);
+            if (!artistMembers.isEmpty()) value.put("artistMembers", ArtistAliases.membersToJson(artistMembers));
             value.put("album", album);
             value.put("artwork", artwork);
             value.put("duration", duration);

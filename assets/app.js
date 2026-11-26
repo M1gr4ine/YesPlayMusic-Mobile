@@ -533,27 +533,37 @@
     return typeof artists === 'string' ? artists : '';
   }
 
-  function artistAliasNames(track) {
+  function artistAliasNames(values, canonicalName) {
     const names = [];
-    const seen = new Set();
-    const add = value => {
-      if (typeof value !== 'string' || names.length >= 32) return;
-      const name = value.trim().slice(0, 128);
-      if (!name || /[\u0000-\u001f]/.test(name)) return;
+    const seen = new Set([canonicalName.normalize('NFKC').toLowerCase()]);
+    for (const value of values) {
+      if (typeof value !== 'string') continue;
+      const name = value.trim();
+      if (!name || name.length > 128 || /[\u0000-\u001f]/.test(name)) continue;
       const key = name.normalize('NFKC').toLowerCase();
       if (!seen.has(key)) { seen.add(key); names.push(name); }
-    };
-    if (Array.isArray(track.artistAliases)) track.artistAliases.forEach(add);
-    const artists = track.artists || track.ar || track.singers || track.singer || track.artist;
-    for (const artist of Array.isArray(artists) ? artists : [artists]) {
-      if (!artist || typeof artist !== 'object') continue;
-      for (const key of ['alias', 'alia', 'tns', 'trans']) {
-        const value = artist[key];
-        if (Array.isArray(value)) value.forEach(add);
-        else add(value);
-      }
+      if (names.length === 32) break;
     }
     return names;
+  }
+
+  function artistMembers(track) {
+    const artists = track.artistMembers || track.artists || track.ar || track.singers || track.singer || track.artist;
+    const entries = Array.isArray(artists) ? artists : [artists];
+    if (entries.length > 16) return [];
+    const members = [];
+    for (const entry of entries) {
+      const name = entry && (entry.name || entry.singerName);
+      if (typeof name !== 'string' || !name.trim() || name.length > 128) return [];
+      const member = { name: name.trim() };
+      const id = String(entry.providerId ?? entry.id ?? '').trim();
+      if (id && id !== '0' && id.length <= 128 && !/[\u0000-\u0020\u007f]/.test(id)) member.providerId = id;
+      const aliases = artistAliasNames([].concat(entry.aliases || [], entry.alias || [], entry.alia || [],
+        entry.tns || [], entry.trans || [], entry.transNames || []), member.name);
+      if (aliases.length) member.aliases = aliases;
+      members.push(member);
+    }
+    return members;
   }
 
   function normalizeTrack(raw, provider) {
@@ -573,12 +583,18 @@
     } else if (raw.interval != null) {
       duration = Number(raw.interval) * 1000;
     }
+    const members = artistMembers(raw);
+    const artist = String(artistNames(raw) || '未知艺术家');
+    const flatAliases = Array.isArray(raw.artistAliases) ? raw.artistAliases : [];
+    const soloMember = members.length === 1 && members[0].name === artist.trim();
     const result = {
-      id: normalizedId, title: String(title), artist: artistNames(raw) || '未知艺术家', album: String(albumName || ''),
-      artistAliases: artistAliasNames(raw),
+      id: normalizedId, title: String(title), artist, album: String(albumName || ''),
+      artistAliases: artistAliasNames(soloMember ? flatAliases.concat(members[0].aliases || [])
+        : members.length ? [] : flatAliases, artist),
       artwork: safeHttpsUrl(artwork), duration: Number.isFinite(duration) && duration > 0 ? duration : 0,
       provider: idProvider || raw.provider || provider || 'netease'
     };
+    if (members.length) result.artistMembers = members;
     const qqMid = raw.qqMid || raw.songmid || raw.mid || raw.qq_mid;
     if (qqMid) result.qqMid = String(qqMid);
     const qqMidVersion = Number(raw.qqMidVersion);
@@ -1191,7 +1207,7 @@
       }
     }
     if (state.home.songs.length) {
-      const songs = section('每日推薦', '来自网易云音乐的真实推荐', null, null);
+      const songs = section('每日推荐', '来自网易云音乐的真实推荐', null, null);
       songs.wrap.append(renderSongList(state.home.songs.slice(0, 12), { duration: true, actions: true })); root.append(songs.wrap);
     }
   }
@@ -2783,6 +2799,7 @@
       artist: artist === '\u672a\u77e5\u827a\u672f\u5bb6' ? '' : artist,
       album: String(track.album || ''),
       artistAliases: Array.isArray(track.artistAliases) ? track.artistAliases : [],
+      artistMembers: track.artistMembers,
       duration: Math.max(0, Math.floor(Number(track.duration) || 0))
     };
     const unavailable = '\u6682\u65f6\u65e0\u6cd5\u5339\u914d\u5230\u7f51\u6613\u4e91\u7248\u672c\uff0c\u65e0\u6cd5\u6536\u85cf\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5';
@@ -3128,6 +3145,7 @@
     const response = await request('matchTrack', {
       title: String(track.title || ''), artist, album: String(track.album || ''),
       artistAliases: Array.isArray(track.artistAliases) ? track.artistAliases : [],
+      artistMembers: track.artistMembers,
       duration: Math.max(0, Math.floor(Number(track.duration) || 0))
     });
     if (!response || !apiRequestSucceeded(response)) throw safeFailure();
