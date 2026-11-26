@@ -19,13 +19,11 @@ final class ArtistAliases {
     static final int MAX_MEMBER_COUNT = 16;
     private static final int MAX_ALIAS_COUNT = 32;
     private static final int MAX_ALIAS_LENGTH = 128;
-    private static final int MAX_SEARCH_RETRIES = 2;
+    private static final int MAX_SEARCH_RETRIES = MatchRules.MAX_ALIAS_SEARCH_QUERIES;
     private static final int MAX_MEMBER_SEARCH_RETRIES = 3;
-    private static final String[] ALIAS_FIELDS = {"alias", "alia", "tns", "trans", "transNames"};
-    private static final Pattern COLLABORATION =
-            Pattern.compile("\\b(feat\\.?|ft\\.?|featuring|with|vs\\.?)\\b|\\s+x\\s+");
-    private static final Pattern EXPLICIT_JOIN_SEPARATOR =
-            Pattern.compile("\\s+/\\s+|[\\\\、;；\\r\\n]");
+    private static final String[] ALIAS_FIELDS = MatchRules.ALIAS_FIELDS;
+    private static final Pattern COLLABORATION = MatchRules.COLLABORATION;
+    private static final Pattern EXPLICIT_JOIN_SEPARATOR = MatchRules.EXPLICIT_JOIN_SEPARATOR;
 
     private ArtistAliases() {}
 
@@ -233,9 +231,7 @@ final class ArtistAliases {
     }
 
     static boolean isGenericCompilation(String album) {
-        String value = QQMatch.normalize(album);
-        return value.contains("greatesthits") || value.contains("bestof") || value.contains("collection")
-                || value.contains("compilation") || value.contains("精选") || value.contains("合辑");
+        return MatchText.isCompilationAlbum(album);
     }
 
     private static boolean distinctiveAlbum(String album) {
