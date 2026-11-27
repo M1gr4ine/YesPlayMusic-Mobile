@@ -2,13 +2,25 @@
 
 YesPlayMusic 的 Android 移动版，采用接近 Apple Music 的界面，并保留 YesPlayMusic 的音乐服务思路。项目基于 [qier222/YesPlayMusic](https://github.com/qier222/YesPlayMusic) 的开源项目与交互设计独立适配，**不是上游官方 Android 应用**，也不隶属于网易、腾讯、vivo、iQOO 或 Apple。
 
-当前源码版本：**0.2.13**（versionCode 15）。本目录可以独立构建 APK，包含 Android 源码、实机截图和试用版安装包。
+当前源码版本：**0.2.14**（versionCode 16）。本目录可以独立构建 APK，包含 Android 源码、实机截图和试用版安装包。
 
-[下载最新版 APK](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases/latest) · [v0.2.13 发布说明](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases/tag/v0.2.13)
+[下载最新版 APK](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases/latest) · [v0.2.14 发布说明](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases/tag/v0.2.14)
 
 ## 实机截图
 
-截图来自 iQOO 手机上运行的 0.2.9。状态栏、账号名称和当前播放内容保留了实机原样；歌曲、专辑封面与歌词的权利仍归各自权利人。
+截图来自 iQOO 手机实机运行（支持在设置中自由切换经典与 Material 3 两套界面风格）。状态栏、账号名称和当前播放内容保留了实机原样；歌曲、专辑封面与歌词的权利仍归各自权利人。
+
+### Material 3 风格（0.2.14）
+
+| 听听 | 我的 | 界面风格设置 |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/m3-listen.png" width="250" alt="Material 3 听听页面" /> | <img src="docs/screenshots/m3-my.png" width="250" alt="Material 3 我的页面和歌单" /> | <img src="docs/screenshots/m3-settings.png" width="250" alt="Material 3 界面风格与外观设置" /> |
+
+| 播放器封面 | 全屏双语歌词 |
+| :---: | :---: |
+| <img src="docs/screenshots/m3-player-cover.png" width="300" alt="Material 3 播放器封面页" /> | <img src="docs/screenshots/m3-player-lyrics.png" width="300" alt="Material 3 全屏双语滚动歌词" /> |
+
+### 经典风格（0.2.9）
 
 | 听听 | 我的 |
 | :---: | :---: |
@@ -21,7 +33,7 @@ YesPlayMusic 的 Android 移动版，采用接近 Apple Music 的界面，并保
 ## 功能
 
 - 听听、我的、搜索页面，支持在经典（Apple Music 风格）与 Material 3 两套界面风格之间切换，并与浅色 / 深色 / 跟随系统主题分别持久化。
-- 网易云音乐和 QQ 音乐双账号搜索、歌单与播放；支持自动跨源回退与手动音源偏好设置。跨源选歌沿用 UNM / Yokaze 规则并额外核对主标题与版本标记（如 live、伴奏、remix、语种），兼顾改名/译名歌手与录音准确性；QQ 曲目收藏到网易云时要求署名重合。
+- 网易云音乐和 QQ 音乐双账号搜索、歌单与播放；支持自动跨源回退与手动音源偏好设置。跨源选歌沿用 UNM / Yokaze 规则并额外核对主标题与版本标记（如 live、伴奏、remix、语种），兼顾改名/译名歌手、重制版母带时长漂移与 QQ 管道分隔副标题（如 `(Pt. 2|Explicit)`），同时拦截 30 秒试听与异版录音；QQ 曲目收藏到网易云时要求署名重合。
 - 登录用户信息、收藏、自建歌单编辑（名称、简介、重排、移除）、播放历史、跨源同步歌词（含翻译时间轴兼容替换与系统媒体歌词）及横屏歌词待机。
 - Android 后台播放服务、通知栏媒体控制、锁屏媒体信息及 MediaSession/MediaBrowser 接口，可供 OriginOS 原子随身听等系统入口读取播放状态。
 - 全屏播放器支持封面、同步滚动歌词和播放列表。上划展开全屏歌词；在全屏歌词顶部标签附近下拉回到封面，正文区域上下滑动浏览歌词；左滑打开播放列表，右滑回歌词。头像打开设置时有弹出动画；设置页支持下滑关闭。
@@ -39,10 +51,10 @@ cd releases && sha256sum -c SHA256SUMS.txt
 Windows PowerShell：
 
 ```powershell
-Get-FileHash .\releases\YesPlayMusic-Mobile-v0.2.13.apk -Algorithm SHA256
+Get-FileHash .\releases\YesPlayMusic-Mobile-v0.2.14.apk -Algorithm SHA256
 ```
 
-本次跨源匹配重构、双账号播放和安装包一致性的验证结果见[验证记录](docs/VERIFICATION-v0.2.13.md)。安装包和 SHA-256 校验文件同时提供在 [GitHub Releases](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases)；`releases/` 目录保留同一份 APK，方便下载源码后直接试用。
+本次跨源匹配修复、双账号播放和安装包一致性的验证结果见[验证记录](docs/VERIFICATION-v0.2.14.md)。安装包和 SHA-256 校验文件同时提供在 [GitHub Releases](https://github.com/M1gr4ine/YesPlayMusic-Mobile/releases)；`releases/` 目录保留同一份 APK，方便下载源码后直接试用。
 
 ## 登录与已知限制
 
@@ -78,7 +90,7 @@ res/                    Android 图标、通知图标和主题资源
 tests/js/               页面逻辑测试（Node.js 内置测试运行器）
 tests/java/             原生匹配、协议与数据逻辑测试
 docs/BUILDING.md        独立构建指南
-docs/screenshots/       五张手机实机页面截图
+docs/screenshots/       经典与 Material 3 两套手机实机页面截图
 releases/               试用 APK 与 SHA-256 校验文件
 AndroidManifest.xml     Android 权限、组件和版本信息
 build-apk.py            便携 APK 构建脚本
