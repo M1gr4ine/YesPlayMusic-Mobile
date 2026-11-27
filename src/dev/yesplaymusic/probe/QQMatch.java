@@ -1,21 +1,31 @@
 package dev.yesplaymusic.probe;
+
 import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class QQMatch {
     private QQMatch() {}
-    /** Maximum duration gap allowed by the guarded contextual fallback. */
+
+    /** Maximum duration gap allowed when selecting a cross-source recording. */
     public static final long UNM_DURATION_MS = 5000;
+
     // Traditional Chinese / Japanese shinjitai forms that NetEase keeps but QQ often lists in simplified form
     // (米津玄師 vs 米津玄师, 宇多田 titles, 桜 vs 樱). Index-aligned: FOLD_FROM[i] becomes FOLD_TO[i].
     private static final String FOLD_FROM =
             "粵臺閩場風颯飄師戀愛夢東樂楽聲時間語見會來説說傳伝長開門話電國學體氣気歲歳鳥書紅綠緑藍黃雲戰戦櫻桜憶獨歡戲劇線經経結給終繪絵續続練編聽聴誰讀読變変淚涙輝達遠運過還進邊辺邉鐘銀鏡陽陰隣鄰際難願顔顏題飛館魚鳴麗黒實実對対歸帰廣広應応惡悪搖揺晩樣様歩滿満燒焼發発髪髮竜龍緣縁藥薬覺覚觀観譯訳讓譲贈輕軽轉転鐵鉄錄録黙島嶋橋濱浜澤沢齋斎髙優宮葉華慶賀謝從従鬥闘舊壽圓円團団圍爾彌禮顯顕頭頂順須領頼賴騎驗験驚鬱鷹鶴黨齒歯龜亀蟲螢蛍衛裝複覇親觸計記許詩試詞認誕調談請論諾謎講識議護讃讚豐豊貝負貨貴買賣売費資賞質趙跡車軌軍輪辭農這連週遊遙適選遺鄉郷酔釋釈針鈴鋼錯鍵鎖閃閉閑關関陣陸險険隱隠雖雙雞離靈霊靜響頁飯飲養餘馬駆驅騒騷驛駅鳳鴉鶯鷲齢齡罵羅義習聖聞聯職脳腦臉興舉挙艦莊荘萬葉蓮蔵處処號補製規視覽覧約紙級純細紡統絆絡縛織繋繫纏罰網綺総總緒緊綿縦縱績樹權権歷歴殘殺淨浄涼淺減測湯溫漢潔澀渋灣濃灑為爲無煙熱燈營営爭牽狀獄獅現環產産畫當疊畳療癒盜盡監盤眞砕確禍禪稱種穩穏積窓竊競筆節範築簡籠糧紀納紋紛組絃絕絶絲継繼縮後裡裏個們嗎麼與劍剣帶帯獸獣";
     private static final String FOLD_TO =
             "粤台闽场风飒飘师恋爱梦东乐乐声时间语见会来说说传传长开门话电国学体气气岁岁鸟书红绿绿蓝黄云战战樱樱忆独欢戏剧线经经结给终绘绘续续练编听听谁读读变变泪泪辉达远运过还进边边边钟银镜阳阴邻邻际难愿颜颜题飞馆鱼鸣丽黑实实对对归归广广应应恶恶摇摇晚样样步满满烧烧发发发发龙龙缘缘药药觉觉观观译译让让赠轻轻转转铁铁录录默岛岛桥滨滨泽泽斋斋高优宫叶华庆贺谢从从斗斗旧寿圆圆团团围尔弥礼显显头顶顺须领赖赖骑验验惊郁鹰鹤党齿齿龟龟虫萤萤卫装复霸亲触计记许诗试词认诞调谈请论诺谜讲识议护赞赞丰丰贝负货贵买卖卖费资赏质赵迹车轨军轮辞农这连周游遥适选遗乡乡醉释释针铃钢错键锁闪闭闲关关阵陆险险隐隐虽双鸡离灵灵静响页饭饮养余马驱驱骚骚驿驿凤鸦莺鹫龄龄骂罗义习圣闻联职脑脑脸兴举举舰庄庄万叶莲藏处处号补制规视览览约纸级纯细纺统绊络缚织系系缠罚网绮总总绪紧绵纵纵绩树权权历历残杀净净凉浅减测汤温汉洁涩涩湾浓洒为为无烟热灯营营争牵状狱狮现环产产画当叠叠疗愈盗尽监盘真碎确祸禅称种稳稳积窗窃竞笔节范筑简笼粮纪纳纹纷组弦绝绝丝继继缩后里里个们吗么与剑剑带带兽兽";
-    private static final Pattern LATIN_TAG = Pattern.compile("\\b(live|remix|instrumental|acoustic|sped[ -]up|cover|flip|mix|edit|demo|dj|slowed|nightcore|bootleg|mashup|karaoke|unplugged|acapella|a[ -]cappella|cantonese|mandarin|japanese|korean|english)\\b");
+    private static final Pattern LATIN_TAG = Pattern.compile(
+            "\\b(live|remix|instrumental|acoustic|sped[ -]up|cover|flip|mix|edit|demo|dj|slowed|nightcore|bootleg|mashup|karaoke|unplugged|acapella|a[ -]cappella|cantonese|mandarin|japanese|korean|english)\\b");
     private static final String[] CJK_TAGS = {
             "伴奏", "翻唱", "纯音乐", "现场", "演唱会", "清唱", "小样", "混音", "加速", "降调", "电音",
             "粤语", "广东话", "白话", "国语", "普通话", "闽南语", "台语", "日语", "日文", "英语", "英文", "韩语", "韩文",
@@ -25,14 +35,37 @@ public final class QQMatch {
     private static final Pattern SYMBOL_CHAR = Pattern.compile("\\p{S}");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     private static final String SYMBOL_PREFIX = "\u0000";
-    private static final Pattern ARTIST_SEPARATOR = Pattern.compile("(?i)\\s*(?:[/、,&，;；]|\\b(?:feat\\.?|ft\\.?|featuring|with|vs\\.?)\\b|\\s+x\\s+)\\s*");
-    private static final Pattern SLASH = Pattern.compile("\\s*/\\s*");
+    private static final Pattern ARTIST_SPLIT = Pattern.compile(
+            "(?i)\\s+/\\s+|\\s*[、;；]\\s*|\\s+(?:feat\\.?|ft\\.?|featuring|with|vs\\.?)\\s+");
     private static final Pattern BRACKET = Pattern.compile("[（(\\[【]([^）)\\]】]+)[）)\\]】]");
-    private static final Pattern BENIGN = Pattern.compile("(?i)^(?:explicit|clean|album version|single version|remaster(?:ed)?(?: (?:\\d{4}|version))?|\\d{4} remaster(?:ed)?|原版|完整版|专辑版|正式版)$");
+    private static final Pattern BENIGN = Pattern.compile(
+            "(?i)^(?:explicit|clean|album version|single version|remaster(?:ed)?(?: (?:\\d{4}|version))?|\\d{4} remaster(?:ed)?|原版|完整版|专辑版|正式版)$");
     private static final Pattern CJK = Pattern.compile("[\\p{IsHan}\\p{IsHiragana}\\p{IsKatakana}]");
 
+    /** Minimal recording metadata used by cross-source selection. */
+    static final class Song {
+        final String title;
+        final String artist;
+        final List<String> artistAliases;
+        final List<ArtistAliases.Member> artistMembers;
+        final long duration;
+
+        Song(String title, String artist, List<String> artistAliases,
+             List<ArtistAliases.Member> artistMembers, long duration) {
+            this.title = title;
+            this.artist = artist;
+            this.artistAliases = artistAliases;
+            this.artistMembers = artistMembers;
+            this.duration = duration;
+        }
+
+        static Song of(Track track) {
+            return new Song(track.title, track.artist, track.artistAliases, track.artistMembers, track.duration);
+        }
+    }
+
     private static String fold(String text) {
-        String folded = Normalizer.normalize(text == null ? "" : text, Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
+        String folded = Normalizer.normalize(text, Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
         StringBuilder result = new StringBuilder(folded.length());
         for (int i = 0; i < folded.length(); i++) {
             char c = folded.charAt(i);
@@ -41,30 +74,11 @@ public final class QQMatch {
         }
         return result.toString();
     }
-    static String foldCompact(String text) {
-        return WHITESPACE.matcher(fold(text)).replaceAll(" ").trim();
-    }
-    static boolean matchesDisplayCredit(String displayArtist, java.util.List<String> memberNames) {
-        String foldedDisplay = foldCompact(displayArtist);
-        if (foldedDisplay.isEmpty() || memberNames == null || memberNames.isEmpty()) return false;
-        int pos = 0;
-        for (int i = 0; i < memberNames.size(); i++) {
-            String member = foldCompact(memberNames.get(i));
-            if (member.isEmpty()) return false;
-            if (i > 0) {
-                Matcher sep = ARTIST_SEPARATOR.matcher(foldedDisplay);
-                sep.region(pos, foldedDisplay.length());
-                if (!sep.lookingAt() || sep.end() == pos) return false;
-                pos = sep.end();
-            }
-            if (!foldedDisplay.startsWith(member, pos)) return false;
-            pos += member.length();
-        }
-        return pos == foldedDisplay.length();
-    }
-    public static String normalize(String text) {
+
+    private static String normalize(String text) {
         return NON_WORD.matcher(fold(text)).replaceAll("");
     }
+
     static String normalizeArtistToken(String text) {
         String normalized = normalize(text);
         if (!normalized.isEmpty()) return normalized;
@@ -74,46 +88,28 @@ public final class QQMatch {
         }
         return "";
     }
+
     private static boolean isBenignAnnotation(String annotation) {
-        String trimmed = annotation == null ? "" : annotation.trim();
-        if (trimmed.isEmpty()) return false;
-        String[] parts = trimmed.split("\\s*\\|\\s*");
-        for (String part : parts) {
+        if (annotation.isEmpty()) return false;
+        for (String part : annotation.split("\\s*\\|\\s*")) {
             if (!BENIGN.matcher(part.trim()).matches()) return false;
         }
         return true;
     }
 
-    /** Strips only recognized benign edition markers (e.g. Explicit) for recall queries, keeping version tags intact. */
-    static String cleanSearchTitle(String title) {
-        String raw = title == null ? "" : title.trim();
+    private static String cleanSearchTitle(String title) {
+        String raw = title.trim();
         if (raw.isEmpty()) return "";
         Matcher brackets = BRACKET.matcher(raw);
         StringBuffer result = new StringBuffer();
         while (brackets.find()) {
             String annotation = fold(brackets.group(1)).trim();
-            brackets.appendReplacement(result, isBenignAnnotation(annotation) ? "" : Matcher.quoteReplacement(brackets.group()));
+            brackets.appendReplacement(result,
+                    isBenignAnnotation(annotation) ? "" : Matcher.quoteReplacement(brackets.group()));
         }
         brackets.appendTail(result);
         String cleaned = WHITESPACE.matcher(result.toString()).replaceAll(" ").trim();
         return cleaned.isEmpty() ? raw : cleaned;
-    }
-
-    /** Strips bracketed alternate names inside artist credits for cleaner recall queries only. */
-    static String cleanSearchArtist(String artist) {
-        String raw = artist == null ? "" : artist.trim();
-        if (raw.isEmpty()) return "";
-        String[] segments = SLASH.split(raw);
-        StringBuilder joined = new StringBuilder();
-        for (String segment : segments) {
-            String trimmed = segment.trim();
-            if (trimmed.isEmpty()) continue;
-            String base = WHITESPACE.matcher(BRACKET.matcher(trimmed).replaceAll(" ")).replaceAll(" ").trim();
-            String token = base.isEmpty() ? trimmed : base;
-            if (joined.length() > 0) joined.append(" / ");
-            joined.append(token);
-        }
-        return joined.length() > 0 ? joined.toString() : raw;
     }
 
     private static String version(String value) {
@@ -143,6 +139,7 @@ public final class QQMatch {
         for (String tag : tags) result.append(tag).append('|');
         return result.toString();
     }
+
     private static String mainTitle(String title) {
         String text = fold(title);
         Matcher brackets = BRACKET.matcher(text);
@@ -152,115 +149,120 @@ public final class QQMatch {
             boolean benign = isBenignAnnotation(annotation);
             boolean variant = annotation.endsWith("版") && !benign;
             boolean translation = !variant && CJK.matcher(annotation).find() && version(annotation).isEmpty();
-            brackets.appendReplacement(result, (benign || translation) ? "" : Matcher.quoteReplacement(brackets.group()));
+            brackets.appendReplacement(result,
+                    (benign || translation) ? "" : Matcher.quoteReplacement(brackets.group()));
         }
         brackets.appendTail(result);
         return normalize(result.toString());
     }
+
     static boolean sameRecordingTitle(String left, String right) {
         String a = mainTitle(left), b = mainTitle(right);
         return !a.isEmpty() && a.equals(b) && version(left).equals(version(right));
     }
-    static java.util.Set<String> memberAtomNames(String memberName) {
-        java.util.Set<String> names = new java.util.LinkedHashSet<>();
-        if (memberName == null) return names;
-        String folded = fold(memberName);
+
+    /** UNM search keyword: "title - artist1 / artist2". */
+    public static String keyword(String title, String artist) {
+        String name = title.trim();
+        String names = artist.trim();
+        return names.isEmpty() ? name : name + " - " + names;
+    }
+
+    /** Single fallback search keyword: strips benign title annotations and keeps only the first artist. */
+    static String fallbackKeyword(String title, String artist) {
+        String cleanedTitle = cleanSearchTitle(title);
+        String rawArtist = artist.trim();
+        int separator = rawArtist.indexOf(" / ");
+        String lead = separator > 0 ? rawArtist.substring(0, separator).trim() : rawArtist;
+        if (!lead.isEmpty()) {
+            String stripped = WHITESPACE.matcher(BRACKET.matcher(lead).replaceAll(" ")).replaceAll(" ").trim();
+            if (!stripped.isEmpty()) lead = stripped;
+        }
+        return keyword(cleanedTitle, lead);
+    }
+
+    /**
+     * Selects matching recordings in provider order:
+     * 1. Requires sameRecordingTitle (same main title and version tags).
+     * 2. Prefers duration within 5s, then unknown duration; rejects known mismatched duration.
+     * 3. Within each duration tier, prioritizes candidates whose credited artists overlap the target
+     *    (including track-carried aliases/members). Reverse matching sets requireArtistOverlap=true.
+     */
+    static <T> List<T> select(Song target, List<T> candidates, Function<T, Song> toSong, boolean requireArtistOverlap) {
+        if (candidates.isEmpty() || mainTitle(target.title).isEmpty()) return Collections.emptyList();
+        Set<String> targetArtists = artistTokens(target);
+        if (requireArtistOverlap && targetArtists.isEmpty()) return Collections.emptyList();
+
+        List<T> durationAndArtist = new ArrayList<>();
+        List<T> durationOnly = new ArrayList<>();
+        List<T> unknownAndArtist = new ArrayList<>();
+        List<T> unknownOnly = new ArrayList<>();
+
+        for (T item : candidates) {
+            Song candidate = toSong.apply(item);
+            if (!sameRecordingTitle(target.title, candidate.title)) continue;
+            boolean artistMatch = !targetArtists.isEmpty()
+                    && !Collections.disjoint(targetArtists, artistTokens(candidate));
+            if (requireArtistOverlap && !artistMatch) continue;
+
+            if (target.duration <= 0) {
+                (artistMatch ? durationAndArtist : durationOnly).add(item);
+            } else if (candidate.duration > 0) {
+                if (Math.abs(target.duration - candidate.duration) <= UNM_DURATION_MS) {
+                    (artistMatch ? durationAndArtist : durationOnly).add(item);
+                }
+            } else {
+                (artistMatch ? unknownAndArtist : unknownOnly).add(item);
+            }
+        }
+
+        List<T> ordered = new ArrayList<>(
+                durationAndArtist.size() + durationOnly.size() + unknownAndArtist.size() + unknownOnly.size());
+        ordered.addAll(durationAndArtist);
+        ordered.addAll(durationOnly);
+        ordered.addAll(unknownAndArtist);
+        ordered.addAll(unknownOnly);
+        return ordered;
+    }
+
+    static void addCreditTokens(Set<String> tokens, String credit) {
+        if (credit.isEmpty()) return;
+        for (String part : ARTIST_SPLIT.split(credit)) addAtomTokens(tokens, part);
+    }
+
+    private static Set<String> artistTokens(Song song) {
+        Set<String> tokens = new LinkedHashSet<>();
+        addCreditTokens(tokens, song.artist);
+        for (String alias : song.artistAliases) addAtomTokens(tokens, alias);
+        for (ArtistAliases.Member member : song.artistMembers) {
+            addAtomTokens(tokens, member.name);
+            for (String alias : member.aliases) addAtomTokens(tokens, alias);
+        }
+        return tokens;
+    }
+
+    private static void addAtomTokens(Set<String> tokens, String text) {
+        if (text.isEmpty()) return;
+        String folded = fold(text);
         Matcher brackets = BRACKET.matcher(folded);
         StringBuffer base = new StringBuffer();
         while (brackets.find()) {
-            String alias = normalizeArtistToken(brackets.group(1));
-            if (!alias.isEmpty()) names.add(alias);
+            addKnownToken(tokens, brackets.group(1));
             brackets.appendReplacement(base, "");
         }
         brackets.appendTail(base);
-        String name = normalizeArtistToken(base.toString());
-        if (!name.isEmpty()) names.add(name);
-        return names;
-    }
-    static java.util.Set<String> artistNames(String credit) {
-        java.util.Set<String> names = new java.util.LinkedHashSet<>();
-        if (credit == null) return names;
-        for (String part : ARTIST_SEPARATOR.split(fold(credit))) {
-            names.addAll(memberAtomNames(part));
-        }
-        return names;
-    }
-    static java.util.List<java.util.Set<String>> artistParts(String credit) {
-        java.util.List<java.util.Set<String>> parts = new java.util.ArrayList<>();
-        if (credit != null) for (String part : ARTIST_SEPARATOR.split(fold(credit))) {
-            java.util.Set<String> names = artistNames(part);
-            if (!names.isEmpty()) parts.add(names);
-        }
-        return parts;
-    }
-    static java.util.List<String> artistRawParts(String credit) {
-        java.util.List<String> parts = new java.util.ArrayList<>();
-        if (credit != null) for (String part : ARTIST_SEPARATOR.split(credit)) {
-            String trimmed = part.trim();
-            if (!artistNames(trimmed).isEmpty()) parts.add(trimmed);
-        }
-        return parts;
-    }
-    static boolean knownArtist(String credit) {
-        String value = normalize(credit);
-        if (!value.isEmpty()) {
-            return !value.equals("unknown") && !value.equals("unknownartist")
-                    && !value.equals("未知") && !value.equals("未知歌手") && !value.equals("未知艺术家")
-                    && !value.equals("variousartists") && !value.equals("群星") && !value.equals("null");
-        }
-        return !artistParts(credit).isEmpty();
-    }
-    static boolean sameArtistParts(java.util.List<java.util.Set<String>> a, java.util.List<java.util.Set<String>> b) {
-        if (a == null || b == null || a.isEmpty() || a.size() != b.size()) return false;
-        boolean[] used = new boolean[b.size()];
-        for (java.util.Set<String> names : a) {
-            int match = -1;
-            for (int i = 0; i < b.size(); i++) {
-                if (!used[i] && !java.util.Collections.disjoint(names, b.get(i))) {
-                    if (match >= 0) return false; // ambiguous alias attribution
-                    match = i;
-                }
-            }
-            if (match < 0) return false;
-            used[match] = true;
-        }
-        return true;
-    }
-    private static boolean sameArtistCredit(String left, String right) {
-        return sameArtistParts(artistParts(left), artistParts(right));
-    }
-    public static int score(String title, String artist, long duration, String candidateTitle, String candidateArtist, long candidateDuration) {
-        return score(title, artist, "", duration, candidateTitle, candidateArtist, "", candidateDuration);
-    }
-    public static int score(String title, String artist, String album, long duration, String candidateTitle, String candidateArtist, String candidateAlbum, long candidateDuration) {
-        if (!knownArtist(artist) || !knownArtist(candidateArtist)) return -1;
-        return scoreParts(title, artistParts(artist), artist, album, duration,
-                candidateTitle, artistParts(candidateArtist), candidateArtist, candidateAlbum, candidateDuration);
-    }
-    static int scoreParts(String title, java.util.List<java.util.Set<String>> leftParts, String leftCredit, String album, long duration,
-                          String candidateTitle, java.util.List<java.util.Set<String>> rightParts, String rightCredit, String candidateAlbum, long candidateDuration) {
-        String a = normalize(title), b = normalize(candidateTitle);
-        if (a.isEmpty() || b.isEmpty() || !version(title).equals(version(candidateTitle))) return -1;
-        int score = sameRecordingTitle(title, candidateTitle) ? 100 : -1;
-        if (score < 0) return -1;
-        if (!sameArtistParts(leftParts, rightParts)) return -1;
-        String leftNorm = normalize(leftCredit), rightNorm = normalize(rightCredit);
-        boolean exactCredit = !leftNorm.isEmpty() && leftNorm.equals(rightNorm);
-        score += leftParts.size() == 1 || exactCredit ? 60 : 40;
-        if (knownArtist(album) && knownArtist(candidateAlbum) && sameRecordingTitle(album, candidateAlbum)) score += 10;
-        if (duration > 0 && candidateDuration > 0) {
-            long difference = Math.abs(duration - candidateDuration);
-            if (difference > 8000) return -1;
-            score += difference <= 3000 ? 30 : 10;
-        }
-        return score >= 140 ? score : -1;
+        addKnownToken(tokens, base.toString());
     }
 
-    /** UNM search keyword: the song name followed by every credited artist. */
-    public static String keyword(String title, String artist) {
-        String names = SLASH.matcher(artist == null ? "" : artist.trim()).replaceAll(" ");
-        String name = title == null ? "" : title.trim();
-        return names.isEmpty() ? name : name + " " + names;
+    private static void addKnownToken(Set<String> tokens, String text) {
+        String token = normalizeArtistToken(text);
+        if (token.isEmpty() || isUnknownArtist(token)) return;
+        tokens.add(token);
     }
 
+    private static boolean isUnknownArtist(String token) {
+        return "unknown".equals(token) || "unknownartist".equals(token)
+                || "未知".equals(token) || "未知歌手".equals(token) || "未知艺术家".equals(token)
+                || "variousartists".equals(token) || "群星".equals(token);
+    }
 }

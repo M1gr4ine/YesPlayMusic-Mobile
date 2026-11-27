@@ -114,146 +114,104 @@ final class QQSourceTest {
     }
 
     private static void matching() throws Exception {
-        List<ArtistAliases.Member> fmlMembers = Arrays.asList(
-                new ArtistAliases.Member("Kanye West", "37520", Collections.singletonList("ye")),
-                new ArtistAliases.Member("The Weeknd", "", Collections.emptyList()));
-        Fake api = new Fake();
-        api.results.put("FML Kanye West The Weeknd", new JSONArray().put(
-                song("0005toRJ3QqtAx", "003mHViD1MfUDY", "FML (Explicit)", "Ye (侃爷)", "The Life Of Pablo (Explicit)", 236))
-                .put(song("other1", "otherfile1", "Other One", "Other", "Other", 236))
-                .put(song("other2", "otherfile2", "Other Two", "Other", "Other", 236))
-                .put(song("other3", "otherfile3", "Other Three", "Other", "Other", 236))
-                .put(song("other4", "otherfile4", "Other Four", "Other", "Other", 236))
-                .put(song("flashing", "flashingfile", "Flashing Lights (Explicit)", "Ye", "Other", 237)));
-        api.structuredMembers = fmlMembers;
-        api.results.put("FML", new JSONArray().put(
-                song("bareConflict", "bareFile", "FML", "Random Artist", "Other", 236)));
-        List<JSONObject> resolved = QQSource.lookupAttempts(target(), api, "0");
-        that("0005toRJ3QqtAx".equals(resolved.get(0).getString("qqMid")), "FML resolves to the intended QQ recording");
-        that(api.memberTracks.size() == 1 && api.memberTracks.get(0).artistIds.contains("37520"),
-                "official NetEase artist ID reaches structured alias lookup");
-        that(api.requests.size() == 1, "first playable candidate returns without extra vkey requests");
+        // FML must not be replaced by same-artist, similar-duration Flashing Lights (237s).
+        Fake flashingOnly = new Fake();
+        flashingOnly.results.put("FML - Kanye West / The Weeknd", new JSONArray()
+                .put(song("flashing", "flashingfile", "Flashing Lights (Explicit)", "Ye", "Graduation", 237)));
+        expectError(target(), flashingOnly, "0", "match_not_found", null);
+        that(flashingOnly.requests.isEmpty(), "Flashing Lights never triggers a vkey request for FML");
+        that(flashingOnly.queries.equals(Arrays.asList("FML - Kanye West / The Weeknd", "FML - Kanye West")),
+                "searches UNM keyword then first-artist fallback without bare-title search");
 
-        Fake leadQuery = new Fake();
-        leadQuery.results.put("FML Kanye West", api.results.get("FML Kanye West The Weeknd"));
-        leadQuery.structuredMembers = fmlMembers;
-        that("0005toRJ3QqtAx".equals(QQSource.lookupAttempts(target(), leadQuery, "0").get(0).getString("qqMid")),
-                "search with only the lead artist reaches the observed QQ result for a collaborative track");
+        // Renamed artist (Ye (侃爷) vs Kanye West) still resolves in QQ order on the first search without aliases.
+        Fake fml = new Fake();
+        fml.results.put("FML - Kanye West / The Weeknd", new JSONArray()
+                .put(song("flashing", "flashingfile", "Flashing Lights (Explicit)", "Ye", "Graduation", 237))
+                .put(song("0005toRJ3QqtAx", "003mHViD1MfUDY", "FML (Explicit)", "Ye (侃爷)", "The Life Of Pablo (Explicit)", 236)));
+        List<JSONObject> fmlResolved = QQSource.lookupAttempts(target(), fml, "0");
+        that("0005toRJ3QqtAx".equals(fmlResolved.get(0).getString("qqMid")),
+                "FML resolves to Ye (侃爷) despite mismatched artist credit");
+        that(fml.queries.equals(Collections.singletonList("FML - Kanye West / The Weeknd")) && fml.requests.size() == 1,
+                "resolves in one search and one vkey request");
 
-        Fake solo = new Fake();
-        solo.results.put("FML Kanye West", new JSONArray().put(
-                song("0005toRJ3QqtAx", "003mHViD1MfUDY", "FML (Explicit)", "Ye", "The Life Of Pablo (Explicit)", 236)));
-        solo.artistAliases = Arrays.asList("ye");
-        Track soloTrack = Track.fromJson(new JSONObject().put("id", "484755744").put("title", "FML")
-                .put("artist", "Kanye West").put("duration", 236170).put("album", "The Life Of Pablo")
-                .put("artistRefs", new JSONArray().put(new JSONObject().put("id", "37520").put("name", "Kanye West"))));
-        that("0005toRJ3QqtAx".equals(QQSource.lookupAttempts(soloTrack, solo, "0").get(0).getString("qqMid"))
-                && solo.aliasTracks.size() == 1 && solo.aliasTracks.get(0).artistIds.contains("37520"),
-                "official ye alias resolves the solo catalog entry");
+        // Fallback search strips benign Explicit annotation and keeps only the first artist.
+        Track explicitCollab = Track.fromJson(new JSONObject().put("id", "409736441").put("title", "FML (Explicit)")
+                .put("artist", "Kanye West / The Weeknd").put("duration", 236120));
+        Fake fallback = new Fake();
+        fallback.results.put("FML - Kanye West", new JSONArray()
+                .put(song("0005toRJ3QqtAx", "003mHViD1MfUDY", "FML (Explicit)", "Ye (侃爷)", "The Life Of Pablo", 236)));
+        that("0005toRJ3QqtAx".equals(QQSource.lookupAttempts(explicitCollab, fallback, "0").get(0).getString("qqMid"))
+                        && fallback.queries.equals(Arrays.asList("FML (Explicit) - Kanye West / The Weeknd", "FML - Kanye West")),
+                "fallback retries once without Explicit and with lead artist only");
 
-        Fake unrelated = new Fake();
-        unrelated.results.put("Song Artist", new JSONArray().put(song("bad", "badfile", "Other", "Artist", "Album", 200)));
-        expectError(single(), unrelated, "0", "match_not_found", null);
-        that(unrelated.requests.isEmpty(), "same duration with unrelated title never requests a vkey");
+        // Only the first 5 playable results (with mid and media_mid) are examined.
+        Fake capped = new Fake();
+        capped.results.put("Song - Artist", new JSONArray()
+                .put(song("unplayable", "", "Song", "Artist", "Album", 200))
+                .put(song("other1", "f1", "Other 1", "Artist", "Album", 200))
+                .put(song("other2", "f2", "Other 2", "Artist", "Album", 200))
+                .put(song("other3", "f3", "Other 3", "Artist", "Album", 200))
+                .put(song("other4", "f4", "Other 4", "Artist", "Album", 200))
+                .put(song("other5", "f5", "Other 5", "Artist", "Album", 200))
+                .put(song("sixth", "f6", "Song", "Artist", "Album", 200)));
+        expectError(single(), capped, "0", "match_not_found", null);
+        that(capped.requests.isEmpty(), "sixth playable result is outside the top-5 window");
 
-        Fake ambiguous = new Fake();
-        ambiguous.results.put("FML Kanye West The Weeknd", new JSONArray()
-                .put(song("one", "fileOne", "FML", "Ye (侃爷)", "The Life Of Pablo", 236))
-                .put(song("two", "fileTwo", "FML", "Someone Else", "The Life Of Pablo", 236)));
-        ambiguous.structuredMembers = fmlMembers;
-        expectError(target(), ambiguous, "0", "match_not_found", null);
-        that(ambiguous.requests.isEmpty(), "ambiguous same-title recordings never request a vkey");
-
-        famousAndStructuredCatalogCases();
-    }
-
-    private static void famousAndStructuredCatalogCases() throws Exception {
+        // Famous excludes 30s snippet; overlapping artist goes first; no_purl falls back to next candidate (max 3).
         Track famousNetease = Track.fromJson(new JSONObject()
                 .put("id", "409736434").put("title", "Famous")
-                .put("artist", "Kanye West / Rihanna").put("album", "The Life Of Pablo")
-                .put("duration", 196040)
-                .put("artistRefs", new JSONArray()
-                        .put(new JSONObject().put("id", "37520").put("name", "Kanye West"))
-                        .put(new JSONObject().put("id", "72724").put("name", "Rihanna"))));
-
-        JSONArray famousPrimaryHits = new JSONArray()
-                .put(song("003Z0JlC3c9Jwx", "fileCollab", "Famous", new String[]{"Ye (侃爷)", "Rihanna"}, "Famous", 195))
+                .put("artist", "Kanye West / Rihanna").put("duration", 196040));
+        JSONArray famousHits = new JSONArray()
                 .put(song("0023yUmC3Ss6Xm", "file30s", "Famous", new String[]{"Kanye West", "Rihanna"}, "Famous", 30))
-                .put(song("002XelTe31rBEE", "fileAlbum", "Famous (Explicit)", new String[]{"Ye (侃爷)"}, "The Life Of Pablo (Explicit)", 196));
-        List<ArtistAliases.Member> famousMembers = Arrays.asList(
-                new ArtistAliases.Member("Kanye West", "37520", Arrays.asList("ye", "坎耶·维斯特")),
-                new ArtistAliases.Member("Rihanna", "72724", Collections.emptyList()));
-
-        // Full-credit collaboration wins first; structured lookup avoids duplicate legacy aliases() calls.
+                .put(song("002XelTe31rBEE", "fileAlbum", "Famous (Explicit)", new String[]{"Ye (侃爷)"}, "The Life Of Pablo", 196))
+                .put(song("003Z0JlC3c9Jwx", "fileCollab", "Famous", new String[]{"Ye (侃爷)", "Rihanna"}, "Famous", 195));
         Fake famous = new Fake();
-        famous.results.put("Famous Kanye West Rihanna", famousPrimaryHits);
-        famous.structuredMembers = famousMembers;
-        List<JSONObject> resolvedFamous = QQSource.lookupAttempts(famousNetease, famous, "0");
-        that("003Z0JlC3c9Jwx".equals(resolvedFamous.get(0).getString("qqMid")),
-                "Famous resolves to full-credit Ye (侃爷) / Rihanna first");
-        that(famous.requests.size() == 1 && famous.memberTracks.size() == 1 && famous.aliasTracks.isEmpty(),
-                "structured member lookup avoids redundant legacy alias request and stops after first playable candidate");
+        famous.results.put("Famous - Kanye West / Rihanna", famousHits);
+        that("003Z0JlC3c9Jwx".equals(QQSource.lookupAttempts(famousNetease, famous, "0").get(0).getString("qqMid"))
+                        && famous.requests.size() == 1,
+                "overlapping Rihanna credit takes priority and 30s preview is ignored");
 
-        // If the full-credit single has no_purl, the evidenced same-album solo-lead version backs it up without veto.
         Fake famousFallback = new Fake();
-        famousFallback.results.put("Famous Kanye West Rihanna", famousPrimaryHits);
-        famousFallback.structuredMembers = famousMembers;
+        famousFallback.results.put("Famous - Kanye West / Rihanna", famousHits);
         famousFallback.noPurl.add("003Z0JlC3c9Jwx");
-        List<JSONObject> albumFallback = QQSource.lookupAttempts(famousNetease, famousFallback, "0");
-        that("002XelTe31rBEE".equals(albumFallback.get(0).getString("qqMid")),
-                "Famous falls back to same-album Ye (侃爷) recording when single has no purl");
-        that(famousFallback.requests.size() == 2
-                && !"0023yUmC3Ss6Xm".equals(famousFallback.requests.get(0).getJSONArray("songmid").getString(0))
-                && !"0023yUmC3Ss6Xm".equals(famousFallback.requests.get(1).getJSONArray("songmid").getString(0)),
-                "30-second snippet never triggers a vkey request");
+        that("002XelTe31rBEE".equals(QQSource.lookupAttempts(famousNetease, famousFallback, "0").get(0).getString("qqMid"))
+                        && famousFallback.requests.size() == 2
+                        && !"0023yUmC3Ss6Xm".equals(famousFallback.requests.get(0).getJSONArray("songmid").getString(0))
+                        && !"0023yUmC3Ss6Xm".equals(famousFallback.requests.get(1).getJSONArray("songmid").getString(0)),
+                "falls back to second matching candidate after no_purl without ever requesting 30s preview");
 
-        // Bound 2 (short real album Yeezus) resolves via evidenced lead album bridge.
-        Track bound2 = Track.fromJson(new JSONObject()
-                .put("id", "26599525").put("title", "Bound 2")
-                .put("artist", "Kanye West / Charlie Wilson").put("album", "Yeezus")
-                .put("duration", 229253));
-        Fake bound2Api = new Fake();
-        bound2Api.results.put("Bound 2 Kanye West Charlie Wilson", new JSONArray()
-                .put(song("00Bound2Mid", "fileBound2", "Bound 2 (Album Version|Explicit)",
-                        new String[]{"Ye (侃爷)"}, "Yeezus (Explicit)", 229)));
-        bound2Api.structuredMembers = Arrays.asList(
-                new ArtistAliases.Member("Kanye West", "37520", Collections.singletonList("ye")),
-                new ArtistAliases.Member("Charlie Wilson", "99", Collections.emptyList()));
-        that("00Bound2Mid".equals(QQSource.lookupAttempts(bound2, bound2Api, "0").get(0).getString("qqMid")),
-                "Bound 2 resolves through evidenced Yeezus album bridge");
+        Fake maxThree = new Fake();
+        maxThree.results.put("Song - Artist", new JSONArray()
+                .put(song("m1", "f1", "Song", "Artist", "Album", 200))
+                .put(song("m2", "f2", "Song", "Artist", "Album", 200))
+                .put(song("m3", "f3", "Song", "Artist", "Album", 200))
+                .put(song("m4", "f4", "Song", "Artist", "Album", 200)));
+        maxThree.noPurl.addAll(Arrays.asList("m1", "m2", "m3", "m4"));
+        expectError(single(), maxThree, "0", "qq_rights_unavailable", "no_purl");
+        that(maxThree.requests.size() == 3, "vkey tries at most three candidates");
 
-        // CARNIVAL: non-lead Kanye alias query finds 3-artist ¥$ / Ye (侃爷) / Ty Dolla $ign, rejecting bad variants.
+        // Acapella and HOOLIGANS VERSION are rejected; studio version succeeds.
         Track carnival = Track.fromJson(new JSONObject()
                 .put("id", "2125735002").put("title", "CARNIVAL")
-                .put("artist", "¥$ / Kanye West / Ty Dolla $ign").put("album", "VULTURES 1")
-                .put("duration", 264000));
-        Fake carnivalApi = new Fake();
-        carnivalApi.results.put("CARNIVAL ¥$ Kanye West Ty Dolla $ign", new JSONArray()
-                .put(song("bad5", "f5", "CARNIVAL",
-                        new String[]{"¥$", "Ye (侃爷)", "Ty Dolla $ign", "Rich The Kid", "Playboi Carti"}, "VULTURES 1", 264))
-                .put(song("badDrop", "fDrop", "CARNIVAL", new String[]{"Ye (侃爷)", "Ty Dolla $ign"}, "VULTURES 1", 264))
+                .put("artist", "¥$ / Kanye West / Ty Dolla $ign").put("duration", 264000));
+        Fake badVersions = new Fake();
+        badVersions.results.put("CARNIVAL - ¥$ / Kanye West / Ty Dolla $ign", new JSONArray()
                 .put(song("badAca", "fAca", "CARNIVAL (Acapella)", new String[]{"¥$", "Ye (侃爷)", "Ty Dolla $ign"}, "VULTURES 1", 264))
                 .put(song("badHool", "fHool", "CARNIVAL (HOOLIGANS VERSION)", new String[]{"¥$", "Ye (侃爷)", "Ty Dolla $ign"}, "VULTURES 1", 264)));
-        carnivalApi.results.put("CARNIVAL ¥$ ye Ty Dolla $ign", new JSONArray()
-                .put(song("000cThFa1hAdAV", "fileCarnival", "CARNIVAL",
-                        new String[]{"¥$", "Ye (侃爷)", "Ty Dolla $ign"}, "VULTURES 1", 264)));
-        carnivalApi.structuredMembers = Arrays.asList(
-                new ArtistAliases.Member("¥$", "99001", Collections.emptyList()),
-                new ArtistAliases.Member("Kanye West", "37520", Collections.singletonList("ye")),
-                new ArtistAliases.Member("Ty Dolla $ign", "88001", Collections.emptyList()));
-        List<JSONObject> carnivalResolved = QQSource.lookupAttempts(carnival, carnivalApi, "0");
-        that("000cThFa1hAdAV".equals(carnivalResolved.get(0).getString("qqMid")),
-                "CARNIVAL resolves to the exact 3-artist QQ recording via non-lead alias query");
-        that(carnivalApi.requests.size() == 1, "rejected CARNIVAL variants never request a vkey");
+        expectError(carnival, badVersions, "0", "match_not_found", null);
+        that(badVersions.requests.isEmpty(), "Acapella and HOOLIGANS VERSION never request a vkey");
 
-        // Competing Ye / Stranger or guest-only Rihanna still vetoes the album bridge.
-        Fake strangerCompete = new Fake();
-        strangerCompete.results.put("Famous Kanye West Rihanna", new JSONArray()
-                .put(song("002XelTe31rBEE", "fileAlbum", "Famous (Explicit)", new String[]{"Ye (侃爷)"}, "The Life Of Pablo (Explicit)", 196))
-                .put(song("badStranger", "fileStranger", "Famous", new String[]{"Ye (侃爷)", "Stranger"}, "The Life Of Pablo", 196)));
-        strangerCompete.structuredMembers = famousMembers;
-        expectError(famousNetease, strangerCompete, "0", "match_not_found", null);
-        that(strangerCompete.requests.isEmpty(), "Ye / Stranger competing hit still vetoes album bridge");
+        Fake durationCases = new Fake();
+        durationCases.results.put("Song - Artist", new JSONArray()
+                .put(song("wrongLen", "fWrong", "Song", "Artist", "Album", 120)));
+        expectError(single(), durationCases, "0", "match_not_found", null);
+
+        Fake unknownDuration = new Fake();
+        unknownDuration.results.put("Song - Artist", new JSONArray()
+                .put(song("wrongLen", "fWrong", "Song", "Artist", "Album", 120))
+                .put(song("noLen", "fNoLen", "Song", "Artist", "Album", 0)));
+        that("noLen".equals(QQSource.lookupAttempts(single(), unknownDuration, "0").get(0).getString("qqMid")),
+                "candidate without duration acts as fallback when known durations mismatch");
     }
 
     private static void cachedAndNative() throws Exception {
@@ -261,19 +219,27 @@ final class QQSourceTest {
         base.put("qqMid", "wrong");
         Fake stale = new Fake();
         stale.details.put("wrong", song("wrong", "wrongFile", "Different", "Someone", "Album", 200));
-        stale.results.put("Song Artist", new JSONArray().put(song("right", "rightFile", "Song", "Artist", "Album", 200)));
+        stale.results.put("Song - Artist", new JSONArray().put(song("right", "rightFile", "Song", "Artist", "Album", 200)));
         that("right".equals(QQSource.lookupAttempts(Track.fromJson(base), stale, "0").get(0).getString("qqMid")),
-                "legacy MID with mismatching detail is searched again");
+                "legacy MID with mismatching detail title is searched again");
         that(stale.requests.size() == 1 && "right".equals(stale.requests.get(0).getJSONArray("songmid").getString(0)),
                 "wrong cached MID is never sent for vkey");
 
+        Fake wrongDuration = new Fake();
+        wrongDuration.details.put("short", song("short", "shortFile", "Song", "Artist", "Album", 30));
+        wrongDuration.results.put("Song - Artist", new JSONArray().put(song("right", "rightFile", "Song", "Artist", "Album", 200)));
+        base.put("qqMid", "short");
+        that("right".equals(QQSource.lookupAttempts(Track.fromJson(base), wrongDuration, "0").get(0).getString("qqMid"))
+                        && wrongDuration.requests.size() == 1,
+                "legacy MID with mismatching detail duration is searched again");
+
         Fake unavailable = new Fake();
-        unavailable.details.put("old", song("old", "oldFile", "Song", "Artist", "Album", 200));
+        unavailable.details.put("old", song("old", "oldFile", "Song", "Renamed Artist", "Album", 200));
         unavailable.noPurl.add("old");
-        unavailable.results.put("Song Artist", new JSONArray().put(song("new", "newFile", "Song", "Artist", "Album", 200)));
+        unavailable.results.put("Song - Artist", new JSONArray().put(song("new", "newFile", "Song", "Artist", "Album", 200)));
         base.put("qqMid", "old");
         that("new".equals(QQSource.lookupAttempts(Track.fromJson(base), unavailable, "0").get(0).getString("qqMid")),
-                "legacy MID reverified by detail still searches after a no-purl response");
+                "legacy MID reverified via select still searches after a no-purl response");
         that(unavailable.requests.size() == 2, "old and replacement recordings are each tried once");
 
         Fake nativeApi = new Fake();
@@ -575,11 +541,7 @@ final class QQSourceTest {
         final Map<String, JSONArray> results = new LinkedHashMap<>();
         final Map<String, JSONObject> details = new LinkedHashMap<>();
         final List<String> queries = new ArrayList<>(), detailCalls = new ArrayList<>(), noPurl = new ArrayList<>();
-        final List<Track> aliasTracks = new ArrayList<>();
-        final List<Track> memberTracks = new ArrayList<>();
         final List<JSONObject> requests = new ArrayList<>();
-        List<String> artistAliases = Collections.emptyList();
-        List<ArtistAliases.Member> structuredMembers = null;
         JSONArray sips = new JSONArray().put("https://a.qqmusic.qq.com/");
         int retcode, rowCode;
         boolean reverse, wrongRowMid, interruptSearch;
@@ -591,12 +553,6 @@ final class QQSourceTest {
             return results.getOrDefault(query, new JSONArray());
         }
         public JSONObject detail(String mid) { detailCalls.add(mid); return details.get(mid); }
-        public List<String> aliases(Track track) { aliasTracks.add(track); return artistAliases; }
-        @Override public List<ArtistAliases.Member> artistMembers(Track track) {
-            if (structuredMembers == null) return null;
-            memberTracks.add(track);
-            return structuredMembers;
-        }
         public JSONObject vkey(JSONObject params) throws Exception {
             requests.add(new JSONObject(params.toString()));
             String mid = params.getJSONArray("songmid").getString(0);
