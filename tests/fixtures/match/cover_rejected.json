@@ -99,5 +99,6 @@
   },
   "expect": "reject",
   "expectRule": "NONE",
-  "expectGate": "ARTIST"
+  "expectGate": "ARTIST",
+  "expectGateCandidate": "qq:000VNlcM0udCXc"
 }

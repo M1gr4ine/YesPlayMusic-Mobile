@@ -77,5 +77,6 @@
   },
   "expect": "reject",
   "expectRule": "NONE",
-  "expectGate": "ARTIST"
+  "expectGate": "ARTIST",
+  "expectGateCandidate": "qq:002GuestOnlyRih"
 }

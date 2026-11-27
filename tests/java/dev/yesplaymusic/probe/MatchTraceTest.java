@@ -12,13 +12,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/** Replays both matching directions and checks the decision trace and its logging boundary. */
 final class MatchTraceTest {
     private MatchTraceTest() {}
 
     static void run() throws Exception {
         testForwardTraceAndRecordedYueyu();
-        testRawIndexPreservesFilteredRank();
-        testReverseTraceAndPreConsiderGates();
+        testGrpChildSurvivesMissingParentMediaMid();
+        testReverseTraceAndGates();
         testReverseExceptionRecorded();
         testSanitizationAndZeroOverheadGuard();
     }
@@ -68,39 +69,11 @@ final class MatchTraceTest {
                 .put(qqSong("000VNlcM0udCXc", "000VNlcM0udCXc", "粤语残片", "狸昭昭Kumo", "粵語殘片", 275, null));
     }
 
-    private static JSONArray recordedYueyu2007LiveAlias() throws Exception {
-        return new JSONArray()
-                .put(qqSong("000J9BOC3sAUqd", "003BGqJ14ak5uu", "粤语残片", "陈奕迅", "What's Going On...? (Remastered 2019)", 272, null))
-                .put(qqSong("000dSwZh0izxIu", "000dSwZh0izxIu", "粤语残片 (女生氛围版)", "信知夏", "粤语残片(女生氛围版)", 136, null))
-                .put(qqSong("001XMyfL3yXL65", "001XMyfL3yXL65", "粤语残片 (港风女声版)", "嘉欣", "粤语残片（港风女声版）", 284, null))
-                .put(qqSong("0028qpYH1uolzX", "003254o74ZDKtG", "白色球鞋", "陈奕迅", "认了吧", 278, null))
-                .put(qqSong("000VNlcM0udCXc", "000VNlcM0udCXc", "粤语残片", "狸昭昭Kumo", "粵語殘片", 275, null))
-                .put(qqSong("001YzPkf18A8U4", "001YzPkf18A8U4", "粤语残片", "叫我阿顶", "顶级黑粉翻唱集", 271, null))
-                .put(qqSong("000wWq2w1LzD1n", "000wWq2w1LzD1n", "粤语残片 (Live)", "我唔系肥晴", "", 73, null))
-                .put(qqSong("002iyI3j2kwwPB", "002iyI3j2kwwPB", "粤语残片 (纯享版)", "刘艺哲", "粤语残片(纯享版)", 156, null))
-                .put(qqSong("0021OHcD1nJkEJ", "0019D8Mi1Kkhx5", "粤语残片 (Live)", "木白", "", 270, null))
-                .put(qqSong("0042Hy9q3wkzb7", "0042Hy9q3wkzb7", "粤语残片 (R&B版)", "金亦", "2026热门情歌R&B珍藏版", 253, null));
-    }
-
-    private static JSONArray recordedYueyu2007LiveBare() throws Exception {
-        return new JSONArray()
-                .put(qqSong("000J9BOC3sAUqd", "003BGqJ14ak5uu", "粤语残片", "陈奕迅", "What's Going On...? (Remastered 2019)", 272, null))
-                .put(qqSong("0028qpYH1uolzX", "003254o74ZDKtG", "白色球鞋", "陈奕迅", "认了吧", 278, null))
-                .put(qqSong("003oAh0u3RTCv3", "0044VTIY1sLCbW", "粤语残片 (Live)", "陈奕迅", "Eason Moving On Stage 1 (Live)", 277, null))
-                .put(qqSong("000dSwZh0izxIu", "000dSwZh0izxIu", "粤语残片 (女生氛围版)", "信知夏", "粤语残片(女生氛围版)", 136, null))
-                .put(qqSong("000iAWdB3V89ZR", "000iAWdB3V89ZR", "粤语残片 (2025 FEAR and DREAMS世界巡回演唱会澳门站)", "陈奕迅", "", 269, null))
-                .put(qqSong("001XMyfL3yXL65", "001XMyfL3yXL65", "粤语残片 (港风女声版)", "嘉欣", "粤语残片（港风女声版）", 284, null))
-                .put(qqSong("002SRKJw2U4hxz", "002SRKJw2U4hxz", "白色球鞋(粤语残片)", "都叫我老詹", "白色球鞋", 260, null))
-                .put(qqSong("000VNlcM0udCXc", "000VNlcM0udCXc", "粤语残片", "狸昭昭Kumo", "粵語殘片", 275, null))
-                .put(qqSong("000wWq2w1LzD1n", "000wWq2w1LzD1n", "粤语残片 (Live)", "我唔系肥晴", "", 73, null))
-                .put(qqSong("001YzPkf18A8U4", "001YzPkf18A8U4", "粤语残片", "叫我阿顶", "顶级黑粉翻唱集", 271, null));
-    }
-
     private static void testForwardTraceAndRecordedYueyu() throws Exception {
         List<ArtistAliases.Member> easonMembers = Collections.singletonList(
                 new ArtistAliases.Member("陈奕迅", "2116", Collections.singletonList("Eason Chan")));
 
-        // 1. NetEase 65778 (276306ms) accepts list[0] (272s, gap 4306ms) and notes grp=3 on list[0].
+        // 1. NetEase 65778 (276306ms): grp[] expansion ranks exact-album 000SX6cK3Se2WV (306ms gap) #1 via Rule A.
         TraceFake api65778 = new TraceFake();
         api65778.results.put("粤语残片 陈奕迅", recordedYueyuPrimaryResponse());
         api65778.members = easonMembers;
@@ -108,108 +81,98 @@ final class MatchTraceTest {
                 .put("id", "65778").put("title", "粤语残片").put("artist", "陈奕迅")
                 .put("album", "What's Going On…?").put("duration", 276306));
         List<MatchTrace> captured = new ArrayList<>();
-        QQSource.lookupAttempts(track65778, api65778, "0", captured::add);
-        that(captured.size() == 1, "forward match emits one trace");
+        List<JSONObject> resolved65778 = QQSource.lookupAttempts(track65778, api65778, "0", captured::add);
+        that(captured.size() == 1 && "000SX6cK3Se2WV".equals(resolved65778.get(0).getString("qqMid")),
+                "65778 resolves grp[0] exact studio master first and emits one trace");
         MatchTrace trace65778 = captured.get(0);
         that(trace65778.direction == MatchTrace.Direction.NETEASE_TO_QQ
                 && trace65778.policy == MatchTrace.Policy.PLAYBACK
+                && trace65778.mode == MatchTrace.Mode.TRACK_MATCHER
                 && "65778".equals(trace65778.target.catalogId)
-                && "primary_strict".equals(trace65778.shortCircuitStage())
+                && "all_artists".equals(trace65778.shortCircuitStage())
                 && "vkey_ok".equals(trace65778.finalOutcome()),
-                "65778 short-circuits on primary strict match and records vkey_ok");
-        MatchTrace.CandidateRecord accepted0 = findCandidate(trace65778, "qq:000J9BOC3sAUqd", "primary");
-        that(accepted0 != null
-                && accepted0.outcome == MatchTrace.Outcome.ACCEPTED
-                && accepted0.rule == MatchTrace.Rule.LEGACY_STRICT
-                && Long.valueOf(4306L).equals(accepted0.durationGapMs)
-                && accepted0.detail.contains("grp=3"),
-                "65778 trace captures gap=4306ms and collapsed grp=3 count");
+                "65778 short-circuits on all_artists Rule A and records vkey_ok");
+        MatchTrace.CandidateRecord acceptedGrp0 = findCandidate(trace65778, "qq:000SX6cK3Se2WV", "all_artists");
+        that(acceptedGrp0 != null
+                && acceptedGrp0.outcome == MatchTrace.Outcome.ACCEPTED
+                && acceptedGrp0.rule == MatchTrace.Rule.A
+                && acceptedGrp0.listIndex == 0 && acceptedGrp0.grpIndex == 0
+                && "000J9BOC3sAUqd".equals(acceptedGrp0.parentMid)
+                && Long.valueOf(306L).equals(acceptedGrp0.durationGapMs),
+                "65778 trace captures grpIndex=0, parentMid, Rule.A, and 306ms gap");
 
-        // 2. NetEase 1411495700 (Remastered 2019, 280264ms) rejects 000J9BOC3sAUqd at Gate.DURATION (gap=8264ms).
+        // 2. NetEase 1411495700 (Remastered 2019, 280264ms): list[0] (272s) rejected at DURATION (8264ms),
+        //    while grp[0] 000SX6cK3Se2WV (276s, gap 4264ms) is accepted via Rule A.
         TraceFake api1411 = new TraceFake();
         api1411.results.put("粤语残片 陈奕迅", recordedYueyuPrimaryResponse());
-        api1411.results.put("粤语残片 Eason Chan", recordedYueyuPrimaryResponse());
-        api1411.results.put("粤语残片", recordedYueyuPrimaryResponse());
         api1411.members = easonMembers;
         Track track1411 = Track.fromJson(new JSONObject()
                 .put("id", "1411495700").put("title", "粤语残片").put("artist", "陈奕迅")
                 .put("album", "What's Going On...? (Remastered 2019)").put("duration", 280264));
         captured.clear();
-        boolean notFound = false;
-        try {
-            QQSource.lookupAttempts(track1411, api1411, "0", captured::add);
-        } catch (QQSource.ResolveException expected) {
-            notFound = "match_not_found".equals(expected.code);
-        }
-        that(notFound && captured.size() == 1, "1411495700 emits trace even on match_not_found");
+        List<JSONObject> resolved1411 = QQSource.lookupAttempts(track1411, api1411, "0", captured::add);
+        that(captured.size() == 1 && "000SX6cK3Se2WV".equals(resolved1411.get(0).getString("qqMid")),
+                "1411495700 recovers 276s studio master via grp[] expansion");
         MatchTrace trace1411 = captured.get(0);
-        MatchTrace.CandidateRecord durRejected = findCandidate(trace1411, "qq:000J9BOC3sAUqd", "primary");
+        MatchTrace.CandidateRecord durRejected = findCandidate(trace1411, "qq:000J9BOC3sAUqd", "all_artists");
+        MatchTrace.CandidateRecord grpAccepted = findCandidate(trace1411, "qq:000SX6cK3Se2WV", "all_artists");
         that(durRejected != null
                 && durRejected.outcome == MatchTrace.Outcome.REJECTED
                 && durRejected.failedGate == MatchTrace.Gate.DURATION
                 && Long.valueOf(8264L).equals(durRejected.durationGapMs)
-                && durRejected.detail.contains("grp=3")
-                && trace1411.vkeyAttempts().isEmpty()
-                && "match_not_found/no_verified_recording".equals(trace1411.finalErrorCode()),
-                "1411495700 trace pinpoints duration gate (8264ms) and zero vkey attempts");
+                && grpAccepted != null
+                && grpAccepted.outcome == MatchTrace.Outcome.ACCEPTED
+                && grpAccepted.rule == MatchTrace.Rule.A
+                && Long.valueOf(4264L).equals(grpAccepted.durationGapMs),
+                "1411495700 trace records parent 8264ms DURATION rejection alongside grp[0] 4264ms Rule.A acceptance");
 
-        // 3. NetEase 65269 (粤语残片 (2007 Live), 277223ms) across all three recorded 10-hit QQ responses.
+        // 3. NetEase 65269 (粤语残片 (2007 Live), 277223ms): A3 matches 003oAh0u3RTCv3 (Live) on same live album.
         TraceFake api65269 = new TraceFake();
         api65269.results.put("粤语残片 (2007 Live) 陈奕迅", recordedYueyu2007LivePrimary());
-        api65269.results.put("粤语残片 (2007 Live) Eason Chan", recordedYueyu2007LiveAlias());
-        api65269.results.put("粤语残片 (2007 Live)", recordedYueyu2007LiveBare());
         api65269.members = easonMembers;
         Track track65269 = Track.fromJson(new JSONObject()
                 .put("id", "65269").put("title", "粤语残片 (2007 Live)").put("artist", "陈奕迅")
                 .put("album", "Eason Moving On Stage 1 (Live)").put("duration", 277223));
         captured.clear();
-        notFound = false;
-        try {
-            QQSource.lookupAttempts(track65269, api65269, "0", captured::add);
-        } catch (QQSource.ResolveException expected) {
-            notFound = "match_not_found".equals(expected.code);
-        }
-        that(notFound && captured.size() == 1, "65269 emits trace on match_not_found");
+        List<JSONObject> resolved65269 = QQSource.lookupAttempts(track65269, api65269, "0", captured::add);
+        that(captured.size() == 1 && "003oAh0u3RTCv3".equals(resolved65269.get(0).getString("qqMid")),
+                "65269 resolves 003oAh0u3RTCv3 on query 1 via A3 live-year same-album rule");
         MatchTrace trace65269 = captured.get(0);
-        that(trace65269.queries().size() == 3
-                && trace65269.queries().get(0).rawCount == 10
-                && trace65269.queries().get(1).rawCount == 10
-                && trace65269.queries().get(2).rawCount == 10,
-                "65269 replays all three distinct 10-hit QQ responses");
-        MatchTrace.CandidateRecord titleRejected = findCandidate(trace65269, "qq:003oAh0u3RTCv3", "primary");
-        that(titleRejected != null
-                && titleRejected.listIndex == 3
-                && titleRejected.outcome == MatchTrace.Outcome.REJECTED
-                && titleRejected.failedGate == MatchTrace.Gate.TITLE
-                && Long.valueOf(223L).equals(titleRejected.durationGapMs)
-                && "粤语残片2007live".equals(titleRejected.targetMainTitle)
-                && "粤语残片live".equals(titleRejected.candidateMainTitle)
-                && titleRejected.targetVersionTags.equals(titleRejected.candidateVersionTags),
-                "65269 trace pinpoints mainTitle mismatch at raw list[3] despite matching live version and 223ms gap");
+        MatchTrace.CandidateRecord liveAccepted = findCandidate(trace65269, "qq:003oAh0u3RTCv3", "all_artists");
+        that(liveAccepted != null
+                && liveAccepted.listIndex == 3
+                && liveAccepted.outcome == MatchTrace.Outcome.ACCEPTED
+                && liveAccepted.rule == MatchTrace.Rule.A
+                && Long.valueOf(223L).equals(liveAccepted.durationGapMs)
+                && liveAccepted.detail.contains("live_year_same_album"),
+                "65269 trace captures listIndex=3, Rule.A, 223ms gap, and live_year_same_album detail");
     }
 
-    private static void testRawIndexPreservesFilteredRank() throws Exception {
+    private static void testGrpChildSurvivesMissingParentMediaMid() throws Exception {
         TraceFake api = new TraceFake();
-        api.results.put("First Love 宇多田ヒカル", new JSONArray()
-                .put(qqSong("missingFile", "", "First Love", "宇多田光", "", 257, null))
-                .put(qqSong("validCross", "fileCross", "First Love", "宇多田光", "", 257, null)));
-        Track crossScript = Track.fromJson(new JSONObject()
-                .put("id", "777").put("title", "First Love").put("artist", "宇多田ヒカル")
-                .put("album", "").put("duration", 257000));
+        JSONArray grp = new JSONArray().put(
+                qqSong("childMid", "childFile", "Signal", "Lead Artist", "Studio Album", 200, null));
+        api.results.put("Signal Lead Artist", new JSONArray()
+                .put(qqSong("parentNoFile", "", "Signal", "Lead Artist", "Studio Album", 200, grp)));
+        Track target = Track.fromJson(new JSONObject()
+                .put("id", "777").put("title", "Signal").put("artist", "Lead Artist")
+                .put("album", "Studio Album").put("duration", 200000));
         List<MatchTrace> captured = new ArrayList<>();
-        List<JSONObject> resolved = QQSource.lookupAttempts(crossScript, api, "0", captured::add);
-        that("validCross".equals(resolved.get(0).getString("qqMid")),
-                "leading item without media_mid does not break legacy filtered rank==0 behavior");
+        List<JSONObject> resolved = QQSource.lookupAttempts(target, api, "0", captured::add);
+        that("childMid".equals(resolved.get(0).getString("qqMid")),
+                "valid grp[] child is still evaluated and matched when parent lacks media_mid");
         MatchTrace trace = captured.get(0);
-        MatchTrace.CandidateRecord filtered = findCandidate(trace, "qq:missingFile", "primary");
-        MatchTrace.CandidateRecord accepted = findCandidate(trace, "qq:validCross", "after_aliases");
-        that(filtered != null && filtered.listIndex == 0 && filtered.failedGate == MatchTrace.Gate.MISSING_MEDIA_MID,
-                "dropped row keeps raw listIndex=0 in trace");
-        that(accepted != null && accepted.listIndex == 1 && accepted.detail.contains("filteredRank=0"),
-                "accepted row preserves raw listIndex=1 alongside filteredRank=0");
+        MatchTrace.CandidateRecord filtered = findCandidate(trace, "qq:parentNoFile", "all_artists");
+        MatchTrace.CandidateRecord accepted = findCandidate(trace, "qq:childMid", "all_artists");
+        that(filtered != null && filtered.listIndex == 0 && filtered.grpIndex == -1
+                && filtered.failedGate == MatchTrace.Gate.MISSING_MEDIA_MID,
+                "parent without media_mid is traced as FILTERED at listIndex=0");
+        that(accepted != null && accepted.listIndex == 0 && accepted.grpIndex == 0
+                && "parentNoFile".equals(accepted.parentMid) && accepted.rule == MatchTrace.Rule.A,
+                "grp[0] child preserves listIndex=0, grpIndex=0, and parentMid");
     }
 
-    private static void testReverseTraceAndPreConsiderGates() throws Exception {
+    private static void testReverseTraceAndGates() throws Exception {
         JSONObject args = new JSONObject()
                 .put("id", "qq:001Mid")
                 .put("title", "Song")
@@ -236,24 +199,25 @@ final class MatchTraceTest {
         MatchTrace trace = captured.get(0);
         that(trace.direction == MatchTrace.Direction.QQ_TO_NETEASE
                 && trace.policy == MatchTrace.Policy.WRITE
+                && trace.mode == MatchTrace.Mode.TRACK_MATCHER
                 && "qq:001Mid".equals(trace.target.catalogId)
                 && "matched".equals(trace.finalOutcome()),
-                "reverse trace records direction, policy, target ID, and matched outcome");
+                "reverse trace records direction, policy, TRACK_MATCHER mode, target ID, and matched outcome");
         that(trace.candidates().get(0).failedGate == MatchTrace.Gate.INVALID_ID
                 && trace.candidates().get(0).candidateId.isEmpty()
                 && !trace.formatSummary().contains("secret"),
-                "pre-consider invalid ID is traced without echoing untrusted raw IDs");
-        that(findCandidate(trace, "101", "primary#0").failedGate == MatchTrace.Gate.VERSION,
-                "pre-consider version mismatch is traced");
-        that(findCandidate(trace, "102", "primary#0").failedGate == MatchTrace.Gate.TITLE,
-                "pre-consider title mismatch is traced");
-        that(findCandidate(trace, "103", "primary#0").failedGate == MatchTrace.Gate.DURATION,
-                "consider >8000ms duration filter is traced");
-        MatchTrace.CandidateRecord accepted = findCandidate(trace, "104", "primary#0");
+                "invalid NetEase ID is traced without echoing untrusted raw IDs");
+        that(findCandidate(trace, "101", "all_artists#0").failedGate == MatchTrace.Gate.VERSION,
+                "version mismatch is traced");
+        that(findCandidate(trace, "102", "all_artists#0").failedGate == MatchTrace.Gate.TITLE,
+                "title mismatch is traced");
+        that(findCandidate(trace, "103", "all_artists#0").failedGate == MatchTrace.Gate.DURATION,
+                "duration >5000ms rejection is traced");
+        MatchTrace.CandidateRecord accepted = findCandidate(trace, "104", "all_artists#0");
         that(accepted != null && accepted.outcome == MatchTrace.Outcome.ACCEPTED
-                && accepted.rule == MatchTrace.Rule.LEGACY_STRICT
+                && accepted.rule == MatchTrace.Rule.A
                 && Long.valueOf(500L).equals(accepted.durationGapMs),
-                "accepted reverse candidate is traced with rule and duration gap");
+                "accepted reverse candidate is traced with Rule.A and duration gap");
     }
 
     private static void testReverseExceptionRecorded() throws Exception {
@@ -295,8 +259,8 @@ final class MatchTraceTest {
         List<MatchTrace> captured = new ArrayList<>();
         QQSource.lookupAttempts(noisyTarget, api, "0", captured::add);
         MatchTrace trace = captured.get(0);
-        MatchTrace.CandidateRecord okCand = findCandidate(trace, "qq:okMid", "primary");
-        MatchTrace.CandidateRecord filtered = findCandidate(trace, "qq:noFileMid", "primary");
+        MatchTrace.CandidateRecord okCand = findCandidate(trace, "qq:okMid", "all_artists");
+        MatchTrace.CandidateRecord filtered = findCandidate(trace, "qq:noFileMid", "all_artists");
         that(okCand != null && okCand.durationGapMs == null,
                 "missing duration records null gap instead of Long.MAX_VALUE");
         that(filtered != null && filtered.outcome == MatchTrace.Outcome.FILTERED

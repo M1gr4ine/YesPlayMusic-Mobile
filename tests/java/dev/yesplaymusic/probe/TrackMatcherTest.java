@@ -616,6 +616,91 @@ final class TrackMatcherTest {
         that(!TrackMatcher.queryLadder(longTitle.toString().trim(), "Artist", Collections.emptyList(),
                 Collections.emptyList()).isEmpty(),
                 "P2-2: titles longer than 200 characters still build recall queries up to Track 512-char limit");
+
+        // Step 4 audit regressions (P1-2, P1-4, P1-6, P2-2):
+        // P1-2: Brackets in "AB (A) / C (BC)" must NOT let structural grouping conflict fall through to Rule B.
+        that(TrackMatcher.rank(track("tG1", "Track", "AB (A) / C (BC)", "Studio Album", 200000L), list(
+                cand("cG1", "Track", "A / BC", "Studio Album", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-2(S4): bracketed AB (A) / C (BC) vs A / BC is vetoed by grouping conflict (WRITE)");
+        that(TrackMatcher.rank(track("tG2", "Track", "A / BC", "Studio Album", 200000L), list(
+                cand("cG2", "Track", "AB (A) / C (BC)", "Studio Album", 200000L)), Policy.PLAYBACK).isEmpty(),
+                "P1-2(S4): grouping conflict vetoes A / BC vs AB (A) / C (BC) symmetrically (PLAYBACK)");
+
+        // P1-4: Cross-round same-ID merge must never overwrite known duration (113s) with missing duration (0s).
+        Candidate round1Long = cand("mDur", "Horizon", "Lead Artist", "Studio Album", 113000L);
+        Candidate round2MissingDur = new Candidate("mDur", "media_mDur", "Horizon", "Lead Artist",
+                Collections.singletonList(new Member("Lead Artist", "1", Collections.singletonList("ExtraAlias"))),
+                Collections.singletonList("ExtraAlias"), "Studio Album", 0L, 0, -1, "", null);
+        that(TrackMatcher.rank(track("tDur", "Horizon", "Lead Artist", "Studio Album", 100000L),
+                list(round1Long, round2MissingDur), Policy.PLAYBACK).isEmpty(),
+                "P1-4(S4): cross-round merge preserves known 113s duration instead of erasing to 0s");
+
+        // P1-6: Placeholder member ("Unknown") never confers Rule A identity and never promotes guest to lead.
+        that(TrackMatcher.rank(track("tUnk1", "Track", "Unknown / North", "Album One", 200000L), list(
+                cand("cUnk1", "Track", "Unknown / Other", "Album Two", 200000L)), Policy.PLAYBACK).isEmpty(),
+                "P1-6(S4): Unknown placeholder in Unknown / North vs Unknown / Other cannot trigger Rule A");
+        that(TrackMatcher.rank(track("tUnk2", "Track", "Unknown / North", "Studio Album", 200000L), list(
+                cand("cUnk2", "Track", "North", "Studio Album", 200000L)), Policy.PLAYBACK).isEmpty(),
+                "P1-6(S4): Unknown placeholder stays at lead slot so guest North is not promoted to lead");
+        that(TrackMatcher.rank(track("tUnk3", "Track", "Lead Artist", "Studio Album", 200000L), list(
+                cand("cAllPlace", "Track", "Unknown / 群星", "Other Album", 200000L),
+                cand("cOtherDisj", "Track", "Renamed Artist", "Studio Album", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-6(S4): all-placeholder credit passing gates 1-3 still blocks Rule B uniqueness");
+
+        // P2-2: Fullwidth ／ and tight CJK / align between artistParts, artistRawParts, matchesDisplayCredit, and queryLadder.
+        that(MatchText.artistRawParts("甲／乙").equals(Arrays.asList("甲", "乙"))
+                && MatchText.artistParts("甲／乙").size() == 2
+                && MatchText.matchesDisplayCredit("甲/乙", Arrays.asList("甲", "乙"))
+                && MatchText.matchesDisplayCredit("甲／乙", Arrays.asList("甲", "乙")),
+                "P2-2(S4): fullwidth ／ and CJK / split consistently and pass matchesDisplayCredit lookbehind");
+        List<QueryStep> cjkFullwidth = TrackMatcher.queryLadder("曲目", "甲／乙", Collections.emptyList(),
+                Collections.emptyList());
+        that(cjkFullwidth.stream().anyMatch(s -> s.stage == QueryStage.LEAD_ARTIST && "曲目 甲".equals(s.query)),
+                "P2-2(S4): fullwidth ／ credit produces clean lead-artist query");
+
+        // Pass 4b P1-3: Unknown placeholder tokens inside brackets or official aliases never confer Rule A identity.
+        that(TrackMatcher.rank(track("tBrUnk", "Horizon", "North (未知)", "Album One", 200000L), list(
+                cand("cBrUnk", "Horizon", "Other (未知)", "Album Two", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-3(S4b): bracketed unknown placeholder (未知) cannot establish identity across distinct artists");
+        that(TrackMatcher.rank(
+                trackWithMembers("tAlUnk", "Horizon", "North", "Album One", 200000L,
+                        Collections.singletonList(new Member("North", "1", Collections.singletonList("Unknown")))),
+                list(candWithMembers("cAlUnk", "Horizon", "Other", "Album Two", 200000L,
+                        Collections.singletonList(new Member("Other", "2", Collections.singletonList("Unknown"))))),
+                Policy.WRITE).isEmpty(),
+                "P1-3(S4b): shared Unknown official alias cannot establish Rule A identity");
+        that("cNorthClean".equals(firstId(TrackMatcher.rank(
+                track("tBrNorth", "Horizon", "North (未知)", "Album One", 200000L), list(
+                cand("cNorthClean", "Horizon", "North", "Album Two", 200000L)), Policy.WRITE))),
+                "P1-3(S4b): filtering placeholder bracket token still allows genuine artist match");
+
+        // Pass 4b P1-4: Same-ID cross-round merge never copies collab flat aliases onto a solo credit in either order.
+        Candidate soloFirst = new Candidate("qq:m100", "f100", "Horizon", "First",
+                Collections.singletonList(new Member("First", "q1", Collections.emptyList())),
+                Collections.emptyList(), "Album Two", 200000L, 0, -1, "", null);
+        Candidate collabFirstGuest = new Candidate("qq:m100", "f100", "Horizon", "First / Guest",
+                Arrays.asList(
+                        new Member("First", "q1", Collections.emptyList()),
+                        new Member("Guest", "q2", Collections.singletonList("North"))),
+                Collections.singletonList("North"), "Album Two", 200000L, 0, -1, "", null);
+        Track northTarget = track("tNorth", "Horizon", "North", "Album One", 200000L);
+        that(TrackMatcher.rank(northTarget, list(soloFirst, collabFirstGuest), Policy.PLAYBACK).isEmpty()
+                && TrackMatcher.rank(northTarget, list(collabFirstGuest, soloFirst), Policy.PLAYBACK).isEmpty(),
+                "P1-4(S4b): merging solo and collab observations of same MID never leaks Guest alias to solo First");
+
+        // Pass 4b P1-5: Cross-script free brackets never mask provable base-name repartition (AB/C vs A/BC).
+        Track leftBracketed = track("tAbC", "Track", "AB (甲) / C (乙)", "Album One", 200000L);
+        Candidate rightBracketed = cand("cABc", "Track", "A (甲) / BC (乙)", "Album Two", 200000L);
+        Track rightTarget = track("tABc", "Track", "A (甲) / BC (乙)", "Album Two", 200000L);
+        Candidate leftCand = cand("cAbC", "Track", "AB (甲) / C (乙)", "Album One", 200000L);
+        that(TrackMatcher.rank(leftBracketed, list(rightBracketed), Policy.WRITE).isEmpty()
+                && TrackMatcher.rank(rightTarget, list(leftCand), Policy.WRITE).isEmpty()
+                && TrackMatcher.rank(leftBracketed, list(rightBracketed), Policy.PLAYBACK).isEmpty()
+                && TrackMatcher.rank(rightTarget, list(leftCand), Policy.PLAYBACK).isEmpty(),
+                "P1-5(S4b): AB (甲) / C (乙) vs A (甲) / BC (乙) is rejected bidirectionally as A6 grouping conflict");
+        that("cSameBase".equals(firstId(TrackMatcher.rank(leftBracketed, list(
+                cand("cSameBase", "Track", "AB / C", "Album Two", 200000L)), Policy.WRITE))),
+                "P1-5(S4b): identical base grouping AB (甲) / C (乙) vs AB / C still matches");
     }
 
     private static String firstId(List<RankedHit> hits) {

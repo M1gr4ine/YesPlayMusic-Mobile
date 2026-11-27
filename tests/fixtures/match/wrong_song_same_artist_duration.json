@@ -238,5 +238,6 @@
   },
   "expect": "reject",
   "expectRule": "NONE",
-  "expectGate": "TITLE"
+  "expectGate": "TITLE",
+  "expectGateCandidate": "qq:004ff6bV3wHhjt"
 }

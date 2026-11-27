@@ -265,6 +265,7 @@ final class MatchText {
             if (member.isEmpty()) return false;
             if (i > 0) {
                 Matcher sep = MatchRules.ARTIST_SEPARATOR.matcher(foldedDisplay);
+                sep.useTransparentBounds(true);
                 sep.region(pos, foldedDisplay.length());
                 if (!sep.lookingAt() || sep.end() == pos) return false;
                 pos = sep.end();
@@ -315,12 +316,19 @@ final class MatchText {
     static List<String> artistRawParts(String credit) {
         List<String> parts = new ArrayList<>();
         if (credit != null) {
-            for (String part : MatchRules.ARTIST_SEPARATOR.split(credit)) {
+            // Normalize compatibility punctuation (e.g. fullwidth ／ -> /) so raw part boundaries match artistParts.
+            String compat = Normalizer.normalize(credit, Normalizer.Form.NFKC);
+            for (String part : MatchRules.ARTIST_SEPARATOR.split(compat)) {
                 String trimmed = part.trim();
                 if (!artistNames(trimmed).isEmpty()) parts.add(trimmed);
             }
         }
         return parts;
+    }
+
+    static boolean isUnknownArtistToken(String normalizedToken) {
+        return normalizedToken == null || normalizedToken.isEmpty()
+                || FOLDED_UNKNOWN_ARTIST_TOKENS.contains(normalizedToken);
     }
 
     static boolean knownArtist(String credit) {

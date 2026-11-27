@@ -332,5 +332,6 @@
   },
   "expect": "reject",
   "expectRule": "NONE",
-  "expectGate": "VERSION"
+  "expectGate": "VERSION",
+  "expectGateCandidate": "qq:001z7iVD0jLf4s"
 }

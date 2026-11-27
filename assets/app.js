@@ -2795,6 +2795,8 @@
     if (!title) return Promise.resolve(failure('\u6b4c\u66f2\u4fe1\u606f\u4e0d\u8db3\uff0c\u65e0\u6cd5\u6536\u85cf', false));
     const artist = String(track.artist || '');
     const args = {
+      id: String(track.id || ''),
+      purpose: 'favorite',
       title,
       artist: artist === '\u672a\u77e5\u827a\u672f\u5bb6' ? '' : artist,
       album: String(track.album || ''),
@@ -3143,6 +3145,8 @@
     }
     const artist = track.artist === '未知艺术家' ? '' : String(track.artist || '');
     const response = await request('matchTrack', {
+      id: String(track.id || ''),
+      purpose: 'navigation',
       title: String(track.title || ''), artist, album: String(track.album || ''),
       artistAliases: Array.isArray(track.artistAliases) ? track.artistAliases : [],
       artistMembers: track.artistMembers,

@@ -72,5 +72,6 @@
   },
   "expect": "reject",
   "expectRule": "NONE",
-  "expectGate": "VETO"
+  "expectGate": "VETO",
+  "expectGateCandidate": "qq:001KtqEb0jd0hf"
 }

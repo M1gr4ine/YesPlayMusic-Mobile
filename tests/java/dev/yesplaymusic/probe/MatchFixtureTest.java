@@ -26,9 +26,9 @@ import org.json.JSONObject;
 
 /**
  * Table-driven runner for match fixtures under {@code tests/fixtures/match/*.json}.
- * Distinguishes {@code direct_replay}, {@code curated_real_excerpt}, and {@code synthetic_variant}
- * fixtures, tracks unrecorded queries explicitly, verifies expected gates via {@link MatchTrace} on
- * rejections, and compares {@link TrackMatcher} side-by-side against the legacy matcher.
+ * Verifies both {@link TrackMatcher} directly and end-to-end production {@link QQSource#lookupAttempts}
+ * / {@link MusicApi#matchTrack} against every fixture, asserting expected IDs, rules, top-3 ordering,
+ * rejection gates via {@link MatchTrace}, and zero missing queries on {@code direct_replay} fixtures.
  */
 final class MatchFixtureTest {
     private static final File FIXTURE_DIR = new File("tests/fixtures/match");
@@ -40,25 +40,22 @@ final class MatchFixtureTest {
         final String rule;
         final List<String> top3;
         final Set<String> missingQueries;
-        final Set<MatchTrace.Gate> observedGates;
+        final Map<String, MatchTrace.Gate> decidingGatesByCandidate;
 
         Outcome(String selectedId, String rule, List<String> top3,
-                Set<String> missingQueries, Set<MatchTrace.Gate> observedGates) {
+                Set<String> missingQueries, Map<String, MatchTrace.Gate> decidingGatesByCandidate) {
             this.selectedId = selectedId;
             this.rule = rule;
             this.top3 = top3;
             this.missingQueries = missingQueries;
-            this.observedGates = observedGates;
+            this.decidingGatesByCandidate = decidingGatesByCandidate;
         }
     }
 
     static void run() throws Exception {
         File[] files = FIXTURE_DIR.listFiles((dir, name) -> name.endsWith(".json"));
-        that(files != null && files.length >= 16, "match fixture suite loaded (" + (files == null ? 0 : files.length) + ")");
+        that(files != null && files.length >= 18, "match fixture suite loaded (" + (files == null ? 0 : files.length) + ")");
         Arrays.sort(files, Comparator.comparing(File::getName));
-
-        boolean printReport = Boolean.getBoolean("ypm.shadow.report");
-        List<String> shadowLines = new ArrayList<>();
 
         for (File file : files) {
             String raw = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
@@ -71,88 +68,83 @@ final class MatchFixtureTest {
             String expect = fixture.getString("expect");
             String expectRule = fixture.optString("expectRule", "");
             String expectGate = fixture.optString("expectGate", "");
+            String expectGateCandidate = fixture.optString("expectGateCandidate", "");
             boolean expandGrp = fixture.optBoolean("expandGrp", false);
             JSONObject targetJson = fixture.getJSONObject("target");
             JSONObject responses = fixture.getJSONObject("responses");
             Map<String, Member> artistDetails = parseArtistDetails(fixture.optJSONObject("artistDetails"));
 
-            Outcome newResult = runTrackMatcher(direction, policy, targetJson, responses, artistDetails, expandGrp);
-            Outcome legacyResult = runLegacyMatcher(direction, targetJson, responses, artistDetails, false);
+            Outcome matcherResult = runTrackMatcher(direction, policy, targetJson, responses, artistDetails, expandGrp);
+            Outcome prodResult = runProductionMatcher(direction, policy, targetJson, responses, artistDetails);
 
-            that(expect.equals(newResult.selectedId),
-                    "fixture " + name + " (" + ruleLabel + "): expected " + expect + ", got " + newResult.selectedId);
+            that(expect.equals(matcherResult.selectedId),
+                    "fixture " + name + " (" + ruleLabel + "): expected " + expect + ", got " + matcherResult.selectedId);
             if (!expectRule.isEmpty()) {
-                that(expectRule.equals(newResult.rule),
-                        "fixture " + name + ": expected rule " + expectRule + ", got " + newResult.rule);
+                that(expectRule.equals(matcherResult.rule),
+                        "fixture " + name + ": expected rule " + expectRule + ", got " + matcherResult.rule);
             }
             if (!expectGate.isEmpty()) {
                 MatchTrace.Gate requiredGate = MatchTrace.Gate.valueOf(expectGate);
-                that(newResult.observedGates.contains(requiredGate),
-                        "fixture " + name + ": expected rejected gate " + requiredGate
-                                + ", observed " + newResult.observedGates);
+                if (!expectGateCandidate.isEmpty()) {
+                    that(requiredGate == matcherResult.decidingGatesByCandidate.get(expectGateCandidate),
+                            "fixture " + name + " matcher candidate " + expectGateCandidate + ": expected deciding gate "
+                                    + requiredGate + ", got " + matcherResult.decidingGatesByCandidate.get(expectGateCandidate));
+                    that(requiredGate == prodResult.decidingGatesByCandidate.get(expectGateCandidate),
+                            "fixture " + name + " production candidate " + expectGateCandidate + ": expected deciding gate "
+                                    + requiredGate + ", got " + prodResult.decidingGatesByCandidate.get(expectGateCandidate));
+                } else {
+                    that(matcherResult.decidingGatesByCandidate.containsValue(requiredGate)
+                            && prodResult.decidingGatesByCandidate.containsValue(requiredGate),
+                            "fixture " + name + ": expected deciding gate " + requiredGate
+                                    + ", matcher=" + matcherResult.decidingGatesByCandidate
+                                    + ", prod=" + prodResult.decidingGatesByCandidate);
+                }
             }
             if ("direct_replay".equals(kind)) {
-                that(newResult.missingQueries.isEmpty(),
-                        "direct_replay fixture " + name + " executed unrecorded queries: " + newResult.missingQueries);
+                that(matcherResult.missingQueries.isEmpty() && prodResult.missingQueries.isEmpty(),
+                        "direct_replay fixture " + name + " executed unrecorded queries: matcher="
+                                + matcherResult.missingQueries + " prod=" + prodResult.missingQueries);
             }
 
             JSONArray expectTop3 = fixture.optJSONArray("expectTop3");
             if (expectTop3 != null) {
                 List<String> expectedList = new ArrayList<>();
                 for (int i = 0; i < expectTop3.length(); i++) expectedList.add(expectTop3.getString(i));
-                that(newResult.top3.equals(expectedList),
-                        "fixture " + name + ": expected top3 " + expectedList + ", got " + newResult.top3);
+                that(matcherResult.top3.equals(expectedList),
+                        "fixture " + name + ": expected top3 " + expectedList + ", got " + matcherResult.top3);
             }
 
-            boolean diff = !legacyResult.selectedId.equals(newResult.selectedId)
-                    || !legacyResult.top3.equals(newResult.top3);
-            String legacyStatus = legacyResult.missingQueries.isEmpty()
-                    ? legacyResult.selectedId
-                    : legacyResult.selectedId + "[missing:" + legacyResult.missingQueries + "]";
-            String newStatus = newResult.missingQueries.isEmpty()
-                    ? newResult.selectedId + "(" + newResult.rule + ")"
-                    : newResult.selectedId + "(" + newResult.rule + ")[missing:" + newResult.missingQueries + "]";
-            shadowLines.add(String.format("%s [%s] | dir=%s | policy=%s | rule=%s | legacy=%s top3=%s | new=%s top3=%s | diff=%s",
-                    name, kind, direction, policy, ruleLabel,
-                    legacyStatus, legacyResult.top3,
-                    newStatus, newResult.top3,
-                    diff ? "DIFF" : "SAME"));
-
-            if (name.startsWith("yueyu_canpian_") || "fml_forward_no_alias_rule_b".equals(name)) {
-                Outcome legacyNoGrp = legacyResult;
-                Outcome legacyWithGrp = runLegacyMatcher(direction, targetJson, responses, artistDetails, true);
-                Outcome newNoGrp = runTrackMatcher(direction, policy, targetJson, responses, artistDetails, false);
-                Outcome newWithGrp = runTrackMatcher(direction, policy, targetJson, responses, artistDetails, true);
-                shadowLines.add(String.format(
-                        "  [2x2 %s] legacy(noGrp)=%s legacy(+Grp)=%s | new(noGrp)=%s(%s) new(+Grp)=%s(%s)",
-                        name,
-                        legacyNoGrp.selectedId, legacyWithGrp.selectedId,
-                        newNoGrp.selectedId, newNoGrp.rule,
-                        newWithGrp.selectedId, newWithGrp.rule));
-
-                if ("yueyu_canpian_remaster_1411495700".equals(name)) {
-                    that("reject".equals(legacyNoGrp.selectedId)
-                            && "qq:000SX6cK3Se2WV".equals(legacyWithGrp.selectedId)
-                            && "reject".equals(newNoGrp.selectedId)
-                            && "qq:000SX6cK3Se2WV".equals(newWithGrp.selectedId),
-                            "1411495700 2x2 confirms grp[] expansion recovers studio master without relaxing 5s duration gate");
-                } else if ("yueyu_canpian_live_65269".equals(name)) {
-                    that("reject".equals(legacyNoGrp.selectedId)
-                            && "reject".equals(legacyWithGrp.selectedId)
-                            && "qq:003oAh0u3RTCv3".equals(newNoGrp.selectedId)
-                            && "qq:003oAh0u3RTCv3".equals(newWithGrp.selectedId),
-                            "65269 2x2 confirms A3 live-year rule fixes 2007 Live independently of grp[] expansion");
-                } else if ("fml_forward_no_alias_rule_b".equals(name)) {
-                    that("qq:0005toRJ3QqtAx".equals(newNoGrp.selectedId) && "B".equals(newNoGrp.rule)
-                            && "reject".equals(newWithGrp.selectedId),
-                            "FML without aliases: Rule B passes without grp[] and strictly rejects Explicit+Clean 2-MID grp[] pair");
+            // Production QQSource always expands grp[] (expandGrp=true). On fml_forward_no_alias_rule_b,
+            // Explicit+Clean in grp[] are two distinct MIDs/album IDs so strict production Rule B rejects,
+            // while expandGrp=false verifies Rule B uniqueness cleanly.
+            if ("fml_forward_no_alias_rule_b".equals(name)) {
+                that("reject".equals(prodResult.selectedId) && "NONE".equals(prodResult.rule),
+                        "production QQSource with grp[] expansion strictly rejects Explicit+Clean 2-MID Rule B without aliases");
+            } else {
+                that(expect.equals(prodResult.selectedId),
+                        "production matcher for " + name + ": expected " + expect + ", got " + prodResult.selectedId);
+                if (!expectRule.isEmpty()) {
+                    that(expectRule.equals(prodResult.rule),
+                            "production matcher rule for " + name + ": expected " + expectRule + ", got " + prodResult.rule);
+                }
+                if (expectTop3 != null && "netease_to_qq".equals(direction)) {
+                    List<String> expectedList = new ArrayList<>();
+                    for (int i = 0; i < expectTop3.length(); i++) expectedList.add(expectTop3.getString(i));
+                    that(prodResult.top3.equals(expectedList),
+                            "production QQSource top3 for " + name + ": expected " + expectedList + ", got " + prodResult.top3);
                 }
             }
-        }
 
-        if (printReport) {
-            System.out.println("=== SHADOW COMPARISON REPORT (" + files.length + " fixtures) ===");
-            for (String line : shadowLines) System.out.println(line);
+            // Verify Yueyu Canpian 2x2 separation (grp[] expansion vs A3 rule).
+            if ("yueyu_canpian_remaster_1411495700".equals(name)) {
+                Outcome noGrp = runTrackMatcher(direction, policy, targetJson, responses, artistDetails, false);
+                that("reject".equals(noGrp.selectedId) && "qq:000SX6cK3Se2WV".equals(prodResult.selectedId),
+                        "1411495700 confirms grp[] expansion recovers 276s studio master without relaxing 5s duration gate");
+            } else if ("yueyu_canpian_live_65269".equals(name)) {
+                Outcome noGrp = runTrackMatcher(direction, policy, targetJson, responses, artistDetails, false);
+                that("qq:003oAh0u3RTCv3".equals(noGrp.selectedId) && "qq:003oAh0u3RTCv3".equals(prodResult.selectedId),
+                        "65269 confirms A3 live-year rule works independently of grp[] expansion");
+            }
         }
     }
 
@@ -180,7 +172,7 @@ final class MatchFixtureTest {
             if ("netease_to_qq".equals(direction)) {
                 accumulated.addAll(QQSource.extractMatchCandidates(raw, expandGrp, trace, step.stage.name()));
             } else {
-                accumulated.addAll(extractNeteaseCandidates(raw, Collections.emptyMap()));
+                accumulated.addAll(extractNeteaseCandidates(raw));
             }
             RankResult mid = TrackMatcher.rankDetailed(target, target.artistMembers, target.artistAliases,
                     accumulated, policy, false, trace, step.stage.name());
@@ -190,15 +182,11 @@ final class MatchFixtureTest {
             }
         }
 
-        // For reverse matches with artistDetails, simulate official artist detail enrichment before final rank.
         if (!finalResult.hasRuleA() && !"netease_to_qq".equals(direction) && !artistDetails.isEmpty()) {
-            List<Candidate> enriched = enrichNeteaseCandidates(accumulated, artistDetails);
-            accumulated = enriched;
+            accumulated = enrichNeteaseCandidates(accumulated, artistDetails);
             RankResult afterEnrich = TrackMatcher.rankDetailed(target, target.artistMembers, target.artistAliases,
                     accumulated, policy, false, trace, "enriched");
-            if (afterEnrich.hasRuleA()) {
-                finalResult = afterEnrich;
-            }
+            if (afterEnrich.hasRuleA()) finalResult = afterEnrich;
         }
 
         if (!finalResult.hasRuleA()) {
@@ -206,15 +194,9 @@ final class MatchFixtureTest {
                     accumulated, policy, true, trace, "final");
         }
 
-        Set<MatchTrace.Gate> gates = new LinkedHashSet<>();
-        for (MatchTrace.CandidateRecord rec : trace.candidates()) {
-            if (rec.outcome == MatchTrace.Outcome.REJECTED && rec.failedGate != MatchTrace.Gate.NONE) {
-                gates.add(rec.failedGate);
-            }
-        }
-
+        Map<String, MatchTrace.Gate> decidingGates = decidingGatesByCandidate(trace);
         if (!finalResult.hasMatch()) {
-            return new Outcome("reject", "NONE", Collections.emptyList(), missingQueries, gates);
+            return new Outcome("reject", "NONE", Collections.emptyList(), missingQueries, decidingGates);
         }
         List<String> top3 = new ArrayList<>();
         int limit = policy == Policy.WRITE ? 1 : MatchRules.MAX_PLAYBACK_CANDIDATES;
@@ -222,32 +204,20 @@ final class MatchFixtureTest {
             top3.add(finalResult.hits.get(i).candidate.id);
         }
         RankedHit top = finalResult.hits.get(0);
-        return new Outcome(top.candidate.id, top.rule.name(), top3, missingQueries, gates);
+        return new Outcome(top.candidate.id, top.rule.name(), top3, missingQueries, decidingGates);
     }
 
-    private static Outcome runLegacyMatcher(String direction, JSONObject targetJson,
-                                            JSONObject responses, Map<String, Member> artistDetails,
-                                            boolean expandGrp) throws Exception {
+    private static Outcome runProductionMatcher(String direction, Policy policy, JSONObject targetJson,
+                                                JSONObject responses, Map<String, Member> artistDetails)
+            throws Exception {
         Set<String> missingQueries = new LinkedHashSet<>();
+        List<MatchTrace> captured = new ArrayList<>();
         if ("netease_to_qq".equals(direction)) {
             Track target = Track.fromJson(targetJson);
             List<String> vkeyMids = new ArrayList<>();
             QQSource.Lookup fake = new QQSource.Lookup() {
-                @Override public JSONArray search(String query) throws Exception {
-                    JSONArray raw = lookupResponse(responses, query, missingQueries);
-                    if (!expandGrp) return raw;
-                    JSONArray flat = new JSONArray();
-                    for (int i = 0; i < raw.length(); i++) {
-                        JSONObject item = raw.optJSONObject(i);
-                        if (item == null) continue;
-                        flat.put(item);
-                        JSONArray grp = item.optJSONArray("grp");
-                        for (int j = 0; grp != null && j < grp.length(); j++) {
-                            JSONObject child = grp.optJSONObject(j);
-                            if (child != null) flat.put(child);
-                        }
-                    }
-                    return flat;
+                @Override public JSONArray search(String query) {
+                    return lookupResponse(responses, query, missingQueries);
                 }
                 @Override public JSONObject detail(String mid) { return null; }
                 @Override public List<String> aliases(Track t) { return t.artistAliases; }
@@ -267,26 +237,70 @@ final class MatchFixtureTest {
                 }
             };
             try {
-                QQSource.lookupAttempts(target, fake, "0");
+                QQSource.lookupAttempts(target, fake, "0", captured::add);
             } catch (QQSource.ResolveException expected) {
                 if (!"match_not_found".equals(expected.code) && !"qq_rights_unavailable".equals(expected.code)) {
                     throw expected;
                 }
             }
+            MatchTrace prodTrace = captured.isEmpty() ? null : captured.get(0);
+            Map<String, MatchTrace.Gate> prodGates = decidingGatesByCandidate(prodTrace);
             if (vkeyMids.isEmpty()) {
-                return new Outcome("reject", "LEGACY_NONE", Collections.emptyList(), missingQueries, Collections.emptySet());
+                return new Outcome("reject", "NONE", Collections.emptyList(), missingQueries, prodGates);
             }
-            return new Outcome(vkeyMids.get(0), "LEGACY", vkeyMids, missingQueries, Collections.emptySet());
+            String selected = vkeyMids.get(0);
+            return new Outcome(selected, decidingRuleForCandidate(prodTrace, selected), vkeyMids, missingQueries, prodGates);
         }
 
+        MatchTrace.Policy tracePolicy = policy == Policy.PLAYBACK
+                ? MatchTrace.Policy.PLAYBACK : MatchTrace.Policy.WRITE;
         JSONObject res = MusicApi.matchTrack(targetJson,
                 query -> lookupResponse(responses, query, missingQueries),
-                id -> artistDetails.get(id));
+                id -> artistDetails.get(id),
+                policy == Policy.PLAYBACK ? "netease_playback" : "netease_match_api",
+                tracePolicy, captured::add);
+        MatchTrace prodTrace = captured.isEmpty() ? null : captured.get(0);
+        Map<String, MatchTrace.Gate> prodGates = decidingGatesByCandidate(prodTrace);
         if (!res.optBoolean("matched", false)) {
-            return new Outcome("reject", "LEGACY_NONE", Collections.emptyList(), missingQueries, Collections.emptySet());
+            return new Outcome("reject", "NONE", Collections.emptyList(), missingQueries, prodGates);
         }
         String id = res.optString("id", "");
-        return new Outcome(id, "LEGACY", Collections.singletonList(id), missingQueries, Collections.emptySet());
+        return new Outcome(id, decidingRuleForCandidate(prodTrace, id), Collections.singletonList(id), missingQueries, prodGates);
+    }
+
+    /** Extracts the accepted rule (A/B) for {@code selectedId} from the deciding (final) evaluation round in the trace. */
+    private static String decidingRuleForCandidate(MatchTrace trace, String selectedId) {
+        if (trace == null || selectedId == null || selectedId.isEmpty() || trace.candidates().isEmpty()) {
+            return "NONE";
+        }
+        String decidingRound = "";
+        for (MatchTrace.CandidateRecord rec : trace.candidates()) {
+            if (rec.outcome != MatchTrace.Outcome.FILTERED) decidingRound = rec.round;
+        }
+        for (MatchTrace.CandidateRecord rec : trace.candidates()) {
+            if (decidingRound.equals(rec.round) && rec.outcome == MatchTrace.Outcome.ACCEPTED
+                    && selectedId.equals(rec.candidateId)) {
+                return rec.rule.name();
+            }
+        }
+        return "NONE";
+    }
+
+    /** Extracts each candidate's failed gate strictly from the deciding (final) evaluation round in the trace. */
+    private static Map<String, MatchTrace.Gate> decidingGatesByCandidate(MatchTrace trace) {
+        if (trace == null || trace.candidates().isEmpty()) return Collections.emptyMap();
+        String decidingRound = "";
+        for (MatchTrace.CandidateRecord rec : trace.candidates()) {
+            if (rec.outcome != MatchTrace.Outcome.FILTERED) decidingRound = rec.round;
+        }
+        Map<String, MatchTrace.Gate> gates = new LinkedHashMap<>();
+        for (MatchTrace.CandidateRecord rec : trace.candidates()) {
+            if (decidingRound.equals(rec.round) && rec.outcome == MatchTrace.Outcome.REJECTED
+                    && rec.failedGate != MatchTrace.Gate.NONE && !rec.candidateId.isEmpty()) {
+                gates.put(rec.candidateId, rec.failedGate);
+            }
+        }
+        return gates;
     }
 
     private static JSONArray lookupResponse(JSONObject responses, String query, Set<String> missingQueries) {
@@ -346,7 +360,7 @@ final class MatchFixtureTest {
         return out;
     }
 
-    private static List<Candidate> extractNeteaseCandidates(JSONArray songs, Map<String, Member> details) {
+    private static List<Candidate> extractNeteaseCandidates(JSONArray songs) {
         List<Candidate> out = new ArrayList<>();
         if (songs == null) return out;
         for (int i = 0; i < songs.length(); i++) {
