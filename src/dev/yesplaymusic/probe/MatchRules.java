@@ -97,7 +97,7 @@ final class MatchRules {
 
     static final Pattern BRACKET = Pattern.compile("[（(\\[【]([^）)\\]】]+)[）)\\]】]");
     /**
-     * Separates multiple artists while preserving tight Latin slashes inside single band names (e.g. AC/DC).
+     * Separates multiple artists while preserving tight Latin slashes inside single band names.
      * Explicit spaced " / " and CJK-to-CJK "/" still separate artists.
      */
     static final Pattern ARTIST_SEPARATOR = Pattern.compile(

@@ -40,8 +40,6 @@ final class MatchTrace {
     }
 
     enum Mode {
-        LEGACY,
-        SHADOW,
         TRACK_MATCHER
     }
 
@@ -54,10 +52,7 @@ final class MatchTrace {
     enum Rule {
         NONE,
         A,
-        B,
-        LEGACY_STRICT,
-        LEGACY_ALBUM_BRIDGE,
-        LEGACY_CATALOG_BRIDGE
+        B
     }
 
     enum Gate {
@@ -69,7 +64,6 @@ final class MatchTrace {
         VERSION,
         DURATION,
         ARTIST,
-        COMPETING_CREDIT,
         COMPILATION,
         NOT_UNIQUE,
         COMPETING_A,
@@ -151,7 +145,6 @@ final class MatchTrace {
         final Outcome outcome;
         final Rule rule;
         final Gate failedGate;
-        final Integer score;
         final int rankPosition;
         final String conflictCandidateId;
         final String detail;
@@ -160,7 +153,7 @@ final class MatchTrace {
                         String round, String title, String artist, String album, long durationMs, Long durationGapMs,
                         String targetMainTitle, String candidateMainTitle, String targetVersionTags,
                         String candidateVersionTags, Boolean sameAlbum, Boolean compilationAlbum,
-                        String matchedMembers, Outcome outcome, Rule rule, Gate failedGate, Integer score,
+                        String matchedMembers, Outcome outcome, Rule rule, Gate failedGate,
                         int rankPosition, String conflictCandidateId, String detail) {
             this.candidateId = sanitizeId(candidateId);
             this.mediaMid = sanitizeId(mediaMid);
@@ -183,7 +176,6 @@ final class MatchTrace {
             this.outcome = outcome == null ? Outcome.REJECTED : outcome;
             this.rule = rule == null ? Rule.NONE : rule;
             this.failedGate = failedGate == null ? Gate.NONE : failedGate;
-            this.score = score;
             this.rankPosition = rankPosition;
             this.conflictCandidateId = sanitizeId(conflictCandidateId);
             this.detail = safe(detail);
@@ -360,7 +352,6 @@ final class MatchTrace {
             sb.append(" outcome=").append(c.outcome)
                     .append(" rule=").append(c.rule)
                     .append(" gate=").append(c.failedGate);
-            if (c.score != null) sb.append(" score=").append(c.score);
             if (c.rankPosition >= 0) sb.append(" rank=").append(c.rankPosition);
             sb.append(" gap=").append(c.durationGapMs == null ? "null" : c.durationGapMs)
                     .append(" dur=").append(c.durationMs);

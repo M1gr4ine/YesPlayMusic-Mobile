@@ -5,6 +5,7 @@ import static dev.yesplaymusic.probe.Check.that;
 import java.util.Arrays;
 import java.util.Set;
 
+/** Verifies normalization, search text and the generated OpenCC mapping. */
 final class MatchTextTest {
     private MatchTextTest() {}
 
@@ -13,6 +14,7 @@ final class MatchTextTest {
         testTraditionalAndShinjitaiFolding();
         testNormalizationAndSymbols();
         testRuleTables();
+        testSearchText();
     }
 
     private static void testOpenCCFoldTableIntegrity() {
@@ -80,12 +82,6 @@ final class MatchTextTest {
         that(!"缶".equals(MatchText.normalize("罐")) && "缶".equals(MatchText.normalize("缶"))
                 && "罐".equals(MatchText.normalize("罐")),
                 "distinct Chinese characters 缶 and 罐 never merge");
-        that(QQMatch.score("沪", "歌手", 200000, "滤", "歌手", 200000) < 0
-                && QQMatch.score("欠", "歌手", 200000, "缺", "歌手", 200000) < 0
-                && QQMatch.score("予", "歌手", 200000, "豫", "歌手", 200000) < 0
-                && QQMatch.score("缶", "歌手", 200000, "罐", "歌手", 200000) < 0
-                && QQMatch.score("曲目", "阿芸", 200000, "曲目", "阿艺", 200000) < 0,
-                "ambiguous JP edges never cause false title or artist identity collisions");
     }
 
     private static void testNormalizationAndSymbols() {
@@ -117,5 +113,19 @@ final class MatchTextTest {
         Set<String> tags = MatchText.versionTags("Song (現場) (白話版)");
         that(tags.contains("live") && tags.contains("白话") && tags.contains("ver:白话版"),
                 "versionTags folds Traditional Chinese before matching CJK tags and suffix variants");
+    }
+
+    private static void testSearchText() {
+        // Recall query cleanup strips only benign edition annotations and bracketed artist aliases.
+        that("Track Four".equals(MatchText.cleanSearchTitle("Track Four (Explicit)")),
+                "cleanSearchTitle strips Explicit");
+        that("Track Two".equals(MatchText.cleanSearchTitle("Track Two (Album Version|Explicit)")),
+                "cleanSearchTitle strips pipe-separated benign markers");
+        that("Track Four (Live)".equals(MatchText.cleanSearchTitle("Track Four (Live)")),
+                "cleanSearchTitle preserves Live tag");
+        that("Symbol Track (CUSTOM VERSION)".equals(MatchText.cleanSearchTitle("Symbol Track (CUSTOM VERSION)")),
+                "cleanSearchTitle preserves non-benign version tags");
+        that("Short / Guest".equals(MatchText.cleanSearchArtist("Short (别名) / Guest")),
+                "cleanSearchArtist strips bracketed alias for recall");
     }
 }

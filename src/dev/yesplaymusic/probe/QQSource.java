@@ -536,7 +536,7 @@ public final class QQSource {
                 trace.target.mainTitle, info.mainTitle, trace.target.versionTags, info.versionKey,
                 null, null, "", MatchTrace.Outcome.FILTERED, MatchTrace.Rule.NONE,
                 mid.isEmpty() ? MatchTrace.Gate.INVALID_ID : MatchTrace.Gate.MISSING_MEDIA_MID,
-                null, -1, "", ""));
+                -1, "", ""));
     }
 
     /** The provider reads used by playback. Tests supply recorded catalogue and vkey shapes. */

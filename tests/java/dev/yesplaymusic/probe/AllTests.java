@@ -17,7 +17,6 @@ public final class AllTests {
         PlaylistEditDeadlineTest.run();
         PlaylistEditPolicyTest.run();
         PlaylistTrackOrderTest.run();
-        QQMatchTest.run();
         QQSourceTest.run();
         RecentPlaybackStoreTest.run();
         TrackMatcherTest.run();
@@ -26,6 +25,7 @@ public final class AllTests {
     }
 }
 
+/** Counts successful assertions across the JVM test suite. */
 final class Check {
     private static int count;
 

@@ -23,6 +23,7 @@ final class TrackMatcherTest {
 
     static void run() throws Exception {
         testHardGatesTitleVersionDuration();
+        testOpenCCIdentityCollisions();
         testLiveYearRuleA3();
         testRuleAAndGuestOnlyRuleA4();
         testSameScriptConflictRuleA5();
@@ -60,7 +61,10 @@ final class TrackMatcherTest {
 
         // Hard Gate 2: version tags must match exactly.
         for (String tag : new String[]{"Live", "现场", "現場", "Instrumental", "伴奏", "Remix", "Acoustic",
-                "Cover", "翻唱", "国语版", "白话版", "女版", "DJ", "Acapella", "片段版"}) {
+                "Cover", "翻唱", "国语版", "白话版", "女版", "DJ", "Acapella", "片段版",
+                "Flip", "Mix", "Edit", "Demo", "Slowed", "Nightcore", "Bootleg", "Mashup", "Karaoke", "Unplugged",
+                "純音樂", "演唱會", "清唱", "小樣", "混音", "加速", "降調", "男版", "普通话版", "粤语版",
+                "民谣版", "DJ 混音版", "x", "白话", "國語", "粵語"}) {
             that(TrackMatcher.rank(target, list(
                     cand("v", "Signal Path (" + tag + ")", "Lead Artist", "Studio Album", 210000L)),
                     Policy.PLAYBACK).isEmpty(),
@@ -99,6 +103,17 @@ final class TrackMatcherTest {
                 track("tSym", "Symbol Track", "￥$ / Lead Artist", "Studio Album", 200000L), list(
                 cand("sym1", "Symbol Track", "¥$ / Lead Artist", "Studio Album", 200000L)), Policy.PLAYBACK))),
                 "NFKC folds fullwidth symbol-only artist token");
+    }
+
+    private static void testOpenCCIdentityCollisions() throws Exception {
+        for (String[] names : new String[][]{
+                {"沪", "歌手", "滤", "歌手"}, {"欠", "歌手", "缺", "歌手"}, {"予", "歌手", "豫", "歌手"},
+                {"缶", "歌手", "罐", "歌手"}, {"曲目", "阿芸", "曲目", "阿艺"}}) {
+            Track target = track("t", names[0], names[1], "", 200000);
+            Candidate other = cand("c", names[2], names[3], "", 200000);
+            that(TrackMatcher.rank(target, list(other), Policy.PLAYBACK).isEmpty(),
+                    "OpenCC keeps distinct titles and artist credits apart: " + names[2] + " / " + names[3]);
+        }
     }
 
     private static void testLiveYearRuleA3() throws Exception {

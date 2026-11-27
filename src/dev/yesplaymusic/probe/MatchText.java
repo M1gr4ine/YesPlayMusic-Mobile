@@ -126,14 +126,6 @@ final class MatchText {
         return tags;
     }
 
-    static String versionKey(String value) {
-        Set<String> tags = versionTags(value);
-        if (tags.isEmpty()) return "";
-        StringBuilder result = new StringBuilder();
-        for (String tag : tags) result.append(tag).append('|');
-        return result.toString();
-    }
-
     static final class TitleInfo {
         static final String LIVE_YEAR_CONFLICT = "<conflict>";
 
@@ -235,27 +227,6 @@ final class MatchText {
                 && sameAlbumTitle(leftAlbum, rightAlbum);
     }
 
-    static String mainTitle(String title) {
-        String text = fold(title);
-        Matcher brackets = MatchRules.BRACKET.matcher(text);
-        StringBuffer result = new StringBuffer();
-        while (brackets.find()) {
-            String annotation = brackets.group(1).trim();
-            boolean benign = MatchRules.isBenignAnnotation(annotation);
-            boolean variant = annotation.endsWith(FOLDED_VARIANT_SUFFIX) && !benign;
-            boolean translation = !variant && CJK.matcher(annotation).find() && versionTags(annotation).isEmpty();
-            brackets.appendReplacement(result,
-                    (benign || translation) ? "" : Matcher.quoteReplacement(brackets.group()));
-        }
-        brackets.appendTail(result);
-        return normalize(result.toString());
-    }
-
-    static boolean sameRecordingTitle(String left, String right) {
-        String a = mainTitle(left), b = mainTitle(right);
-        return !a.isEmpty() && a.equals(b) && versionTags(left).equals(versionTags(right));
-    }
-
     static boolean matchesDisplayCredit(String displayArtist, List<String> memberNames) {
         String foldedDisplay = foldCompact(displayArtist);
         if (foldedDisplay.isEmpty() || memberNames == null || memberNames.isEmpty()) return false;
@@ -274,6 +245,21 @@ final class MatchText {
             pos += member.length();
         }
         return pos == foldedDisplay.length();
+    }
+
+    static boolean containsExplicitJoinSeparator(String value) {
+        return value != null && MatchRules.EXPLICIT_JOIN_SEPARATOR.matcher(value).find();
+    }
+
+    static boolean isSingleArtistCredit(String value) {
+        String clean = value == null ? "" : value.trim();
+        if (clean.isEmpty()) return false;
+        for (int i = 0; i < clean.length(); i++) {
+            char c = clean.charAt(i);
+            if (c == '/' || c == '\\' || c == ',' || c == '\u3001' || c == '\uFF0C'
+                    || c == '&' || c == '\uFF06' || c == ';' || c == '\n' || c == '\r') return false;
+        }
+        return !MatchRules.COLLABORATION.matcher(clean.toLowerCase(Locale.ROOT)).find();
     }
 
     static Set<String> memberAtomNames(String memberName) {

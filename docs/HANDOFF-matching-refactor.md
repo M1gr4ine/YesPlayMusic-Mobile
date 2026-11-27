@@ -1,8 +1,8 @@
 # 跨源歌曲匹配重构交接文档（网易云 ⇄ QQ 音乐）
 
-- **状态**：**Step 4 已切换并完成审计回归，下一步清理旧特判代码**
+- **状态**：**五步重构已完成，正反向生产入口均使用 TrackMatcher**
 - **工作分支**：`refactor/track-matcher`（基于 `origin/main`）
-- **最近验证**：`run-tests.py` 全绿 —— **JS 36/36，Java 782 checks**；`scripts/generate_opencc_table.py --check` 通过；`git diff --check` 通过
+- **最近验证**：`run-tests.py` 全绿 —— **JS 36/36，Java 661 checks**；`scripts/generate_opencc_table.py --check` 通过；`git diff --check` 通过
 - **协作分工**：Antigravity 完成前期实现与实录，Astra 完成只读复审后接手 Step 4 收口与 Step 5 清理
 
 ---
@@ -26,7 +26,8 @@
 | Step 1 | `a7b8bcc`、`f2f6f35` | 新增 `MatchTrace` 诊断与零开销门槛/脱敏边界、`QQSource` 与 `MusicApi.matchTrack` 全路径埋点（不改旧逻辑）、`searchRawList` 保留原始行号与被过滤行，完成《粤语残片》实测定位。 |
 | Step 2 | `5a30066` | 新增 `scripts/generate_opencc_table.py`、`OpenCCFoldTable.java`（3,202 条幂等映射：2,965 TS + 237 JP，OpenCC commit `fae2a0a911c30764e669a7d8b0591cd8e852934a`，带 SHA-256 与 Apache-2.0 全文 `docs/licenses/OpenCC-Apache-2.0.txt`）、`MatchRules.java`、`MatchText.java`、`MatchTextTest.java`；替换旧手工 `FOLD_FROM`/`FOLD_TO`。 |
 | Step 3 | `5e0898b`、`c36a7fc`、`8c9a4c8` | 新增 `TrackMatcher.java`（含 `Policy.PLAYBACK`/`WRITE`、`Rule A/B`、`queryLadder`、`MatchTrace` 集成）、`MatchText.analyzeTitle`/`sameAlbumTitle`/`isLiveAlbum`、`QQSource.extractMatchCandidates`、18 份脱敏 fixture（`tests/fixtures/match/*.json`，区分 `direct_replay` / `curated_real_excerpt` / `synthetic_variant`）、表驱动验证 runner `MatchFixtureTest.java`、规则命名单测 `TrackMatcherTest.java`，并修复 Astra 第 3 轮 5 P1 + 3 P2 审计发现。 |
-| Step 4 | 本次提交 | 生产正反向路径切换至 `TrackMatcher`：`QQSource.searchCandidates`/`savedCandidate`（匹配路径展开 `grp[]`，`qqSearch` UI 不变，删 `SearchHit`/`rankCandidates`/`findCompetingCreditId`）、`MusicApi.matchTrack`/`matchNeteaseTrack`（`PlaybackService` 走 `PLAYBACK`，收藏/导航走 `WRITE` 并区分 `entryPoint`，删 `NeteaseMatch`）、`assets/app.js` 透传 `id` 与 `purpose`；修复 Astra 第 4 轮 7 P1 + 3 P2 审计发现（严格搜索响应解析、A6 分组冲突不被 A5 覆盖、未归属成员 alias 不泄漏、同 ID 跨轮归并保时长、旧缓存依赖 A3 转入全池复核、成员级未知占位词不提供 Rule A 身份证据、WRITE 短路前同档竞争者补查、多成员部分覆盖非主唱补查、`甲／乙`/`甲/乙` 边界一致、fixture 决定轮指定候选 gate 校验）。反向匹配在同一请求内按供应商歌手 ID 与规范名共享官方别名；优先补查同专辑候选，每次新增证据即重排，共享 4 次详情预算。 |
+| Step 4 | `3f84870` | 生产正反向路径切换至 `TrackMatcher`：`QQSource.searchCandidates`/`savedCandidate`（匹配路径展开 `grp[]`，`qqSearch` UI 不变，删 `SearchHit`/`rankCandidates`/`findCompetingCreditId`）、`MusicApi.matchTrack`/`matchNeteaseTrack`（`PlaybackService` 走 `PLAYBACK`，收藏/导航走 `WRITE` 并区分 `entryPoint`，删 `NeteaseMatch`）、`assets/app.js` 透传 `id` 与 `purpose`；修复 Astra 第 4 轮 7 P1 + 3 P2 审计发现（严格搜索响应解析、A6 分组冲突不被 A5 覆盖、未归属成员 alias 不泄漏、同 ID 跨轮归并保时长、旧缓存依赖 A3 转入全池复核、成员级未知占位词不提供 Rule A 身份证据、WRITE 短路前同档竞争者补查、多成员部分覆盖非主唱补查、`甲／乙`/`甲/乙` 边界一致、fixture 决定轮指定候选 gate 校验）。反向匹配在同一请求内按供应商歌手 ID 与规范名共享官方别名；优先补查同专辑候选，每次新增证据即重排，共享 4 次详情预算。 |
+| Step 5 | 本次提交 | 删除 `QQMatch`、旧打分、bridge、查询拼接与旧诊断枚举。成员元数据保留在 `ArtistAliases`，文本规范化由 `MatchText` 提供。 |
 
 > 说明：`MatchTrace` 在 debuggable 构建自动开启并读取 `mobile_settings.matchDiagnostics`，`MainActivity` 设置页 UI 尚未接出显式开关。
 
@@ -85,12 +86,12 @@ QQ 搜索 `"粤语残片 陈奕迅"` 返回 `list[0]` 为 `000J9BOC3sAUqd`（*Wh
 
 ---
 
-## 6. 后续推进步骤
+## 6. 最终验收
 
-1. **Step 5（独立提交）：清理旧特判代码与最终验收**：
-   - 清理 `ArtistAliases` 中旧匹配/打分/bridge/查询方法（`score`、`evidencedLeadAlbumBridge`、`bridgeAccepts`、`crossScript`、`bilingualCredit`、`distinctiveAlbum`、`scriptOverlapWithKnown`、`searchQueries`、`ResolvedCredit` 等），仅保留结构化成员/别名提取与序列化工具。
-   - 清理 `QQMatch` 中旧 `score`/`scoreParts`/`sameArtistParts` 及不再需要的透传包装（保留或直接迁移至 `MatchText`/`MatchRules`），清理 `MatchTrace` 中无引用旧枚举（`Mode.LEGACY`、`Rule.LEGACY_*`、`Gate.COMPETING_CREDIT`），更新相关测试（含 `MatchTextTest`、`QQMatchTest`、`ArtistAliasesTest`）。
-   - 全局 grep 确认 `src/` 零具体歌手/歌名/专辑名；跑全量 `run-tests.py`、`scripts/generate_opencc_table.py --check` 与 `git diff --check`，交 Astra 终审后独立提交 Step 5。
+- Step 4 通过 JS 36/36、Java 782 项。反向 WRITE 在两种候选排列下均优先核验同专辑歌手，拒绝同档异身份。两条录音属于同一供应商歌手且规范名一致时可复用搜索行中的官方别名，零详情查询即可返回目标歌曲与专辑 ID。
+- Step 5 通过 JS 36/36、Java 661 项及全部 18 份 fixture 回放。Java 数量变化来自删除旧打分和 bridge 断言、迁移版本和查询文本测试，以及在生产匹配器上验证 OpenCC 字形防撞。
+- OpenCC 生成表通过 `--check`（3,202 条），两个步骤的 `git diff --check` 均通过。扫描 `src/` 的旧匹配符号无命中。将实录与合成 fixture 中 371 个不同的曲名、署名和专辑文本对照 Java 字符串常量，唯一重合的是未知歌手占位词“群星”。
+- 验证在离线 JVM 与 JavaScript 环境执行。QQ 会员取流权限、真机播放和实际账户写入未测。
 
 ---
 

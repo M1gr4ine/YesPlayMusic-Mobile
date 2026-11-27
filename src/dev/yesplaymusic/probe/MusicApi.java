@@ -381,7 +381,7 @@ public final class MusicApi {
         // Older queues can carry bare IDs with no reliable mapping to the displayed collaborators.
         List<String> names = new ArrayList<>();
         for (Member member : members) names.add(member.name);
-        if (NetEaseAuthState.hasPositiveUserId(songId) && (!QQMatch.matchesDisplayCredit(artist, names)
+        if (NetEaseAuthState.hasPositiveUserId(songId) && (!MatchText.matchesDisplayCredit(artist, names)
                 || members.stream().anyMatch(member -> member.providerId.isEmpty()))) {
             List<Member> recovered;
             try {
@@ -1432,7 +1432,7 @@ public final class MusicApi {
                                     trace.target.mainTitle, candInfo.mainTitle,
                                     trace.target.versionTags, candInfo.versionKey,
                                     null, null, "", MatchTrace.Outcome.FILTERED, MatchTrace.Rule.NONE,
-                                    MatchTrace.Gate.INVALID_ID, null, -1, "", "invalid_netease_id"));
+                                    MatchTrace.Gate.INVALID_ID, -1, "", "invalid_netease_id"));
                         }
                         continue;
                     }

@@ -167,7 +167,7 @@ final class TrackMatcher {
                                                    List<ArtistAliases.Member> mergedMembers) {
             if (incoming.artistAliases.isEmpty() || mergedMembers.size() > 1) return false;
             if (base.artistMembers.size() > 1 || incoming.artistMembers.size() > 1) return false;
-            if (!isSingleArtistCredit(base.artist) || !isSingleArtistCredit(incoming.artist)) return false;
+            if (!MatchText.isSingleArtistCredit(base.artist) || !MatchText.isSingleArtistCredit(incoming.artist)) return false;
             if (MatchText.artistParts(base.artist).size() != 1
                     || MatchText.artistParts(incoming.artist).size() != 1) {
                 return false;
@@ -613,7 +613,7 @@ final class TrackMatcher {
                 && isCompleteConsistentMembers(rawArtist, members);
         int memberCount = completeStructured ? members.size() : visibleParts.size();
 
-        // Stage 1: title + all artists (preserve structured member names like "AC/DC" intact).
+        // Stage 1: title + all artists (preserve punctuation in structured member names).
         if (completeStructured) {
             StringBuilder allMembers = new StringBuilder();
             for (ArtistAliases.Member m : members) {
@@ -658,7 +658,7 @@ final class TrackMatcher {
             for (String alias : candidateAliases) {
                 if (aliasQueriesAdded >= MatchRules.MAX_ALIAS_SEARCH_QUERIES) break;
                 String trimmed = cleanAliasToken(alias);
-                if (trimmed.isEmpty() || !isSingleArtistCredit(trimmed)) continue;
+                if (trimmed.isEmpty() || !MatchText.isSingleArtistCredit(trimmed)) continue;
                 String token = MatchText.normalizeArtistToken(trimmed);
                 if (token.isEmpty() || token.equals(canonicalToken)) continue;
                 if (addQueryStep(steps, seen, QueryStage.MEMBER_ALIAS, cleanTitle + " " + trimmed)) {
@@ -727,7 +727,7 @@ final class TrackMatcher {
             for (String alias : memberAliasLists.get(0)) {
                 if (aliasQueriesAdded >= MatchRules.MAX_ALIAS_SEARCH_QUERIES) break;
                 String trimmed = cleanAliasToken(alias);
-                if (trimmed.isEmpty() || !isSingleArtistCredit(trimmed)) continue;
+                if (trimmed.isEmpty() || !MatchText.isSingleArtistCredit(trimmed)) continue;
                 String token = MatchText.normalizeArtistToken(trimmed);
                 if (token.isEmpty() || token.equals(leadCanonical)) continue;
                 if (addQueryStep(steps, seen, QueryStage.MEMBER_ALIAS, cleanTitle + " " + trimmed)) {
@@ -760,7 +760,7 @@ final class TrackMatcher {
                             MatchTrace.durationGapOrNull(target.duration, c.durationMs),
                             targetTitle.mainTitle, ct.mainTitle, targetTitle.versionKey, ct.versionKey,
                             null, null, "", MatchTrace.Outcome.FILTERED, MatchTrace.Rule.NONE,
-                            MatchTrace.Gate.INVALID_ID, null, -1, "", "empty_candidate_id"));
+                            MatchTrace.Gate.INVALID_ID, -1, "", "empty_candidate_id"));
                 }
                 continue;
             }
@@ -907,7 +907,7 @@ final class TrackMatcher {
         }
 
         // A5 member-level conflict check: a same-script parenthetical conflict on any overlapping member
-        // (e.g. lead Ye (Taylor Swift) or guest Guest (Stranger) in North / Guest (Stranger)) cannot be hidden
+        // cannot be hidden
         // by another member's overlap; it vetoes Rule A while allowing Rule B fallback under A5's gates.
         if (anySameScriptConflict && hasUnresolvedSameScriptConflict(conflictPair, validPair, m, n)) {
             eval.ruleASameScriptVeto = true;
@@ -1553,7 +1553,7 @@ final class TrackMatcher {
 
     /**
      * Order-independent structural artist-grouping conflict detector — e.g. single structured band
-     * {@code "A & B"} vs split {@code "A / B"}, {@code "AC/DC"} vs {@code "AC / DC"},
+     * {@code "A & B"} vs split {@code "A / B"}, {@code "AB/CD"} vs {@code "AB / CD"},
      * {@code "AB / C"} vs {@code "BC / A"}, {@code "AB (甲) / C (乙)"} vs {@code "A (甲) / BC (乙)"} —
      * vetoing both Rule A and Rule B, while never rejecting identical base groupings such as
      * {@code "A & B / A / B"} vs {@code "A & B / A / B"} (paired off 1-to-1 in step 1).
@@ -1596,7 +1596,7 @@ final class TrackMatcher {
         }
         if (leftRem.isEmpty() || rightRem.isEmpty()) return false;
 
-        // 2. Order-independent exact string re-partition check (catches AB/C vs BC/A, AC/DC vs DC/AC, A&B vs B/A).
+        // 2. Order-independent exact string re-partition check (catches AB/C vs BC/A, AB/CD vs CD/AB, A&B vs B/A).
         if ((leftRem.size() > 1 || rightRem.size() > 1) && canRepartitionSameString(leftRem, rightRem)) {
             return true;
         }
@@ -1752,7 +1752,7 @@ final class TrackMatcher {
                 Set<String> exp0 = atomExpanded.get(0);
                 for (String alias : flatAliases) {
                     String cleanAlias = cleanAliasToken(alias);
-                    if (cleanAlias.isEmpty() || !isSingleArtistCredit(cleanAlias)) continue;
+                    if (cleanAlias.isEmpty() || !MatchText.isSingleArtistCredit(cleanAlias)) continue;
                     for (String token : MatchText.memberAtomNames(cleanAlias)) {
                         if (MatchText.isUnknownArtistToken(token)) continue;
                         off0.add(token);
@@ -1815,12 +1815,12 @@ final class TrackMatcher {
             }
         }
 
-        if (count == 1 && !isPlaceholder[0] && isSingleArtistCredit(artist) && flatAliases != null) {
+        if (count == 1 && !isPlaceholder[0] && MatchText.isSingleArtistCredit(artist) && flatAliases != null) {
             Set<String> off0 = officialList.get(0);
             Set<String> exp0 = expanded.get(0);
             for (String alias : flatAliases) {
                 String cleanAlias = cleanAliasToken(alias);
-                if (cleanAlias.isEmpty() || !isSingleArtistCredit(cleanAlias)) continue;
+                if (cleanAlias.isEmpty() || !MatchText.isSingleArtistCredit(cleanAlias)) continue;
                 for (String token : MatchText.memberAtomNames(cleanAlias)) {
                     if (MatchText.isUnknownArtistToken(token)) continue;
                     off0.add(token);
@@ -1874,7 +1874,7 @@ final class TrackMatcher {
     private static boolean isCompleteConsistentMembers(String artist, List<ArtistAliases.Member> members) {
         List<String> memberNames = new ArrayList<>(members.size());
         for (ArtistAliases.Member member : members) {
-            if (member == null || member.name.isEmpty() || containsExplicitJoinSeparator(member.name)) {
+            if (member == null || member.name.isEmpty() || MatchText.containsExplicitJoinSeparator(member.name)) {
                 return false;
             }
             if (MatchText.memberAtomNames(member.name).isEmpty()) return false;
@@ -1888,7 +1888,7 @@ final class TrackMatcher {
         boolean[] used = new boolean[visibleParts.size()];
         for (int i = 0; i < members.size(); i++) {
             ArtistAliases.Member member = members.get(i);
-            if (member == null || member.name.isEmpty() || containsExplicitJoinSeparator(member.name)) return null;
+            if (member == null || member.name.isEmpty() || MatchText.containsExplicitJoinSeparator(member.name)) return null;
             List<Set<String>> memberParts = MatchText.artistParts(member.name);
             if (memberParts.size() != 1) return null;
             Set<String> canonical = memberParts.get(0);
@@ -1904,10 +1904,6 @@ final class TrackMatcher {
             mapped[i] = found;
         }
         return mapped;
-    }
-
-    private static boolean containsExplicitJoinSeparator(String value) {
-        return value != null && MatchRules.EXPLICIT_JOIN_SEPARATOR.matcher(value).find();
     }
 
     private static boolean hasSameScriptConflict(Set<String> visibleNames, Set<String> expectedFromOther) {
@@ -1948,17 +1944,6 @@ final class TrackMatcher {
         return scripts;
     }
 
-    private static boolean isSingleArtistCredit(String value) {
-        String clean = value == null ? "" : value.trim();
-        if (clean.isEmpty()) return false;
-        for (int i = 0; i < clean.length(); i++) {
-            char c = clean.charAt(i);
-            if (c == '/' || c == '\\' || c == ',' || c == '\u3001' || c == '\uFF0C'
-                    || c == '&' || c == '\uFF06' || c == ';' || c == '\n' || c == '\r') return false;
-        }
-        return !MatchRules.COLLABORATION.matcher(clean.toLowerCase(Locale.ROOT)).find();
-    }
-
     private static String stripBrackets(String value) {
         if (value == null || value.isEmpty()) return "";
         return MatchRules.BRACKET.matcher(value).replaceAll(" ").replaceAll("\\s+", " ").trim();
@@ -1984,7 +1969,7 @@ final class TrackMatcher {
         String canonicalToken = MatchText.normalizeArtistToken(canonicalName);
         for (String alias : aliases) {
             String trimmed = cleanAliasToken(alias);
-            if (trimmed.isEmpty() || !isSingleArtistCredit(trimmed)) continue;
+            if (trimmed.isEmpty() || !MatchText.isSingleArtistCredit(trimmed)) continue;
             String token = MatchText.normalizeArtistToken(trimmed);
             if (!token.isEmpty() && !token.equals(canonicalToken)) return trimmed;
         }
@@ -2041,7 +2026,7 @@ final class TrackMatcher {
                     targetTitle.mainTitle, eval.titleInfo.mainTitle,
                     targetTitle.versionKey, eval.titleInfo.versionKey,
                     eval.sameAlbum, eval.compilationAlbum, eval.matchedMembers,
-                    outcome, traceRule, gate, null, pos, conflict, detail));
+                    outcome, traceRule, gate, pos, conflict, detail));
         }
     }
 }
