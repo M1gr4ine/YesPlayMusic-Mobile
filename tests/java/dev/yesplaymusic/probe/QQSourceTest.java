@@ -212,6 +212,34 @@ final class QQSourceTest {
                 .put(song("noLen", "fNoLen", "Song", "Artist", "Album", 0)));
         that("noLen".equals(QQSource.lookupAttempts(single(), unknownDuration, "0").get(0).getString("qqMid")),
                 "candidate without duration acts as fallback when known durations mismatch");
+
+        // Recorded QQ results for the 2019 remaster: the same master is 8.3 seconds shorter on QQ.
+        Track remaster = Track.fromJson(new JSONObject().put("id", "1411495700").put("title", "粤语残片")
+                .put("artist", "陈奕迅").put("album", "What's Going On...? (Remastered 2019)").put("duration", 280264));
+        Fake remasterApi = new Fake();
+        remasterApi.results.put("粤语残片 - 陈奕迅", new JSONArray()
+                .put(song("000J9BOC3sAUqd", "003BGqJ14ak5uu", "粤语残片", "陈奕迅", "What's Going On...? (Remastered 2019)", 272))
+                .put(song("0028qpYH1uolzX", "003254o74ZDKtG", "白色球鞋", "陈奕迅", "认了吧", 278))
+                .put(song("003oAh0u3RTCv3", "0044VTIY1sLCbW", "粤语残片 (Live)", "陈奕迅", "Eason Moving On Stage 1 (Live)", 277))
+                .put(song("000iAWdB3V89ZR", "000iAWdB3V89ZR", "粤语残片 (2025 FEAR and DREAMS世界巡回演唱会澳门站)", "陈奕迅", "", 269))
+                .put(song("001LyLbL26SHYQ", "001LyLbL26SHYQ", "粤语残片 (2007香港Eason's Moving On Stage 1 演唱会片段)", "陈奕迅歌迷汇", "", 19)));
+        that("000J9BOC3sAUqd".equals(QQSource.lookupAttempts(remaster, remasterApi, "0").get(0).getString("qqMid"))
+                        && remasterApi.requests.size() == 1,
+                "粤语残片 remaster resolves to the same QQ master despite an 8.3-second drift, skipping live versions");
+
+        // Recorded QQ results: the original repeats "Pt. 2" inside "(Pt. 2|Explicit)".
+        Track psycho = Track.fromJson(new JSONObject().put("id", "440208643").put("title", "Psycho, Pt. 2")
+                .put("artist", "Russ").put("album", "Psycho, Pt. 2").put("duration", 161985));
+        Fake psychoApi = new Fake();
+        psychoApi.results.put("Psycho, Pt. 2 - Russ", new JSONArray()
+                .put(song("000WdUWo1p4MAt", "001GfIKU1EKxmv", "Psycho,Pt. 2 (Pt. 2|Explicit)", "Russ", "Psycho, Pt. 2 (Explicit)", 161))
+                .put(song("004F3gRV4dFN9O", "004F3gRV4dFN9O", "Psycho (Pt. 2) (Live)", "Russ", "Psycho", 255))
+                .put(song("003dwGzr3Q52m2", "003dwGzr3Q52m2", "Psycho, Pt. 2 (片段版)", "Russ", "", 15))
+                .put(song("000hEbaC1Adsmm", "000hEbaC1Adsmm", "Psycho,Pt. 2 (慢速版片段)", "Russ", "", 25))
+                .put(song("003B1uop09uw90", "002GVt9j3mJR8w", "Psycho (Remix)", "HeRo.H", "Psycho", 150)));
+        that("000WdUWo1p4MAt".equals(QQSource.lookupAttempts(psycho, psychoApi, "0").get(0).getString("qqMid"))
+                        && psychoApi.requests.size() == 1,
+                "Psycho, Pt. 2 resolves to the QQ original titled \"Psycho,Pt. 2 (Pt. 2|Explicit)\"");
     }
 
     private static void cachedAndNative() throws Exception {

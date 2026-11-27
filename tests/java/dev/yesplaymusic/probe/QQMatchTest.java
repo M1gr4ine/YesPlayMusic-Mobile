@@ -51,6 +51,19 @@ final class QQMatchTest {
         that(!QQMatch.sameRecordingTitle("粤语残片", "粤语残片 (白话版)"), "粤语残片 rejects 白话版");
         that(!QQMatch.sameRecordingTitle("粤语残片", "粤语残片 (国语版)"), "粤语残片 rejects 国语版");
         that(!QQMatch.sameRecordingTitle("富士山下", "富士山下 (国语)"), "language tag mismatch is rejected");
+
+        // QQ joins subtitles into one bracket: "(Pt. 2|Explicit)", "(中文译名|Explicit)".
+        that(QQMatch.sameRecordingTitle("Psycho, Pt. 2", "Psycho,Pt. 2 (Pt. 2|Explicit)"),
+                "a bracket repeating the title's own ending plus Explicit is ignored");
+        that(QQMatch.sameRecordingTitle("Psycho, Pt. 2", "Psycho (Pt. 2|Explicit)"),
+                "a subtitle segment that completes the title is kept and matches");
+        that(QQMatch.sameRecordingTitle("帰ろう", "帰ろう (乘风归去|Explicit)"),
+                "translation and Explicit segments are both ignored");
+        that(!QQMatch.sameRecordingTitle("Song", "Song (Pt. 2)"), "an extra part number is a different song");
+        that(!QQMatch.sameRecordingTitle("Song", "Song (Part 2)"), "an extra part name is a different song");
+        that(!QQMatch.sameRecordingTitle("Psycho, Pt. 2", "Psycho, Pt. 2 (片段版)"), "片段版 is still rejected");
+        that(!QQMatch.sameRecordingTitle("Psycho, Pt. 2", "Psycho (Pt. 2) (Live)"), "Live is still rejected");
+        that(!QQMatch.sameRecordingTitle("Song", "Song (Live|Explicit)"), "a version tag inside a pipe group is kept");
     }
 
     private static void keywords() {
@@ -93,9 +106,30 @@ final class QQMatchTest {
         that(QQMatch.select(song("Song", "Artist", 240_000),
                         Collections.singletonList(song("Song", "Artist", 245_000)), s -> s, false).size() == 1,
                 "5-second boundary is accepted");
+
+        // Same-master drift: both at least 60s, gap at most 15s and at most 10% of the original.
+        QQMatch.Song drift = song("Song", "Artist", 250_000);
+        that(QQMatch.select(song("Song", "Artist", 240_000), Arrays.asList(drift, unknown, near), s -> s, false)
+                        .equals(Arrays.asList(near, drift, unknown)),
+                "within-5s beats same-master drift, which beats unknown duration");
         that(QQMatch.select(song("Song", "Artist", 240_000),
-                        Collections.singletonList(song("Song", "Artist", 245_001)), s -> s, false).isEmpty(),
-                "beyond 5-second boundary is rejected");
+                        Collections.singletonList(song("Song", "Artist", 255_000)), s -> s, false).size() == 1,
+                "15-second drift boundary is accepted");
+        that(QQMatch.select(song("Song", "Artist", 240_000),
+                        Collections.singletonList(song("Song", "Artist", 255_001)), s -> s, false).isEmpty(),
+                "beyond 15 seconds is rejected");
+        that(QQMatch.select(song("Song", "Artist", 100_000),
+                        Collections.singletonList(song("Song", "Artist", 110_000)), s -> s, false).size() == 1,
+                "10% drift boundary is accepted");
+        that(QQMatch.select(song("Song", "Artist", 100_000),
+                        Collections.singletonList(song("Song", "Artist", 110_001)), s -> s, false).isEmpty(),
+                "beyond 10% of the original is rejected");
+        that(QQMatch.select(song("Song", "Artist", 65_000),
+                        Collections.singletonList(song("Song", "Artist", 59_500)), s -> s, false).isEmpty(),
+                "a candidate under 60 seconds never gets drift tolerance");
+        that(QQMatch.select(song("粤语残片", "陈奕迅", 280_264),
+                        Collections.singletonList(song("粤语残片", "陈奕迅", 272_000)), s -> s, false).size() == 1,
+                "粤语残片 2019 remaster accepts the QQ master 8.3 seconds shorter");
 
         // FML must never be replaced by same-artist, similar-duration Flashing Lights; Ye (侃爷) still wins for playback.
         QQMatch.Song fmlTarget = song("FML", "Kanye West / The Weeknd", 236_120);

@@ -140,20 +140,33 @@ public final class QQMatch {
         return result.toString();
     }
 
+    /** Main title with ignorable bracket segments removed; QQ joins subtitles as "(Pt. 2|Explicit)". */
     private static String mainTitle(String title) {
         String text = fold(title);
         Matcher brackets = BRACKET.matcher(text);
-        StringBuffer result = new StringBuffer();
+        StringBuilder result = new StringBuilder();
+        int last = 0;
         while (brackets.find()) {
-            String annotation = brackets.group(1).trim();
-            boolean benign = isBenignAnnotation(annotation);
-            boolean variant = annotation.endsWith("版") && !benign;
-            boolean translation = !variant && CJK.matcher(annotation).find() && version(annotation).isEmpty();
-            brackets.appendReplacement(result,
-                    (benign || translation) ? "" : Matcher.quoteReplacement(brackets.group()));
+            result.append(text, last, brackets.start());
+            last = brackets.end();
+            List<String> kept = new ArrayList<>();
+            for (String segment : brackets.group(1).split("\\|")) {
+                String trimmed = segment.trim();
+                if (!trimmed.isEmpty() && !ignorableSegment(trimmed, result)) kept.add(trimmed);
+            }
+            if (!kept.isEmpty()) result.append('(').append(String.join("|", kept)).append(')');
         }
-        brackets.appendTail(result);
+        result.append(text.substring(last));
         return normalize(result.toString());
+    }
+
+    /** Edition markers, CJK translations and a repeat of the title's own ending carry no recording identity. */
+    private static boolean ignorableSegment(String segment, CharSequence titleSoFar) {
+        if (BENIGN.matcher(segment).matches()) return true;
+        if (!version(segment).isEmpty()) return false;
+        if (CJK.matcher(segment).find() && !segment.endsWith("版")) return true;
+        String head = normalize(titleSoFar.toString()), tail = normalize(segment);
+        return !tail.isEmpty() && head.length() > tail.length() && head.endsWith(tail);
     }
 
     static boolean sameRecordingTitle(String left, String right) {
@@ -184,45 +197,44 @@ public final class QQMatch {
     /**
      * Selects matching recordings in provider order:
      * 1. Requires sameRecordingTitle (same main title and version tags).
-     * 2. Prefers duration within 5s, then unknown duration; rejects known mismatched duration.
-     * 3. Within each duration tier, prioritizes candidates whose credited artists overlap the target
-     *    (including track-carried aliases/members). Reverse matching sets requireArtistOverlap=true.
+     * 2. Duration tiers: within 5s; then same-master drift (both at least 60s, gap at most 15s and 10%);
+     *    then unknown duration. A known duration outside these is never chosen, so previews stay out.
+     * 3. Within each tier, candidates whose credited artists overlap the target (including track-carried
+     *    aliases/members) come first. Reverse matching sets requireArtistOverlap=true.
      */
     static <T> List<T> select(Song target, List<T> candidates, Function<T, Song> toSong, boolean requireArtistOverlap) {
         if (candidates.isEmpty() || mainTitle(target.title).isEmpty()) return Collections.emptyList();
         Set<String> targetArtists = artistTokens(target);
         if (requireArtistOverlap && targetArtists.isEmpty()) return Collections.emptyList();
 
-        List<T> durationAndArtist = new ArrayList<>();
-        List<T> durationOnly = new ArrayList<>();
-        List<T> unknownAndArtist = new ArrayList<>();
-        List<T> unknownOnly = new ArrayList<>();
-
+        List<List<T>> buckets = new ArrayList<>();
+        for (int i = 0; i < 6; i++) buckets.add(new ArrayList<>());
         for (T item : candidates) {
             Song candidate = toSong.apply(item);
             if (!sameRecordingTitle(target.title, candidate.title)) continue;
             boolean artistMatch = !targetArtists.isEmpty()
                     && !Collections.disjoint(targetArtists, artistTokens(candidate));
             if (requireArtistOverlap && !artistMatch) continue;
-
-            if (target.duration <= 0) {
-                (artistMatch ? durationAndArtist : durationOnly).add(item);
-            } else if (candidate.duration > 0) {
-                if (Math.abs(target.duration - candidate.duration) <= UNM_DURATION_MS) {
-                    (artistMatch ? durationAndArtist : durationOnly).add(item);
-                }
-            } else {
-                (artistMatch ? unknownAndArtist : unknownOnly).add(item);
-            }
+            int tier = durationTier(target.duration, candidate.duration);
+            if (tier >= 0) buckets.get(tier * 2 + (artistMatch ? 0 : 1)).add(item);
         }
 
-        List<T> ordered = new ArrayList<>(
-                durationAndArtist.size() + durationOnly.size() + unknownAndArtist.size() + unknownOnly.size());
-        ordered.addAll(durationAndArtist);
-        ordered.addAll(durationOnly);
-        ordered.addAll(unknownAndArtist);
-        ordered.addAll(unknownOnly);
+        List<T> ordered = new ArrayList<>();
+        for (List<T> bucket : buckets) ordered.addAll(bucket);
         return ordered;
+    }
+
+    private static final long MIN_DRIFT_DURATION_MS = 60_000;
+    private static final long MAX_DRIFT_MS = 15_000;
+
+    /** 0: within 5s or no expected duration; 1: same-master drift; 2: unknown candidate duration; -1: mismatch. */
+    private static int durationTier(long expected, long actual) {
+        if (expected <= 0) return 0;
+        if (actual <= 0) return 2;
+        long gap = Math.abs(expected - actual);
+        if (gap <= UNM_DURATION_MS) return 0;
+        boolean fullLength = expected >= MIN_DRIFT_DURATION_MS && actual >= MIN_DRIFT_DURATION_MS;
+        return fullLength && gap <= Math.min(MAX_DRIFT_MS, expected / 10) ? 1 : -1;
     }
 
     static void addCreditTokens(Set<String> tokens, String credit) {
