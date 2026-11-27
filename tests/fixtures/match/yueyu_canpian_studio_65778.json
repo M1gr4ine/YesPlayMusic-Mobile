@@ -1,9 +1,10 @@
 {
   "name": "yueyu_canpian_studio_65778",
+  "fixtureKind": "direct_replay",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "yueyu_canpian_grp_expansion_ranks_exact_master_first",
-  "description": "Real recorded NetEase 65778 (276306ms) -> QQ 粤语残片; expanding grp[] promotes 000SX6cK3Se2WV (306ms gap, same album) to #1 above 000J9BOC3sAUqd (4306ms gap) and supplies 3 studio candidates.",
+  "description": "Unmodified real NetEase 65778 (276306ms) -> QQ 粤语残片; expanding grp[] promotes 000SX6cK3Se2WV (306ms gap, same album) to #1 above 000J9BOC3sAUqd (4306ms gap).",
   "expandGrp": true,
   "target": {
     "id": "65778",

@@ -1,9 +1,10 @@
 {
   "name": "yueyu_canpian_live_65269",
+  "fixtureKind": "direct_replay",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "rule_a3_one_sided_live_year_same_live_album",
-  "description": "Real recorded NetEase 65269 粤语残片 (2007 Live) -> QQ 粤语残片 (Live) 003oAh0u3RTCv3 on exact same live album Eason Moving On Stage 1 (Live) (223ms gap), while 2025 tour live and covers stay rejected.",
+  "description": "Unmodified real NetEase 65269 粤语残片 (2007 Live) -> QQ 粤语残片 (Live) 003oAh0u3RTCv3 on exact same live album Eason Moving On Stage 1 (Live) (223ms gap).",
   "expandGrp": true,
   "target": {
     "id": "65269",

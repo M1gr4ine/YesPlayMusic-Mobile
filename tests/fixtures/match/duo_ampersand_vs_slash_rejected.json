@@ -1,9 +1,10 @@
 {
   "name": "duo_ampersand_vs_slash_rejected",
+  "fixtureKind": "synthetic_variant",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "grouping_conflict_ampersand_vs_slash_veto",
-  "description": "Structured single duo Simon & Garfunkel must not match split two-artist Simon / Garfunkel even on same album (vetoes both A and B).",
+  "description": "Synthetic credit split on real QQ item: single duo Simon & Garfunkel must not match Simon / Garfunkel even on same album (vetoes A and B).",
   "expandGrp": false,
   "target": {
     "id": "21598326",
@@ -45,8 +46,11 @@
         },
         "interval": 185
       }
-    ]
+    ],
+    "The Sound Of Silence 西蒙和加芬克尔": [],
+    "The Sound Of Silence": []
   },
   "expect": "reject",
-  "expectRule": "NONE"
+  "expectRule": "NONE",
+  "expectGate": "VETO"
 }

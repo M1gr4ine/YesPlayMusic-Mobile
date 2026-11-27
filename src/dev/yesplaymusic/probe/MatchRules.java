@@ -73,6 +73,11 @@ final class MatchRules {
                     + "remaster(?:ed)?(?: (?:\\d{4}|version))?|\\d{4} remaster(?:ed)?|"
                     + "原版|完整版|专辑版|正式版)$");
 
+    /** Brackets containing years, tour stops, or volume/part markers are never stripped as CJK song translations. */
+    static final Pattern NON_TRANSLATION_BRACKET = Pattern.compile(
+            "(?i)(?:\\d|\\b(?:part|pt|vol|disc|cd|side|track|no|ep|ver|version|edition|tour|concert|live|stop|day|night)\\b|"
+                    + "站|巡演|场|篇|卷|辑|碟|集|^[上下中前后]$)");
+
     /** Pure live/concert bracket with optional 4-digit year, e.g. "Live", "2007 Live", "Live - 1991", "2007 现场". */
     static final Pattern PURE_LIVE_BRACKET = Pattern.compile(
             "^(?:((?:19|20)\\d{2})\\s*年?\\s*(?:live|现场|演唱会)|"
@@ -91,9 +96,17 @@ final class MatchRules {
     )));
 
     static final Pattern BRACKET = Pattern.compile("[（(\\[【]([^）)\\]】]+)[）)\\]】]");
+    /**
+     * Separates multiple artists while preserving tight Latin slashes inside single band names (e.g. AC/DC).
+     * Explicit spaced " / " and CJK-to-CJK "/" still separate artists.
+     */
     static final Pattern ARTIST_SEPARATOR = Pattern.compile(
+            "(?i)(?:\\s+/\\s+|(?<=[\\p{IsHan}\\p{IsHiragana}\\p{IsKatakana}\\p{IsHangul}])/(?=[\\p{IsHan}\\p{IsHiragana}\\p{IsKatakana}\\p{IsHangul}])|"
+                    + "\\s*(?:[、,&，;；]|\\b(?:feat\\.?|ft\\.?|featuring|with|vs\\.?)\\b|\\s+x\\s+)\\s*)");
+    /** Used solely for detecting structural artist-grouping conflicts (e.g. single "A/B" vs split "A / B"). */
+    static final Pattern GROUP_SUB_SEPARATOR = Pattern.compile(
             "(?i)\\s*(?:[/、,&，;；]|\\b(?:feat\\.?|ft\\.?|featuring|with|vs\\.?)\\b|\\s+x\\s+)\\s*");
-    static final Pattern SLASH = Pattern.compile("\\s*/\\s*");
+    static final Pattern SLASH = Pattern.compile("\\s+/\\s+");
     static final Pattern COLLABORATION = Pattern.compile("\\b(feat\\.?|ft\\.?|featuring|with|vs\\.?)\\b|\\s+x\\s+");
     static final Pattern EXPLICIT_JOIN_SEPARATOR = Pattern.compile("\\s+/\\s+|[\\\\、;；\\r\\n]");
 

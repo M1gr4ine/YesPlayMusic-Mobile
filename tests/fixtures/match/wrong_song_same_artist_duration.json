@@ -1,9 +1,10 @@
 {
   "name": "wrong_song_same_artist_duration",
+  "fixtureKind": "curated_real_excerpt",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "hard_gate_title_blocks_wrong_song",
-  "description": "Real QQ hits for 富士山下 陈奕迅 with exact title absent; rank 0 is same-artist 爱情转移 (255s, 3.9s gap).",
+  "description": "Real QQ hits for 富士山下 陈奕迅 with exact title omitted; rank 0 is same-artist 爱情转移 (255s, 3.9s gap).",
   "expandGrp": true,
   "target": {
     "id": "65766",
@@ -231,8 +232,11 @@
         },
         "interval": 173
       }
-    ]
+    ],
+    "富士山下 Eason Chan": [],
+    "富士山下": []
   },
   "expect": "reject",
-  "expectRule": "NONE"
+  "expectRule": "NONE",
+  "expectGate": "TITLE"
 }

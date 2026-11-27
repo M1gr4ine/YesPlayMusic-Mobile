@@ -1,9 +1,10 @@
 {
   "name": "famous_reverse_write_solo_lead",
+  "fixtureKind": "direct_replay",
   "direction": "qq_to_netease",
   "policy": "WRITE",
   "rule": "famous_reverse_write_evidenced_lead_same_album",
-  "description": "Real recorded NetEase search for Famous Ye; QQ solo Ye (侃爷) matches NetEase 409736434 (40ms gap < 92ms reissue 484755737, identical artist IDs) via Rule A partial lead + same non-compilation album (A7).",
+  "description": "Unmodified real NetEase search for Famous Ye; QQ solo Ye (侃爷) matches NetEase 409736434 (40ms < 92ms reissue 484755737, identical artist IDs) via Rule A partial lead + same non-compilation album (A7).",
   "expandGrp": false,
   "target": {
     "id": "qq:002XelTe31rBEE",
@@ -21,6 +22,7 @@
     ]
   },
   "responses": {
+    "Famous (Explicit) Ye (侃爷)": [],
     "Famous Ye": [
       {
         "id": 409736434,
@@ -240,6 +242,186 @@
           "name": "famous"
         },
         "dt": 106956
+      }
+    ],
+    "Famous": [
+      {
+        "id": 409736434,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 37520,
+            "name": "Kanye West",
+            "alias": [
+              "ye"
+            ],
+            "tns": [
+              "坎耶·维斯特"
+            ]
+          },
+          {
+            "id": 72724,
+            "name": "Rihanna",
+            "tns": [
+              "蕾哈娜"
+            ]
+          }
+        ],
+        "al": {
+          "name": "The Life Of Pablo"
+        },
+        "dt": 196040
+      },
+      {
+        "id": 2718608376,
+        "name": "FAMOUS",
+        "ar": [
+          {
+            "id": 98893138,
+            "name": "ALLDAY PROJECT"
+          }
+        ],
+        "al": {
+          "name": "FAMOUS"
+        },
+        "dt": 180353
+      },
+      {
+        "id": 522647397,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 12925126,
+            "name": "Ivy Adara",
+            "alias": [
+              "Kayla Rae Haywood"
+            ]
+          }
+        ],
+        "al": {
+          "name": "Famous"
+        },
+        "dt": 223591
+      },
+      {
+        "id": 1338465889,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 360823,
+            "name": "Mozzy"
+          },
+          {
+            "id": 792425,
+            "name": "Iamsu!"
+          },
+          {
+            "id": 84935,
+            "name": "Yo Gotti"
+          },
+          {
+            "id": 1024151,
+            "name": "Dej Loaf"
+          }
+        ],
+        "al": {
+          "name": "Gangland Landlord"
+        },
+        "dt": 205333
+      },
+      {
+        "id": 1313326005,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 38118,
+            "name": "Lil Wayne",
+            "tns": [
+              "李尔·韦恩"
+            ]
+          },
+          {
+            "id": 30201151,
+            "name": "Reginae Carter"
+          }
+        ],
+        "al": {
+          "name": "Tha Carter V"
+        },
+        "dt": 242050
+      },
+      {
+        "id": 3436562956,
+        "name": "famous",
+        "ar": [
+          {
+            "id": 127394683,
+            "name": "YiiiNKA"
+          }
+        ],
+        "al": {
+          "name": "1st Floor"
+        },
+        "dt": 141257
+      },
+      {
+        "id": 2144392719,
+        "name": "famous",
+        "ar": [
+          {
+            "id": 52446054,
+            "name": "Nate Sib"
+          }
+        ],
+        "al": {
+          "name": "famous"
+        },
+        "dt": 106956
+      },
+      {
+        "id": 1416322173,
+        "name": "Famous (Live)",
+        "ar": [
+          {
+            "id": 762060,
+            "name": "泰民",
+            "tns": [
+              "태민 of SHINee"
+            ]
+          }
+        ],
+        "al": {
+          "name": "2019 MBC 가요대제전"
+        },
+        "dt": 197407
+      },
+      {
+        "id": 2118287860,
+        "name": "Metrohead",
+        "ar": [
+          {
+            "id": 59815282,
+            "name": "Dead Famous Brothers"
+          }
+        ],
+        "al": {
+          "name": "Hybrid Action Trailers"
+        },
+        "dt": 172554
+      },
+      {
+        "id": 864648486,
+        "name": "Famous",
+        "ar": [
+          {
+            "id": 78099,
+            "name": "Sophie Rose"
+          }
+        ],
+        "al": {
+          "name": "Famous"
+        },
+        "dt": 228415
       }
     ]
   },

@@ -32,6 +32,7 @@ final class TrackMatcherTest {
         testWritePolicyAndRuleA7();
         testUnifiedQueryLadder();
         testMatchTraceIntegration();
+        testAdversarialAuditRegressions();
     }
 
     private static void testHardGatesTitleVersionDuration() throws Exception {
@@ -479,6 +480,142 @@ final class TrackMatcherTest {
         that(rejected.outcome == MatchTrace.Outcome.REJECTED && rejected.failedGate == MatchTrace.Gate.DURATION
                 && Long.valueOf(8000L).equals(rejected.durationGapMs),
                 "rejected trace captures failed gate DURATION and exact gap");
+    }
+
+    /** Regression coverage for every adversarial edge case identified in Step 3 audit. */
+    private static void testAdversarialAuditRegressions() throws Exception {
+        // P1-1a: Separator-only candidate artist ("With") must fail UNKNOWN_ARTIST and never enter Rule B or NPE.
+        Track base = track("t1", "Horizon", "Lead Artist", "Studio Album", 200000L);
+        that(TrackMatcher.rank(base, list(
+                cand("cWith", "Horizon", "With", "Studio Album", 200000L)), Policy.PLAYBACK).isEmpty(),
+                "P1-1: separator-only artist With is rejected without entering Rule B or throwing NPE");
+        that(TrackMatcher.rank(base, list(
+                cand("cWith", "Horizon", "With", "Studio Album", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-1: separator-only artist With is rejected under WRITE");
+
+        // P1-1b: An unknown-artist candidate passing hard gates (1)(2)(3) still blocks Rule B uniqueness.
+        that(TrackMatcher.rank(base, list(
+                cand("cUnknown", "Horizon", "Unknown Artist", "Other Album", 200000L),
+                cand("cDisjoint", "Horizon", "Renamed Artist", "Studio Album", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-1: unknown-artist candidate passing gates 1-3 prevents another disjoint candidate from Rule B");
+        that(TrackMatcher.rank(base, list(
+                cand("cUnknown", "Horizon", "Unknown Artist", "Other Album", 200000L),
+                cand("cDisjoint", "Horizon", "Renamed Artist", "Studio Album", 200000L)), Policy.PLAYBACK).isEmpty(),
+                "P1-1: unknown-artist candidate passing gates 1-3 also blocks playback Rule B uniqueness");
+
+        // P1-2: A7 Policy.WRITE partial lead coverage rejects free brackets and ID-less display-only credits.
+        Track freeBracket = track("tFB", "Anthem", "甲 (North)", "Studio Album", 200000L);
+        that(TrackMatcher.rank(freeBracket, list(
+                cand("cNG", "Anthem", "North / Guest", "Studio Album", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-2: free bracket alias without ID/official alias cannot authorize WRITE partial match");
+        that(TrackMatcher.rank(freeBracket, list(
+                candWithMembers("cNGId", "Anthem", "North / Guest", "Studio Album", 200000L, Arrays.asList(
+                        new Member("North", "100", Collections.emptyList()),
+                        new Member("Guest", "200", Collections.emptyList())))), Policy.WRITE).isEmpty(),
+                "P1-2: free bracket alias still cannot match candidate base name without official alias");
+        Track pureDisplay = track("tPD", "Anthem", "North", "Studio Album", 200000L);
+        that(TrackMatcher.rank(pureDisplay, list(
+                cand("cNG", "Anthem", "North / Guest", "Studio Album", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-2: ID-less pure display lead without official alias cannot authorize WRITE partial match");
+        that("cNGId".equals(firstId(TrackMatcher.rank(pureDisplay, list(
+                candWithMembers("cNGId", "Anthem", "North / Guest", "Studio Album", 200000L, Arrays.asList(
+                        new Member("North", "100", Collections.emptyList()),
+                        new Member("Guest", "200", Collections.emptyList())))), Policy.WRITE))),
+                "P1-2: canonical base lead match backed by provider ID authorizes WRITE partial on same album");
+        // Unrelated official alias on lead must NOT count as evidence for a different intersecting token.
+        Track unrelatedAlias = trackWithMembers("tUA", "Anthem", "甲 (North)", "Studio Album", 200000L,
+                Collections.singletonList(new Member("甲 (North)", "", Collections.singletonList("Unrelated"))));
+        that(TrackMatcher.rank(unrelatedAlias, list(
+                cand("cNG", "Anthem", "North / Guest", "Studio Album", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-2: unrelated official alias does not certify a free bracket overlap");
+
+        // P1-3: A4 precedes A5 fallback; guest bracket conflict cannot be hidden by lead match; Cyrillic scripts checked.
+        Track northGuest = track("tNG", "Anthem", "North / Guest", "Studio Album", 200000L);
+        that(TrackMatcher.rank(northGuest, list(
+                cand("cGS", "Anthem", "Guest (Stranger)", "Studio Album", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-3: A4 guest-only overlap rejects Guest (Stranger) without falling back to Rule B (WRITE)");
+        that(TrackMatcher.rank(northGuest, list(
+                cand("cGS", "Anthem", "Guest (Stranger)", "Studio Album", 200000L)), Policy.PLAYBACK).isEmpty(),
+                "P1-3: A4 guest-only overlap rejects Guest (Stranger) without falling back to Rule B (PLAYBACK)");
+        that(TrackMatcher.rank(northGuest, list(
+                cand("cNGS", "Anthem", "North / Guest (Stranger)", "Other Album", 200000L)), Policy.PLAYBACK).isEmpty(),
+                "P1-3: guest same-script parenthetical conflict vetoes Rule A even when lead matches");
+        Track cyrillic = track("tCyr", "Song", "Нина", "Album One", 200000L);
+        that(TrackMatcher.rank(cyrillic, list(
+                cand("cCyrBad", "Song", "Нина (Анна)", "Album Two", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-3: Cyrillic same-script parenthetical conflict vetoes Rule A");
+        that("cCyrCross".equals(firstId(TrackMatcher.rank(cyrillic, list(
+                cand("cCyrCross", "Song", "Нина (Nina)", "Album Two", 200000L)), Policy.WRITE))),
+                "P1-3: Cyrillic with Latin bracket translation passes Rule A");
+
+        // P1-4: Year/stop CJK brackets never stripped as song translations; album never strips CJK volume brackets;
+        //       A3 competition checks exact song title & artist rather than startsWith.
+        that(TrackMatcher.rank(
+                track("tStop1", "Ballad (Live) (2007 上海站)", "Lead Artist", "Tour Album (Live)", 200000L), list(
+                cand("cStop2", "Ballad (Live) (2025 北京站)", "Lead Artist", "Tour Album (Live)", 200000L)),
+                Policy.WRITE).isEmpty(),
+                "P1-4: distinct concert tour stop brackets are never stripped as CJK translations");
+        that(TrackMatcher.rank(
+                track("tVol1", "Track", "Old Artist", "合奏（上）", 200000L), list(
+                cand("cVol2", "Track", "New Artist", "合奏（下）", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-4: album volume brackets 上/下 are never stripped into the same album");
+        that("cStarLive".equals(firstId(TrackMatcher.rank(
+                track("tStar", "Star (2007 Live)", "Lead Artist", "Arena Stage (Live)", 277000L), list(
+                cand("cStarLive", "Star (Live)", "Lead Artist", "Arena Stage (Live)", 277000L),
+                cand("cStarlight", "Starlight (Live)", "Other Artist", "Arena Stage (Live)", 60000L),
+                cand("cCoverYear", "Star (2007 Live)", "Cover Artist", "Cover Album (Live)", 277000L)),
+                Policy.PLAYBACK))),
+                "P1-4: A3 ignores unrelated Starlight prefix song and cover artist's same-year recording");
+
+        // P1-5: Order-independent grouping conflict; identical A & B / A / B accepted; unstructured AC/DC vs AC / DC vetoed.
+        that(TrackMatcher.rank(track("tRep", "Track", "AB / C", "Studio Album", 200000L), list(
+                cand("cRep", "Track", "BC / A", "Studio Album", 200000L)), Policy.WRITE).isEmpty(),
+                "P1-5: order-independent grouping conflict vetoes AB / C vs BC / A");
+        List<Member> abab = Arrays.asList(
+                new Member("A & B", "1", Collections.emptyList()),
+                new Member("A", "2", Collections.emptyList()),
+                new Member("B", "3", Collections.emptyList()));
+        that("cIdent".equals(firstId(TrackMatcher.rank(
+                trackWithMembers("tIdent", "Track", "A & B / A / B", "Studio Album", 200000L, abab), list(
+                candWithMembers("cIdent", "Track", "A & B / A / B", "Studio Album", 200000L, abab)),
+                Policy.WRITE))),
+                "P1-5: identical structured credit A & B / A / B matches itself without false grouping veto");
+        that(TrackMatcher.rank(track("tUnstruct", "Rock Song", "AC/DC", "Rock Album", 255000L), list(
+                candWithMembers("cSplit", "Rock Song", "AC / DC", "Rock Album", 255000L, Arrays.asList(
+                        new Member("AC", "1", Collections.emptyList()),
+                        new Member("DC", "2", Collections.emptyList())))), Policy.WRITE).isEmpty(),
+                "P1-5: unstructured AC/DC never splits to match structured AC / DC");
+
+        // P2-1: Order-independent exact bipartite matching (U->{X,Y}, V->{X} vs X / Y).
+        List<Member> uv = Arrays.asList(
+                new Member("U", "1", Arrays.asList("X", "Y")),
+                new Member("V", "2", Collections.singletonList("X")));
+        List<Member> vu = Arrays.asList(
+                new Member("V", "2", Collections.singletonList("X")),
+                new Member("U", "1", Arrays.asList("X", "Y")));
+        Candidate xy = candWithMembers("cXY", "Track", "X / Y", "Other Album", 200000L, Arrays.asList(
+                new Member("X", "10", Collections.emptyList()),
+                new Member("Y", "20", Collections.emptyList())));
+        that("cXY".equals(firstId(TrackMatcher.rank(
+                trackWithMembers("tUV", "Track", "U / V", "Studio Album", 200000L, uv), list(xy), Policy.WRITE)))
+                && "cXY".equals(firstId(TrackMatcher.rank(
+                trackWithMembers("tVU", "Track", "V / U", "Studio Album", 200000L, vu), list(xy), Policy.WRITE))),
+                "P2-1: exact bipartite matching finds unique cover U->Y, V->X regardless of member order");
+
+        // P2-2: Multi-member alias query preserves structured slash band name; >200 char title still builds ladder.
+        List<QueryStep> acdcGuest = TrackMatcher.queryLadder("Song", "AC/DC / Guest",
+                Arrays.asList(
+                        new Member("AC/DC", "1", Collections.emptyList()),
+                        new Member("Guest", "2", Collections.singletonList("Alias"))),
+                Collections.emptyList());
+        that(acdcGuest.stream().anyMatch(s -> "Song AC/DC Alias".equals(s.query))
+                && acdcGuest.stream().noneMatch(s -> s.query.contains("AC / DC")),
+                "P2-2: structured AC/DC is preserved in multi-member alias substitution query");
+        StringBuilder longTitle = new StringBuilder();
+        for (int i = 0; i < 25; i++) longTitle.append("MedleyPart").append(i).append(' ');
+        that(!TrackMatcher.queryLadder(longTitle.toString().trim(), "Artist", Collections.emptyList(),
+                Collections.emptyList()).isEmpty(),
+                "P2-2: titles longer than 200 characters still build recall queries up to Track 512-char limit");
     }
 
     private static String firstId(List<RankedHit> hits) {

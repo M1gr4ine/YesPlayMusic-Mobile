@@ -1,9 +1,10 @@
 {
   "name": "version_variants_rejected",
+  "fixtureKind": "curated_real_excerpt",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "hard_gate_version_blocks_vocal_dj_variants",
-  "description": "Real QQ hits for 最后派对 陈奕迅 with studio recording absent; 女版 (312s, 0.4s gap) and DJ/x/片段 variants stay rejected.",
+  "description": "Real QQ hits for 最后派对 陈奕迅 with studio recording omitted; 女版 (312s, 0.4s gap) and DJ/x/片段 variants stay rejected.",
   "expandGrp": true,
   "target": {
     "id": "64288",
@@ -325,8 +326,11 @@
         },
         "interval": 256
       }
-    ]
+    ],
+    "最后派对 Eason Chan": [],
+    "最后派对": []
   },
   "expect": "reject",
-  "expectRule": "NONE"
+  "expectRule": "NONE",
+  "expectGate": "VERSION"
 }

@@ -1,8 +1,10 @@
 package dev.yesplaymusic.probe;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -16,8 +18,9 @@ import java.util.regex.Matcher;
  *
  * <p>Hard gates:
  * <ol>
- *   <li>Normalized main title equality (allowing benign annotations, CJK subtitle translations, and
- *       single-sided live year markers only on the same non-compilation live album without competition).</li>
+ *   <li>Normalized main title equality (allowing benign annotations, CJK subtitle translations excluding
+ *       years/tour stops/part markers, and single-sided live year markers only on the same non-compilation
+ *       live album without competing live sessions/years).</li>
  *   <li>Version tag set equality (Live, Instrumental, Remix, language variants, etc. are never interchangeable).</li>
  *   <li>Duration gap &lt;= 5s when both sides report duration; missing duration requires Rule A.</li>
  * </ol>
@@ -25,16 +28,25 @@ import java.util.regex.Matcher;
  * <p>Artist rules:
  * <ul>
  *   <li>Rule A: valid member name intersection (canonical + official aliases + bracket aliases) without
- *       same-script parenthetical conflict, requiring either full 1-to-1 coverage or lead-to-lead overlap
- *       (guest-only overlap is rejected bidirectionally). Under {@link Policy#WRITE}, partial coverage
- *       further requires one-side subset coverage, official/canonical lead evidence, and same non-compilation album.</li>
- *   <li>Rule B: when artists are disjoint (or Rule A was vetoed by same-script parenthetical conflict),
- *       accept only on the same non-compilation album, when globally unique among hard-gate passers across
- *       the completed query ladder, with no Rule-A candidate in the batch, both durations present
- *       (&lt;= 5s for playback, &lt;= 2s for write), and no structural artist-grouping conflict.</li>
+ *       same-script parenthetical conflict (evaluated across all Unicode scripts), requiring either a
+ *       globally unique 1-to-1 bijection or lead-to-lead overlap. Guest-only overlap when leads differ is
+ *       rejected bidirectionally before any Rule B fallback (A4). Under {@link Policy#WRITE}, partial coverage
+ *       further requires one-side unique subset coverage, verified lead↔lead official alias or provider-ID
+ *       canonical evidence on the actual intersecting token, and same non-compilation album (A7).</li>
+ *   <li>Rule B: when artists are disjoint (or Rule A was vetoed solely by same-script parenthetical conflict, A5),
+ *       accept only on the same non-compilation album, when globally unique among all distinct-ID candidates
+ *       passing hard gates (1)(2)(3) across the completed query ladder (A2), with no Rule-A candidate in the
+ *       batch, both durations present (&lt;= 5s for playback, &lt;= 2s for write), and no order-independent
+ *       structural artist-grouping conflict (A6).</li>
+ *   <li>{@link Policy#WRITE} tie semantics: candidates tying on the top {@code (rule, fullMemberCoverage, sameAlbum)}
+ *       tier with distinct artist identities are rejected as ambiguous regardless of small duration-gap differences;
+ *       identical artist identities (e.g. reissues with the same provider artist IDs) break ties by duration gap.</li>
  * </ul>
  */
 final class TrackMatcher {
+    private static final int MAX_QUERY_TITLE_LENGTH = 512;
+    private static final long LIVE_COMPETITION_MAX_GAP_MS = 30_000L;
+
     private TrackMatcher() {}
 
     enum Policy {
@@ -158,18 +170,23 @@ final class TrackMatcher {
 
     private static final class ResolvedCredit {
         final List<String> rawMemberNames;
+        final List<Set<String>> baseParts;
         final List<Set<String>> visibleParts;
+        final List<Set<String>> officialAliasParts;
         final List<Set<String>> expandedParts;
-        final boolean[] hasOfficialAliases;
+        final boolean[] hasProviderId;
         final List<String> identityKey;
 
-        ResolvedCredit(List<String> rawMemberNames, List<Set<String>> visibleParts,
-                       List<Set<String>> expandedParts, boolean[] hasOfficialAliases,
+        ResolvedCredit(List<String> rawMemberNames, List<Set<String>> baseParts,
+                       List<Set<String>> visibleParts, List<Set<String>> officialAliasParts,
+                       List<Set<String>> expandedParts, boolean[] hasProviderId,
                        List<String> identityKey) {
             this.rawMemberNames = rawMemberNames;
+            this.baseParts = baseParts;
             this.visibleParts = visibleParts;
+            this.officialAliasParts = officialAliasParts;
             this.expandedParts = expandedParts;
-            this.hasOfficialAliases = hasOfficialAliases;
+            this.hasProviderId = hasProviderId;
             this.identityKey = identityKey;
         }
 
@@ -184,9 +201,8 @@ final class TrackMatcher {
         final Long durationGap;
         final boolean sameAlbum;
         final boolean compilationAlbum;
-        final boolean liveYearFallback;
 
-        boolean passedHardGates;
+        boolean passedHardGates123;
         MatchTrace.Gate failedGate = MatchTrace.Gate.NONE;
         String conflictCandidateId = "";
         String detail = "";
@@ -205,13 +221,12 @@ final class TrackMatcher {
         boolean ruleBAccepted;
 
         Eval(Candidate candidate, MatchText.TitleInfo titleInfo, Long durationGap,
-             boolean sameAlbum, boolean compilationAlbum, boolean liveYearFallback) {
+             boolean sameAlbum, boolean compilationAlbum) {
             this.candidate = candidate;
             this.titleInfo = titleInfo;
             this.durationGap = durationGap;
             this.sameAlbum = sameAlbum;
             this.compilationAlbum = compilationAlbum;
-            this.liveYearFallback = liveYearFallback;
         }
     }
 
@@ -238,15 +253,17 @@ final class TrackMatcher {
         ResolvedCredit targetCredit = targetKnownArtist
                 ? resolveCredit(target.artist, targetMembers, targetAliases) : null;
 
-        // Deduplicate by candidate ID while keeping first-seen order and preferring richer member metadata.
         List<Candidate> deduped = deduplicate(hits, trace, target, targetTitle, round);
         if (deduped.isEmpty()) {
             return new RankResult(Collections.emptyList(), false, "");
         }
 
         List<MatchText.TitleInfo> candTitles = new ArrayList<>(deduped.size());
+        List<ResolvedCredit> candCredits = new ArrayList<>(deduped.size());
         for (Candidate c : deduped) {
             candTitles.add(MatchText.analyzeTitle(c.title));
+            candCredits.add(MatchText.knownArtist(c.artist)
+                    ? resolveCredit(c.artist, c.artistMembers, c.artistAliases) : null);
         }
 
         List<Eval> evals = new ArrayList<>(deduped.size());
@@ -254,21 +271,24 @@ final class TrackMatcher {
         String firstHardGateId = "";
         String secondHardGateId = "";
 
-        // Pass 1: Hard gates (0: known artist, 1: main title + A3 live year, 2: version tags, 3: duration <= 5s).
+        // Pass 1: Hard gates (1: main title + A3 live year, 2: version tags, 3: duration <= 5s).
+        // Count every distinct-ID candidate passing (1)(2)(3) — including unknown-artist hits — so an
+        // unattributed same-title recording prevents another disjoint artist from falsely claiming Rule B uniqueness.
         for (int i = 0; i < deduped.size(); i++) {
             Candidate cand = deduped.get(i);
             MatchText.TitleInfo candTitle = candTitles.get(i);
+            ResolvedCredit candCredit = candCredits.get(i);
             Long gap = MatchTrace.durationGapOrNull(target.duration, cand.durationMs);
             boolean compAlbum = MatchText.isCompilationAlbum(target.album)
                     || MatchText.isCompilationAlbum(cand.album);
             boolean sameAlbum = MatchText.sameAlbumTitle(target.album, cand.album);
             boolean sameNonCompAlbum = sameAlbum && !compAlbum;
-            boolean liveYearFallback = false;
 
-            Eval eval = new Eval(cand, candTitle, gap, sameAlbum, compAlbum, false);
+            Eval eval = new Eval(cand, candTitle, gap, sameAlbum, compAlbum);
+            eval.credit = candCredit;
             evals.add(eval);
 
-            if (!targetKnownArtist || targetCredit == null || !MatchText.knownArtist(cand.artist)) {
+            if (!targetKnownArtist || targetCredit == null) {
                 eval.failedGate = MatchTrace.Gate.UNKNOWN_ARTIST;
                 continue;
             }
@@ -291,14 +311,13 @@ final class TrackMatcher {
                 continue;
             }
 
+            boolean liveYearFallback = false;
             if (!targetTitle.liveYear.equals(candTitle.liveYear)) {
                 if (!targetTitle.liveYear.isEmpty() && !candTitle.liveYear.isEmpty()) {
                     eval.failedGate = MatchTrace.Gate.VERSION;
                     eval.detail = "live_year_mismatch";
                     continue;
                 }
-                // One-sided live year marker (A3): allowed only on the same non-compilation live album
-                // with no competing live session/year in the batch.
                 if (!(targetTitle.hasLiveTag && candTitle.hasLiveTag)
                         || !sameNonCompAlbum
                         || !(MatchText.isLiveAlbum(target.album) || MatchText.isLiveAlbum(cand.album))) {
@@ -306,7 +325,8 @@ final class TrackMatcher {
                     eval.detail = "live_year_requires_same_live_album";
                     continue;
                 }
-                String liveConflictId = findLiveYearCompetition(target, targetTitle, cand, deduped, candTitles);
+                String liveConflictId = findLiveYearCompetition(
+                        target, targetTitle, targetCredit, cand, candCredit, deduped, candTitles, candCredits);
                 if (!liveConflictId.isEmpty()) {
                     eval.failedGate = MatchTrace.Gate.VERSION;
                     eval.conflictCandidateId = liveConflictId;
@@ -322,35 +342,29 @@ final class TrackMatcher {
                 continue;
             }
 
-            Eval passed = new Eval(cand, candTitle, gap, sameAlbum, compAlbum, liveYearFallback);
-            passed.passedHardGates = true;
-            if (liveYearFallback) passed.detail = "live_year_same_album";
-            evals.set(i, passed);
-
+            eval.passedHardGates123 = true;
+            if (liveYearFallback) eval.detail = "live_year_same_album";
             hardGatePassers++;
             if (firstHardGateId.isEmpty()) firstHardGateId = cand.id;
             else if (secondHardGateId.isEmpty()) secondHardGateId = cand.id;
         }
 
-        // Pass 2: Evaluate artist credits, structural grouping conflicts, and Rule A.
+        // Pass 2: Validate candidate artist credit, structural grouping conflicts, and Rule A.
         boolean anyRuleAInBatch = false;
         String firstRuleAId = "";
         for (Eval eval : evals) {
-            if (!eval.passedHardGates) continue;
-            ResolvedCredit candCredit = resolveCredit(
-                    eval.candidate.artist, eval.candidate.artistMembers, eval.candidate.artistAliases);
-            eval.credit = candCredit;
-            if (candCredit == null) {
+            if (!eval.passedHardGates123) continue;
+            if (eval.credit == null) {
                 eval.failedGate = MatchTrace.Gate.UNKNOWN_ARTIST;
                 continue;
             }
-            if (hasGroupingConflict(targetCredit, candCredit)) {
+            if (hasGroupingConflict(targetCredit, eval.credit)) {
                 eval.groupingConflict = true;
                 eval.failedGate = MatchTrace.Gate.VETO;
                 eval.detail = appendDetail(eval.detail, "grouping_conflict");
                 continue;
             }
-            evaluateRuleA(targetCredit, candCredit, eval, activePolicy);
+            evaluateRuleA(targetCredit, eval.credit, eval, activePolicy);
             if (eval.ruleAAccepted || eval.ruleAEligibleForBatchBlock) {
                 if (!anyRuleAInBatch) {
                     anyRuleAInBatch = true;
@@ -359,17 +373,19 @@ final class TrackMatcher {
             }
         }
 
-        // Pass 3: Evaluate Rule B for non-Rule-A hard-gate passers (only when allowRuleB is true).
+        // Pass 3: Evaluate Rule B for disjoint (or A5 same-script vetoed) hard-gate passers when allowRuleB is true.
         for (Eval eval : evals) {
-            if (!eval.passedHardGates || eval.groupingConflict || eval.ruleAAccepted) continue;
+            if (!eval.passedHardGates123 || eval.credit == null
+                    || eval.failedGate == MatchTrace.Gate.UNKNOWN_ARTIST
+                    || eval.groupingConflict || eval.ruleAAccepted) {
+                continue;
+            }
             if (eval.ruleAGuestOnly) {
                 eval.failedGate = MatchTrace.Gate.ARTIST;
                 eval.detail = appendDetail(eval.detail, "guest_only_overlap");
                 continue;
             }
             if (eval.failedGate == MatchTrace.Gate.WRITE_POLICY) {
-                // Lead overlapped under Policy.WRITE but failed write policy (e.g. different album or
-                // contradicting collaborator); artist sets are NOT disjoint, so never fall through to Rule B.
                 continue;
             }
             if (!allowRuleB) {
@@ -416,10 +432,8 @@ final class TrackMatcher {
 
         // Collect accepted hits and sort according to policy.
         List<RankedHit> ranked = new ArrayList<>();
-        Map<String, Eval> evalById = new LinkedHashMap<>();
         for (Eval eval : evals) {
-            evalById.put(eval.candidate.id, eval);
-            if (eval.ruleAAccepted || eval.ruleBAccepted) {
+            if (eval.credit != null && (eval.ruleAAccepted || eval.ruleBAccepted)) {
                 Rule rule = eval.ruleAAccepted ? Rule.A : Rule.B;
                 long sortGap = eval.durationGap == null ? Long.MAX_VALUE : eval.durationGap;
                 ranked.add(new RankedHit(
@@ -447,7 +461,7 @@ final class TrackMatcher {
         }
 
         if (trace != null) {
-            emitTrace(trace, target, targetTitle, round, evals, ranked, ambiguous, ambiguousConflictId);
+            emitTrace(trace, targetTitle, round, evals, ranked, ambiguous, ambiguousConflictId);
         }
 
         if (ambiguous) {
@@ -463,7 +477,10 @@ final class TrackMatcher {
     static List<QueryStep> queryLadder(String title, String artist,
                                        List<ArtistAliases.Member> members, List<String> flatAliases) {
         String rawTitle = title == null ? "" : title.trim();
-        if (rawTitle.isEmpty() || rawTitle.length() > 200) return Collections.emptyList();
+        if (rawTitle.isEmpty()) return Collections.emptyList();
+        if (rawTitle.length() > MAX_QUERY_TITLE_LENGTH) {
+            rawTitle = rawTitle.substring(0, MAX_QUERY_TITLE_LENGTH).trim();
+        }
         String cleanTitle = MatchText.cleanSearchTitle(rawTitle);
         if (cleanTitle.isEmpty()) return Collections.emptyList();
 
@@ -477,12 +494,11 @@ final class TrackMatcher {
                 && isCompleteConsistentMembers(rawArtist, members);
         int memberCount = completeStructured ? members.size() : visibleParts.size();
 
-        // Stage 1: title + all artists (preserve structured member names like "AC/DC" without splitting internal "/").
+        // Stage 1: title + all artists (preserve structured member names like "AC/DC" intact).
         if (completeStructured) {
             StringBuilder allMembers = new StringBuilder();
             for (ArtistAliases.Member m : members) {
-                String base = stripBrackets(m.name);
-                String part = base.isEmpty() ? m.name.trim() : base;
+                String part = cleanStructuredMemberName(m.name);
                 if (part.isEmpty()) continue;
                 if (allMembers.length() > 0) allMembers.append(' ');
                 allMembers.append(part);
@@ -494,18 +510,18 @@ final class TrackMatcher {
             addQueryStep(steps, seen, QueryStage.ALL_ARTISTS, MatchText.keyword(cleanTitle, cleanArtist));
         }
 
-        // Stage 2: title + lead artist (only for multi-artist credits)
+        // Stage 2: title + lead artist (only for multi-artist credits).
         if (memberCount >= 2) {
             String leadRaw = completeStructured ? members.get(0).name : firstRawPart(rawArtist);
             String cleanLead = completeStructured
-                    ? (stripBrackets(leadRaw).isEmpty() ? leadRaw.trim() : stripBrackets(leadRaw))
+                    ? cleanStructuredMemberName(leadRaw)
                     : MatchText.cleanSearchArtist(leadRaw);
             if (!cleanLead.isEmpty()) {
                 addQueryStep(steps, seen, QueryStage.LEAD_ARTIST, cleanTitle + " " + cleanLead);
             }
         }
 
-        // Stage 3: title + member aliases (strictly capped at MatchRules.MAX_ALIAS_SEARCH_QUERIES = 2)
+        // Stage 3: title + member aliases (strictly capped at MatchRules.MAX_ALIAS_SEARCH_QUERIES = 2).
         int aliasQueriesAdded = 0;
         if (memberCount == 1) {
             List<String> candidateAliases = new ArrayList<>();
@@ -518,7 +534,8 @@ final class TrackMatcher {
             if (flatAliases != null) candidateAliases.addAll(flatAliases);
             candidateAliases.addAll(extractBracketAliases(rawArtist));
 
-            String canonicalToken = MatchText.normalizeArtistToken(cleanArtist);
+            String canonicalName = completeStructured ? cleanStructuredMemberName(members.get(0).name) : cleanArtist;
+            String canonicalToken = MatchText.normalizeArtistToken(canonicalName);
             for (String alias : candidateAliases) {
                 if (aliasQueriesAdded >= MatchRules.MAX_ALIAS_SEARCH_QUERIES) break;
                 String trimmed = cleanAliasToken(alias);
@@ -536,7 +553,7 @@ final class TrackMatcher {
 
             if (completeStructured) {
                 for (int i = 0; i < memberCount; i++) {
-                    canonicalParts[i] = MatchText.cleanSearchArtist(members.get(i).name);
+                    canonicalParts[i] = cleanStructuredMemberName(members.get(i).name);
                     memberAliasLists.get(i).addAll(members.get(i).aliases);
                     memberAliasLists.get(i).addAll(extractBracketAliases(members.get(i).name));
                 }
@@ -600,9 +617,15 @@ final class TrackMatcher {
             }
         }
 
-        // Stage 4: bare title
+        // Stage 4: bare title.
         addQueryStep(steps, seen, QueryStage.BARE_TITLE, cleanTitle);
         return Collections.unmodifiableList(steps);
+    }
+
+    private static String cleanStructuredMemberName(String memberName) {
+        if (memberName == null) return "";
+        String base = stripBrackets(memberName);
+        return base.isEmpty() ? memberName.trim() : base;
     }
 
     private static List<Candidate> deduplicate(List<Candidate> hits, MatchTrace trace,
@@ -639,30 +662,41 @@ final class TrackMatcher {
     }
 
     private static String findLiveYearCompetition(Track target, MatchText.TitleInfo targetTitle,
-                                                  Candidate cand, List<Candidate> deduped,
-                                                  List<MatchText.TitleInfo> candTitles) {
+                                                  ResolvedCredit targetCredit, Candidate cand,
+                                                  ResolvedCredit candCredit, List<Candidate> deduped,
+                                                  List<MatchText.TitleInfo> candTitles,
+                                                  List<ResolvedCredit> candCredits) {
         for (int i = 0; i < deduped.size(); i++) {
             Candidate other = deduped.get(i);
             if (other.id.equals(cand.id)) continue;
             MatchText.TitleInfo otherTitle = candTitles.get(i);
             if (!otherTitle.hasLiveTag) continue;
+            ResolvedCredit otherCredit = candCredits.get(i);
 
-            // 1. Another live recording of the same song (matching version tags) on the same live album.
+            // 1. Another live recording of the SAME song (never prefix-matching unrelated titles) on the
+            //    same live album with plausible duration and related artist.
             boolean otherSameAlbum = MatchText.sameNonCompilationAlbum(target.album, other.album);
-            if (otherSameAlbum
-                    && otherTitle.versionTags.equals(targetTitle.versionTags)
-                    && (otherTitle.mainTitle.equals(targetTitle.mainTitle)
-                    || (!targetTitle.mainTitle.isEmpty() && otherTitle.mainTitle.startsWith(targetTitle.mainTitle)))) {
-                return other.id;
+            boolean sameBaseSong = otherTitle.mainTitle.equals(targetTitle.mainTitle)
+                    || (!targetTitle.mainTitle.isEmpty()
+                    && otherTitle.baseTitleNoBrackets.equals(targetTitle.mainTitle));
+            if (otherSameAlbum && sameBaseSong && otherTitle.versionTags.equals(targetTitle.versionTags)) {
+                Long gapToTarget = MatchTrace.durationGapOrNull(target.duration, other.durationMs);
+                boolean plausibleDuration = gapToTarget == null || gapToTarget <= LIVE_COMPETITION_MAX_GAP_MS;
+                boolean relatedArtist = creditsHaveLeadOrFullOverlap(targetCredit, otherCredit)
+                        || (candCredit != null && creditsHaveLeadOrFullOverlap(candCredit, otherCredit));
+                if (plausibleDuration && relatedArtist) {
+                    return other.id;
+                }
             }
 
-            // 2. An explicit same-year live match passing hard gates already exists in the batch.
+            // 2. An explicit same-year live match by a matching artist passing hard gates already exists in batch.
             if (!targetTitle.liveYear.isEmpty()
                     && targetTitle.liveYear.equals(otherTitle.liveYear)
                     && otherTitle.mainTitle.equals(targetTitle.mainTitle)
                     && otherTitle.versionTags.equals(targetTitle.versionTags)) {
                 Long otherGap = MatchTrace.durationGapOrNull(target.duration, other.durationMs);
-                if (otherGap == null || otherGap <= MatchRules.PLAYBACK_MAX_DURATION_GAP_MS) {
+                if ((otherGap == null || otherGap <= MatchRules.PLAYBACK_MAX_DURATION_GAP_MS)
+                        && creditsHaveLeadOrFullOverlap(targetCredit, otherCredit)) {
                     return other.id;
                 }
             }
@@ -670,10 +704,31 @@ final class TrackMatcher {
         return "";
     }
 
+    private static boolean creditsHaveLeadOrFullOverlap(ResolvedCredit left, ResolvedCredit right) {
+        if (left == null || right == null || hasGroupingConflict(left, right)) return false;
+        int m = left.size();
+        int n = right.size();
+        boolean[][] valid = new boolean[m][n];
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < n; j++) {
+                if (Collections.disjoint(left.expandedParts.get(i), right.expandedParts.get(j))) continue;
+                if (hasSameScriptConflict(right.visibleParts.get(j), left.expandedParts.get(i))
+                        || hasSameScriptConflict(left.visibleParts.get(i), right.expandedParts.get(j))) {
+                    continue;
+                }
+                valid[i][j] = true;
+            }
+        }
+        return valid[0][0] || (m == n && countBijections(valid, m, n, 2) == 1);
+    }
+
     private static void evaluateRuleA(ResolvedCredit target, ResolvedCredit cand, Eval eval, Policy policy) {
         int m = target.size();
         int n = cand.size();
+        boolean[][] rawPair = new boolean[m][n];
+        boolean[][] conflictPair = new boolean[m][n];
         boolean[][] validPair = new boolean[m][n];
+        boolean anyRawPair = false;
         boolean anyValidPair = false;
         boolean anySameScriptConflict = false;
         StringBuilder matchedSummary = new StringBuilder();
@@ -685,7 +740,10 @@ final class TrackMatcher {
                 Set<String> cVis = cand.visibleParts.get(j);
                 Set<String> cExp = cand.expandedParts.get(j);
                 if (Collections.disjoint(tExp, cExp)) continue;
+                rawPair[i][j] = true;
+                anyRawPair = true;
                 if (hasSameScriptConflict(cVis, tExp) || hasSameScriptConflict(tVis, cExp)) {
+                    conflictPair[i][j] = true;
                     anySameScriptConflict = true;
                     continue;
                 }
@@ -699,23 +757,40 @@ final class TrackMatcher {
         }
 
         eval.matchedMembers = matchedSummary.toString();
-        if (!anyValidPair) {
-            eval.ruleASameScriptVeto = anySameScriptConflict;
-            if (anySameScriptConflict) {
-                eval.detail = appendDetail(eval.detail, "same_script_conflict");
-            }
+        if (!anyRawPair) {
             return;
         }
 
-        boolean fullCoverage = (m == n) && hasUniqueBijection(validPair, m, n);
-        boolean leadMatched = validPair[0][0];
-        boolean oneSideSubset = fullCoverage || isSubsetCovered(validPair, m, n);
+        boolean fullCoverage = (m == n) && countBijections(validPair, m, n, 2) == 1;
 
-        // A4: Guest-only overlap when leads differ (except full 1-to-1 permutation) is rejected bidirectionally.
+        // A4 BEFORE A5 fallback: if raw member overlap exists ONLY on non-lead/guest members (and is not a
+        // full 1-to-1 permutation), reject immediately without allowing Rule B fallback — even if that guest
+        // overlap also carries a same-script parenthetical conflict (e.g. North / Guest -> Guest (Stranger)).
+        if (!fullCoverage && !rawPair[0][0]) {
+            eval.ruleAGuestOnly = true;
+            return;
+        }
+
+        // A5 member-level conflict check: a same-script parenthetical conflict on any overlapping member
+        // (e.g. lead Ye (Taylor Swift) or guest Guest (Stranger) in North / Guest (Stranger)) cannot be hidden
+        // by another member's overlap; it vetoes Rule A while allowing Rule B fallback under A5's gates.
+        if (anySameScriptConflict && hasUnresolvedSameScriptConflict(conflictPair, validPair, m, n)) {
+            eval.ruleASameScriptVeto = true;
+            eval.detail = appendDetail(eval.detail, "same_script_conflict");
+            return;
+        }
+
+        if (!anyValidPair) {
+            return;
+        }
+
+        boolean leadMatched = validPair[0][0];
         if (!fullCoverage && !leadMatched) {
             eval.ruleAGuestOnly = true;
             return;
         }
+
+        boolean oneSideSubset = fullCoverage || hasUniqueSubsetInjection(validPair, m, n);
 
         eval.ruleAFullCoverage = fullCoverage;
         eval.ruleAOneSideSubset = oneSideSubset;
@@ -727,8 +802,9 @@ final class TrackMatcher {
             return;
         }
 
-        // Policy.WRITE: full member coverage may cross albums; partial coverage requires lead evidence,
-        // one-side subset coverage (no contradicting collaborators), and same non-compilation album (A7).
+        // Policy.WRITE: full member coverage may cross albums; partial coverage requires unique one-side subset
+        // coverage, official alias or provider-ID canonical evidence on the intersecting lead token, and same
+        // non-compilation album (A7).
         if (fullCoverage) {
             eval.ruleAAccepted = true;
             eval.ruleAEligibleForBatchBlock = true;
@@ -741,9 +817,7 @@ final class TrackMatcher {
             eval.detail = appendDetail(eval.detail, "write_contradicting_collaborator");
             return;
         }
-        boolean leadVisibleMatch = !Collections.disjoint(target.visibleParts.get(0), cand.visibleParts.get(0));
-        boolean leadOfficialAlias = target.hasOfficialAliases[0] || cand.hasOfficialAliases[0];
-        if (!leadVisibleMatch && !leadOfficialAlias) {
+        if (!hasLeadOfficialEvidence(target, cand)) {
             eval.failedGate = MatchTrace.Gate.WRITE_POLICY;
             eval.detail = appendDetail(eval.detail, "write_missing_lead_evidence");
             return;
@@ -757,72 +831,100 @@ final class TrackMatcher {
         eval.ruleAAccepted = true;
     }
 
-    private static boolean hasUniqueBijection(boolean[][] matrix, int m, int n) {
-        if (m == 0 || m != n) return false;
-        boolean[] used = new boolean[n];
+    private static boolean hasUnresolvedSameScriptConflict(boolean[][] conflictPair, boolean[][] validPair,
+                                                           int m, int n) {
         for (int i = 0; i < m; i++) {
-            int match = -1;
             for (int j = 0; j < n; j++) {
-                if (!used[j] && matrix[i][j]) {
-                    if (match >= 0) return false; // ambiguous alias attribution
-                    match = j;
-                }
-            }
-            if (match < 0) return false;
-            used[match] = true;
-        }
-        return true;
-    }
-
-    /** True when every member on the smaller credit uniquely matches a distinct member on the larger credit. */
-    private static boolean isSubsetCovered(boolean[][] matrix, int m, int n) {
-        if (m <= n) {
-            boolean[] usedRight = new boolean[n];
-            for (int i = 0; i < m; i++) {
-                int match = -1;
-                for (int j = 0; j < n; j++) {
-                    if (!usedRight[j] && matrix[i][j]) {
-                        if (match >= 0) return false;
-                        match = j;
+                if (!conflictPair[i][j]) continue;
+                boolean targetHasValid = false;
+                for (int jj = 0; jj < n; jj++) {
+                    if (validPair[i][jj]) {
+                        targetHasValid = true;
+                        break;
                     }
                 }
-                if (match < 0) return false;
-                usedRight[match] = true;
-            }
-            return true;
-        }
-        boolean[] usedLeft = new boolean[m];
-        for (int j = 0; j < n; j++) {
-            int match = -1;
-            for (int i = 0; i < m; i++) {
-                if (!usedLeft[i] && matrix[i][j]) {
-                    if (match >= 0) return false;
-                    match = i;
+                boolean candHasValid = false;
+                for (int ii = 0; ii < m; ii++) {
+                    if (validPair[ii][j]) {
+                        candHasValid = true;
+                        break;
+                    }
                 }
+                if (!targetHasValid || !candHasValid) return true;
             }
-            if (match < 0) return false;
-            usedLeft[match] = true;
         }
-        return true;
+        return false;
+    }
+
+    /**
+     * Checks that the actual intersecting token between target lead and candidate lead is backed by either:
+     * (1) an official provider alias on either side matching the other side's resolved lead tokens, or
+     * (2) a direct canonical base-name match (excluding free bracket text) backed by a verified provider ID.
+     */
+    private static boolean hasLeadOfficialEvidence(ResolvedCredit target, ResolvedCredit cand) {
+        Set<String> tBase = target.baseParts.get(0);
+        Set<String> tOff = target.officialAliasParts.get(0);
+        Set<String> tExp = target.expandedParts.get(0);
+        Set<String> cBase = cand.baseParts.get(0);
+        Set<String> cOff = cand.officialAliasParts.get(0);
+        Set<String> cExp = cand.expandedParts.get(0);
+
+        for (String tok : tExp) {
+            if (!cExp.contains(tok)) continue;
+            if (tOff.contains(tok) || cOff.contains(tok)) return true;
+            if (tBase.contains(tok) && cBase.contains(tok)
+                    && (target.hasProviderId[0] || cand.hasProviderId[0])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Exact order-independent count of 1-to-1 bijections in an m x n boolean matrix, capped at {@code limit}. */
+    private static int countBijections(boolean[][] matrix, int m, int n, int limit) {
+        if (m == 0 || m != n) return 0;
+        return countInjectionsRows(matrix, m, n, 0, new boolean[n], limit);
+    }
+
+    /** Exact order-independent check for a unique injection from the smaller credit into the larger credit. */
+    private static boolean hasUniqueSubsetInjection(boolean[][] matrix, int m, int n) {
+        if (m == 0 || n == 0) return false;
+        if (m <= n) {
+            return countInjectionsRows(matrix, m, n, 0, new boolean[n], 2) == 1;
+        }
+        boolean[][] transposed = new boolean[n][m];
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j < n; j++) transposed[j][i] = matrix[i][j];
+        }
+        return countInjectionsRows(transposed, n, m, 0, new boolean[m], 2) == 1;
+    }
+
+    private static int countInjectionsRows(boolean[][] matrix, int rows, int cols,
+                                           int row, boolean[] usedCol, int limit) {
+        if (row == rows) return 1;
+        int found = 0;
+        for (int c = 0; c < cols; c++) {
+            if (usedCol[c] || !matrix[row][c]) continue;
+            usedCol[c] = true;
+            found += countInjectionsRows(matrix, rows, cols, row + 1, usedCol, limit - found);
+            usedCol[c] = false;
+            if (found >= limit) return found;
+        }
+        return found;
     }
 
     private static Comparator<RankedHit> comparatorFor(Policy policy) {
         return (a, b) -> {
-            // 1. Rule A before Rule B.
             int byRule = Integer.compare(ruleRank(a.rule), ruleRank(b.rule));
             if (byRule != 0) return byRule;
-            // 2. Under WRITE, full member coverage outranks partial lead-only coverage.
             if (policy == Policy.WRITE) {
                 int byFull = Boolean.compare(b.fullMemberCoverage, a.fullMemberCoverage);
                 if (byFull != 0) return byFull;
             }
-            // 3. Same non-compilation album first.
             int byAlbum = Boolean.compare(b.sameAlbum, a.sameAlbum);
             if (byAlbum != 0) return byAlbum;
-            // 4. Ascending duration gap.
             int byGap = Long.compare(a.durationGapMs, b.durationGapMs);
             if (byGap != 0) return byGap;
-            // 5. Playback tie-breakers: full coverage -> subset -> lead match.
             int byFull = Boolean.compare(b.fullMemberCoverage, a.fullMemberCoverage);
             if (byFull != 0) return byFull;
             int bySubset = Boolean.compare(b.oneSideSubset, a.oneSideSubset);
@@ -844,23 +946,64 @@ final class TrackMatcher {
     }
 
     /**
-     * Detects structural artist-grouping conflicts across credits — e.g., single structured band
-     * {@code "A & B"} vs two-artist credit {@code "A / B"}, {@code "AC/DC"} vs {@code "AC / DC"},
-     * or {@code "AB / C"} vs {@code "A / BC"} — vetoing both Rule A and Rule B.
+     * Order-independent structural artist-grouping conflict detector — e.g. single structured band
+     * {@code "A & B"} vs split {@code "A / B"}, {@code "AC/DC"} vs {@code "AC / DC"},
+     * {@code "AB / C"} vs {@code "BC / A"} — vetoing both Rule A and Rule B, while never rejecting
+     * identical structured credits such as {@code "A & B / A / B"} vs {@code "A & B / A / B"}.
      */
     private static boolean hasGroupingConflict(ResolvedCredit left, ResolvedCredit right) {
-        if (left.size() != right.size() || !simpleMemberBijection(left, right)) {
-            String leftConcat = concatBaseNames(left);
-            String rightConcat = concatBaseNames(right);
-            if (!leftConcat.isEmpty() && leftConcat.equals(rightConcat)
-                    && (left.size() > 1 || right.size() > 1)) {
-                return true;
+        // 1. Exact 1-to-1 member correspondence (same member count) is never a grouping conflict.
+        if (left.size() == right.size() && hasExactNameOrAliasBijection(left, right)) {
+            return false;
+        }
+
+        // 2. Pair off identical normalized base members 1-to-1 so shared members (e.g. "A & B / Guest" vs
+        //    "A / B / Guest", or identical members in larger credits) do not interfere.
+        List<String> leftBases = baseNormalizedList(left);
+        List<String> rightBases = baseNormalizedList(right);
+        boolean[] usedLeft = new boolean[leftBases.size()];
+        boolean[] usedRight = new boolean[rightBases.size()];
+        for (int i = 0; i < leftBases.size(); i++) {
+            String lb = leftBases.get(i);
+            if (lb.isEmpty()) continue;
+            for (int j = 0; j < rightBases.size(); j++) {
+                if (!usedRight[j] && lb.equals(rightBases.get(j))) {
+                    usedLeft[i] = true;
+                    usedRight[j] = true;
+                    break;
+                }
             }
         }
-        return splitsIntoMultipleMembers(left, right) || splitsIntoMultipleMembers(right, left);
+
+        List<String> leftRem = new ArrayList<>();
+        List<Integer> leftRemIdx = new ArrayList<>();
+        for (int i = 0; i < leftBases.size(); i++) {
+            if (!usedLeft[i] && !leftBases.get(i).isEmpty()) {
+                leftRem.add(leftBases.get(i));
+                leftRemIdx.add(i);
+            }
+        }
+        List<String> rightRem = new ArrayList<>();
+        List<Integer> rightRemIdx = new ArrayList<>();
+        for (int j = 0; j < rightBases.size(); j++) {
+            if (!usedRight[j] && !rightBases.get(j).isEmpty()) {
+                rightRem.add(rightBases.get(j));
+                rightRemIdx.add(j);
+            }
+        }
+        if (leftRem.isEmpty() || rightRem.isEmpty()) return false;
+
+        // 3. Order-independent exact string re-partition check (catches AB/C vs BC/A, AC/DC vs DC/AC, A&B vs B/A).
+        if ((leftRem.size() > 1 || rightRem.size() > 1) && canRepartitionSameString(leftRem, rightRem)) {
+            return true;
+        }
+
+        // 4. Single remaining member splitting via internal separator into >=2 distinct remaining members on the other side.
+        return splitsIntoRemainingMembers(left, leftRemIdx, right, rightRemIdx)
+                || splitsIntoRemainingMembers(right, rightRemIdx, left, leftRemIdx);
     }
 
-    private static boolean simpleMemberBijection(ResolvedCredit left, ResolvedCredit right) {
+    private static boolean hasExactNameOrAliasBijection(ResolvedCredit left, ResolvedCredit right) {
         int m = left.size();
         if (m != right.size()) return false;
         boolean[][] pair = new boolean[m][m];
@@ -869,32 +1012,91 @@ final class TrackMatcher {
                 pair[i][j] = !Collections.disjoint(left.expandedParts.get(i), right.expandedParts.get(j));
             }
         }
-        return hasUniqueBijection(pair, m, m);
+        return countBijections(pair, m, m, 1) >= 1;
     }
 
-    private static String concatBaseNames(ResolvedCredit credit) {
-        StringBuilder sb = new StringBuilder();
+    private static List<String> baseNormalizedList(ResolvedCredit credit) {
+        List<String> list = new ArrayList<>(credit.rawMemberNames.size());
         for (String raw : credit.rawMemberNames) {
             String base = stripBrackets(raw);
-            String norm = MatchText.normalizeArtistToken(base.isEmpty() ? raw : base);
-            if (norm.isEmpty()) return "";
-            sb.append(norm);
+            list.add(MatchText.normalizeArtistToken(base.isEmpty() ? raw : base));
         }
-        return sb.toString();
+        return list;
     }
 
-    private static boolean splitsIntoMultipleMembers(ResolvedCredit source, ResolvedCredit other) {
-        if (other.size() < 2) return false;
-        for (String raw : source.rawMemberNames) {
+    private static boolean canRepartitionSameString(List<String> left, List<String> right) {
+        if (left.size() > 6 || right.size() > 6) return false;
+        int leftLen = 0, rightLen = 0;
+        StringBuilder lAll = new StringBuilder();
+        StringBuilder rAll = new StringBuilder();
+        for (String s : left) { leftLen += s.length(); lAll.append(s); }
+        for (String s : right) { rightLen += s.length(); rAll.append(s); }
+        if (leftLen == 0 || leftLen != rightLen) return false;
+        char[] lChars = lAll.toString().toCharArray();
+        char[] rChars = rAll.toString().toCharArray();
+        Arrays.sort(lChars);
+        Arrays.sort(rChars);
+        if (!Arrays.equals(lChars, rChars)) return false;
+        return repartitionDfs(left, right, 0, 0, "", "");
+    }
+
+    private static boolean repartitionDfs(List<String> left, List<String> right,
+                                          int usedLeft, int usedRight, String remLeft, String remRight) {
+        int fullLeft = (1 << left.size()) - 1;
+        int fullRight = (1 << right.size()) - 1;
+        if (usedLeft == fullLeft && usedRight == fullRight && remLeft.isEmpty() && remRight.isEmpty()) {
+            return true;
+        }
+        if (remLeft.isEmpty()) {
+            for (int i = 0; i < left.size(); i++) {
+                if ((usedLeft & (1 << i)) != 0) continue;
+                String s = left.get(i);
+                if (remRight.isEmpty()) {
+                    if (repartitionDfs(left, right, usedLeft | (1 << i), usedRight, s, "")) return true;
+                } else if (s.startsWith(remRight)) {
+                    if (repartitionDfs(left, right, usedLeft | (1 << i), usedRight,
+                            s.substring(remRight.length()), "")) return true;
+                } else if (remRight.startsWith(s)) {
+                    if (repartitionDfs(left, right, usedLeft | (1 << i), usedRight,
+                            "", remRight.substring(s.length()))) return true;
+                }
+            }
+            return false;
+        }
+        for (int j = 0; j < right.size(); j++) {
+            if ((usedRight & (1 << j)) != 0) continue;
+            String s = right.get(j);
+            if (remLeft.startsWith(s)) {
+                if (repartitionDfs(left, right, usedLeft, usedRight | (1 << j),
+                        remLeft.substring(s.length()), "")) return true;
+            } else if (s.startsWith(remLeft)) {
+                if (repartitionDfs(left, right, usedLeft, usedRight | (1 << j),
+                        "", s.substring(remLeft.length()))) return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean splitsIntoRemainingMembers(ResolvedCredit source, List<Integer> sourceIndices,
+                                                      ResolvedCredit other, List<Integer> otherIndices) {
+        if (otherIndices.size() < 2) return false;
+        for (int srcIdx : sourceIndices) {
+            String raw = source.rawMemberNames.get(srcIdx);
             String base = stripBrackets(raw);
-            List<Set<String>> subParts = MatchText.artistParts(base.isEmpty() ? raw : base);
+            String targetStr = MatchText.fold(base.isEmpty() ? raw : base);
+            List<Set<String>> subParts = new ArrayList<>();
+            for (String piece : MatchRules.GROUP_SUB_SEPARATOR.split(targetStr)) {
+                Set<String> atoms = MatchText.memberAtomNames(piece);
+                if (!atoms.isEmpty()) subParts.add(atoms);
+            }
             if (subParts.size() < 2) continue;
-            boolean[] matchedOther = new boolean[other.size()];
+            boolean[] matched = new boolean[otherIndices.size()];
             int distinctMatched = 0;
             for (Set<String> sub : subParts) {
-                for (int j = 0; j < other.size(); j++) {
-                    if (!matchedOther[j] && !Collections.disjoint(sub, other.visibleParts.get(j))) {
-                        matchedOther[j] = true;
+                for (int k = 0; k < otherIndices.size(); k++) {
+                    int otherIdx = otherIndices.get(k);
+                    if (!matched[k] && !Collections.disjoint(sub, other.visibleParts.get(otherIdx))) {
+                        matched[k] = true;
                         distinctMatched++;
                         break;
                     }
@@ -913,47 +1115,67 @@ final class TrackMatcher {
         if (visibleParts.isEmpty()) return null;
 
         if (members != null && !members.isEmpty() && isCompleteConsistentMembers(artist, members)) {
-            List<String> rawNames = new ArrayList<>(members.size());
-            List<Set<String>> atomVisible = new ArrayList<>(members.size());
-            List<Set<String>> atomExpanded = new ArrayList<>(members.size());
-            boolean[] hasOfficial = new boolean[members.size()];
-            List<String> identity = new ArrayList<>(members.size());
-            for (int i = 0; i < members.size(); i++) {
+            int count = members.size();
+            List<String> rawNames = new ArrayList<>(count);
+            List<Set<String>> atomBase = new ArrayList<>(count);
+            List<Set<String>> atomVisible = new ArrayList<>(count);
+            List<Set<String>> atomOfficial = new ArrayList<>(count);
+            List<Set<String>> atomExpanded = new ArrayList<>(count);
+            boolean[] hasProviderId = new boolean[count];
+            List<String> identity = new ArrayList<>(count);
+
+            for (int i = 0; i < count; i++) {
                 ArtistAliases.Member member = members.get(i);
                 rawNames.add(member.name);
+                Set<String> base = baseAtomSet(member.name);
                 Set<String> visible = MatchText.memberAtomNames(member.name);
+                Set<String> official = new LinkedHashSet<>();
                 Set<String> expanded = new LinkedHashSet<>(visible);
                 for (String alias : member.aliases) {
                     for (String token : MatchText.memberAtomNames(alias)) {
-                        if (expanded.add(token)) hasOfficial[i] = true;
+                        official.add(token);
+                        expanded.add(token);
                     }
                 }
+                atomBase.add(base);
                 atomVisible.add(visible);
+                atomOfficial.add(official);
                 atomExpanded.add(expanded);
+                hasProviderId[i] = !member.providerId.isEmpty();
                 identity.add(member.providerId.isEmpty()
                         ? "name:" + MatchText.foldCompact(member.name)
                         : "id:" + member.providerId);
             }
-            if (members.size() == 1 && flatAliases != null) {
-                Set<String> targetSet = atomExpanded.get(0);
+            if (count == 1 && flatAliases != null) {
+                Set<String> off0 = atomOfficial.get(0);
+                Set<String> exp0 = atomExpanded.get(0);
                 for (String alias : flatAliases) {
                     String cleanAlias = cleanAliasToken(alias);
                     if (cleanAlias.isEmpty() || !isSingleArtistCredit(cleanAlias)) continue;
                     for (String token : MatchText.memberAtomNames(cleanAlias)) {
-                        if (targetSet.add(token)) hasOfficial[0] = true;
+                        off0.add(token);
+                        exp0.add(token);
                     }
                 }
             }
             Collections.sort(identity);
-            return new ResolvedCredit(rawNames, atomVisible, atomExpanded, hasOfficial,
-                    Collections.unmodifiableList(identity));
+            return new ResolvedCredit(rawNames, atomBase, atomVisible, atomOfficial, atomExpanded,
+                    hasProviderId, Collections.unmodifiableList(identity));
         }
 
         List<String> rawParts = MatchText.artistRawParts(artist);
-        List<Set<String>> expanded = new ArrayList<>(visibleParts.size());
-        for (Set<String> part : visibleParts) expanded.add(new LinkedHashSet<>(part));
-        boolean[] hasOfficial = new boolean[visibleParts.size()];
-        String[] mappedProviderIds = new String[visibleParts.size()];
+        int count = visibleParts.size();
+        List<Set<String>> baseList = new ArrayList<>(count);
+        List<Set<String>> officialList = new ArrayList<>(count);
+        List<Set<String>> expanded = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            String raw = i < rawParts.size() ? rawParts.get(i) : "";
+            baseList.add(baseAtomSet(raw));
+            officialList.add(new LinkedHashSet<>());
+            expanded.add(new LinkedHashSet<>(visibleParts.get(i)));
+        }
+        boolean[] hasProviderId = new boolean[count];
+        String[] mappedProviderIds = new String[count];
 
         if (members != null && !members.isEmpty()) {
             int[] mapped = mapConsistentMembers(visibleParts, members);
@@ -962,31 +1184,38 @@ final class TrackMatcher {
                     int visibleIndex = mapped[i];
                     if (visibleIndex < 0) continue;
                     ArtistAliases.Member member = members.get(i);
-                    if (!member.providerId.isEmpty()) mappedProviderIds[visibleIndex] = member.providerId;
-                    Set<String> targetSet = expanded.get(visibleIndex);
+                    if (!member.providerId.isEmpty()) {
+                        mappedProviderIds[visibleIndex] = member.providerId;
+                        hasProviderId[visibleIndex] = true;
+                    }
+                    Set<String> offSet = officialList.get(visibleIndex);
+                    Set<String> expSet = expanded.get(visibleIndex);
                     for (String alias : member.aliases) {
                         for (String token : MatchText.memberAtomNames(alias)) {
-                            if (targetSet.add(token)) hasOfficial[visibleIndex] = true;
+                            offSet.add(token);
+                            expSet.add(token);
                         }
                     }
                 }
             }
         }
 
-        if (visibleParts.size() == 1 && isSingleArtistCredit(artist) && flatAliases != null) {
-            Set<String> targetSet = expanded.get(0);
+        if (count == 1 && isSingleArtistCredit(artist) && flatAliases != null) {
+            Set<String> off0 = officialList.get(0);
+            Set<String> exp0 = expanded.get(0);
             for (String alias : flatAliases) {
                 String cleanAlias = cleanAliasToken(alias);
                 if (cleanAlias.isEmpty() || !isSingleArtistCredit(cleanAlias)) continue;
                 for (String token : MatchText.memberAtomNames(cleanAlias)) {
-                    if (targetSet.add(token)) hasOfficial[0] = true;
+                    off0.add(token);
+                    exp0.add(token);
                 }
             }
         }
 
-        List<String> rawNames = new ArrayList<>(visibleParts.size());
-        List<String> identity = new ArrayList<>(visibleParts.size());
-        for (int i = 0; i < visibleParts.size(); i++) {
+        List<String> rawNames = new ArrayList<>(count);
+        List<String> identity = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
             String raw = i < rawParts.size() ? rawParts.get(i) : "";
             rawNames.add(raw);
             String pid = mappedProviderIds[i];
@@ -995,8 +1224,17 @@ final class TrackMatcher {
                     : "name:" + MatchText.foldCompact(raw));
         }
         Collections.sort(identity);
-        return new ResolvedCredit(rawNames, visibleParts, expanded, hasOfficial,
-                Collections.unmodifiableList(identity));
+        return new ResolvedCredit(rawNames, baseList, visibleParts, officialList, expanded,
+                hasProviderId, Collections.unmodifiableList(identity));
+    }
+
+    private static Set<String> baseAtomSet(String memberName) {
+        Set<String> out = new LinkedHashSet<>();
+        if (memberName == null) return out;
+        String base = stripBrackets(MatchText.fold(memberName));
+        String token = MatchText.normalizeArtistToken(base);
+        if (!token.isEmpty()) out.add(token);
+        return out;
     }
 
     private static boolean isCompleteConsistentMembers(String artist, List<ArtistAliases.Member> members) {
@@ -1041,10 +1279,11 @@ final class TrackMatcher {
     private static boolean hasSameScriptConflict(Set<String> visibleNames, Set<String> expectedFromOther) {
         for (String known : visibleNames) {
             if (!expectedFromOther.contains(known)) continue;
-            int knownScripts = scripts(known);
-            if (knownScripts == 0) continue;
+            Set<Character.UnicodeScript> knownScripts = scriptsOf(known);
+            if (knownScripts.isEmpty()) continue;
             for (String other : visibleNames) {
-                if (!expectedFromOther.contains(other) && (knownScripts & scripts(other)) != 0) {
+                if (!expectedFromOther.contains(other)
+                        && !Collections.disjoint(knownScripts, scriptsOf(other))) {
                     return true;
                 }
             }
@@ -1052,20 +1291,27 @@ final class TrackMatcher {
         return false;
     }
 
-    private static int scripts(String text) {
-        if (text == null || text.isEmpty() || text.charAt(0) == '\u0000') return 0;
-        int mask = 0;
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            Character.UnicodeScript script = Character.UnicodeScript.of(c);
-            if (script == Character.UnicodeScript.LATIN) mask |= 1;
-            else if (script == Character.UnicodeScript.HAN) mask |= 2;
-            else if (script == Character.UnicodeScript.HIRAGANA
-                    || script == Character.UnicodeScript.KATAKANA) mask |= 4;
-            else if (script == Character.UnicodeScript.HANGUL) mask |= 8;
+    /** Returns all non-common/non-inherited Unicode scripts present in {@code text} (Kana masks Han). */
+    private static Set<Character.UnicodeScript> scriptsOf(String text) {
+        if (text == null || text.isEmpty() || text.charAt(0) == '\u0000') {
+            return Collections.emptySet();
         }
-        // Kana distinguishes Japanese from Chinese even where both contain Han.
-        return (mask & 4) != 0 ? (mask & ~2) : mask;
+        EnumSet<Character.UnicodeScript> scripts = EnumSet.noneOf(Character.UnicodeScript.class);
+        for (int i = 0; i < text.length(); ) {
+            int cp = text.codePointAt(i);
+            i += Character.charCount(cp);
+            Character.UnicodeScript script = Character.UnicodeScript.of(cp);
+            if (script != Character.UnicodeScript.COMMON
+                    && script != Character.UnicodeScript.INHERITED
+                    && script != Character.UnicodeScript.UNKNOWN) {
+                scripts.add(script);
+            }
+        }
+        if (scripts.contains(Character.UnicodeScript.HIRAGANA)
+                || scripts.contains(Character.UnicodeScript.KATAKANA)) {
+            scripts.remove(Character.UnicodeScript.HAN);
+        }
+        return scripts;
     }
 
     private static boolean isSingleArtistCredit(String value) {
@@ -1133,7 +1379,7 @@ final class TrackMatcher {
         return base == null || base.isEmpty() ? extra : base + ";" + extra;
     }
 
-    private static void emitTrace(MatchTrace trace, Track target, MatchText.TitleInfo targetTitle,
+    private static void emitTrace(MatchTrace trace, MatchText.TitleInfo targetTitle,
                                   String round, List<Eval> evals, List<RankedHit> ranked,
                                   boolean ambiguous, String ambiguousConflictId) {
         Map<String, Integer> rankPos = new LinkedHashMap<>();

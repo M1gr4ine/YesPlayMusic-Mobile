@@ -1,9 +1,10 @@
 {
   "name": "duo_ampersand_preserved",
+  "fixtureKind": "direct_replay",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "structured_duo_ampersand_preserved",
-  "description": "Real NetEase & QQ recordings of The Sound Of Silence by structured single duo Simon & Garfunkel.",
+  "description": "Unmodified real NetEase & QQ recordings of The Sound Of Silence by structured single duo Simon & Garfunkel.",
   "expandGrp": true,
   "target": {
     "id": "21598326",
@@ -649,6 +650,564 @@
           "name": "The Concert in Central Park (Live)"
         },
         "interval": 256
+      }
+    ],
+    "The Sound Of Silence": [
+      {
+        "mid": "001wolAt31aGzm",
+        "file": {
+          "media_mid": "002zcYGA1Xx8RI"
+        },
+        "title": "The Sounds of Silence",
+        "singer": [
+          {
+            "name": "Simon & Garfunkel",
+            "mid": "000HaRHO4HacNR"
+          }
+        ],
+        "album": {
+          "name": "Wednesday Morning, 3 a.M."
+        },
+        "interval": 189,
+        "grp": [
+          {
+            "mid": "003qIiiH2iL3HZ",
+            "file": {
+              "media_mid": "001AVbJT3pMv3p"
+            },
+            "title": "The Sounds of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "The Simon And Garfunkel Collection"
+            },
+            "interval": 187
+          },
+          {
+            "mid": "004CxUpA2QLmbb",
+            "file": {
+              "media_mid": "002avGM816RN4p"
+            },
+            "title": "The Sounds of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "American Anthems All Time Classics"
+            },
+            "interval": 187
+          },
+          {
+            "mid": "000qdaZm00lPOq",
+            "file": {
+              "media_mid": "000qdaZm00lPOq"
+            },
+            "title": "The Sounds of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "The Ultimate Collection"
+            },
+            "interval": 185
+          },
+          {
+            "mid": "004eUafa47ijUD",
+            "file": {
+              "media_mid": "000E4mcj2KPfzS"
+            },
+            "title": "The Sounds of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Sonar 1000 (Radio 1 BE) Volume 3"
+            },
+            "interval": 187
+          },
+          {
+            "mid": "0006G5HV4NhXVR",
+            "file": {
+              "media_mid": "00200WY33PSl40"
+            },
+            "title": "The Sounds Of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Only Playing"
+            },
+            "interval": 190
+          },
+          {
+            "mid": "003UwyiR4GoVW1",
+            "file": {
+              "media_mid": "0042pro24Z65L2"
+            },
+            "title": "The Sounds of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "The 25 Best Songs"
+            },
+            "interval": 184
+          },
+          {
+            "mid": "0047aHPG00lNvl",
+            "file": {
+              "media_mid": "0047aHPG00lNvl"
+            },
+            "title": "The Sounds Of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Greatest Hits"
+            },
+            "interval": 186
+          },
+          {
+            "mid": "001dVnlI2dpFL6",
+            "file": {
+              "media_mid": "001dVnlI2dpFL6"
+            },
+            "title": "The Sounds of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "You Make My Heart Beat Faster"
+            },
+            "interval": 186
+          },
+          {
+            "mid": "003ybLGt1qw8Qc",
+            "file": {
+              "media_mid": "003ybLGt1qw8Qc"
+            },
+            "title": "The Sounds of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Turn the Volume Up!"
+            },
+            "interval": 186
+          }
+        ]
+      },
+      {
+        "mid": "000hzYbD0kNQrx",
+        "file": {
+          "media_mid": "001Rx7a62bU85N"
+        },
+        "title": "The Sound of Silence",
+        "singer": [
+          {
+            "name": "Simon & Garfunkel",
+            "mid": "000HaRHO4HacNR"
+          }
+        ],
+        "album": {
+          "name": "Sounds Of Silence"
+        },
+        "interval": 185,
+        "grp": [
+          {
+            "mid": "001wfuQz2Nljjm",
+            "file": {
+              "media_mid": "000Rs8mx2gSVQB"
+            },
+            "title": "The Sound of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Sampler"
+            },
+            "interval": 185
+          },
+          {
+            "mid": "0002jAzb1XINCr",
+            "file": {
+              "media_mid": "003z6JMU0IyayE"
+            },
+            "title": "The Sound of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "摇滚殿堂 I"
+            },
+            "interval": 185
+          },
+          {
+            "mid": "002UDiaF2REyKT",
+            "file": {
+              "media_mid": "00273jrn4Wfmf8"
+            },
+            "title": "The Sound of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "The Essential Simon & Garfunkel"
+            },
+            "interval": 185
+          },
+          {
+            "mid": "003NCPkm4B2B4v",
+            "file": {
+              "media_mid": "000azOj02Uf3Kc"
+            },
+            "title": "The Sound of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Simon And Garfunkel's Greatest Hits"
+            },
+            "interval": 187
+          },
+          {
+            "mid": "000YBh6U0EaeId",
+            "file": {
+              "media_mid": "000Q6ctB1JUJpV"
+            },
+            "title": "The Sound of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Tales From New York - The Very Best Of Simon & Garfunkel"
+            },
+            "interval": 185
+          },
+          {
+            "mid": "001XSa8s1hM4RZ",
+            "file": {
+              "media_mid": "001yz6J13dTh6U"
+            },
+            "title": "The Sound Of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Folk Music Spectacular"
+            },
+            "interval": 192
+          },
+          {
+            "mid": "0038dURi4V7gTK",
+            "file": {
+              "media_mid": "000eHBkQ34b06Q"
+            },
+            "title": "The Sound of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Pure... Acoustic"
+            },
+            "interval": 184
+          },
+          {
+            "mid": "000MMqWj1e9KcZ",
+            "file": {
+              "media_mid": "000FMdR235XynN"
+            },
+            "title": "The Sound Of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Listen Easy - 25 All Time Favourites"
+            },
+            "interval": 192
+          },
+          {
+            "mid": "0007qWNa3hLCK5",
+            "file": {
+              "media_mid": "004AasnE2DdCsQ"
+            },
+            "title": "The Sound of Silence",
+            "singer": [
+              {
+                "name": "Simon & Garfunkel",
+                "mid": "000HaRHO4HacNR"
+              }
+            ],
+            "album": {
+              "name": "Watchmen (Music from the Motion Picture)"
+            },
+            "interval": 185
+          }
+        ]
+      },
+      {
+        "mid": "002ieHcY3cHgyt",
+        "file": {
+          "media_mid": "0028Jsmj4OT1cl"
+        },
+        "title": "The Sounds of Silence",
+        "singer": [
+          {
+            "name": "Bandari",
+            "mid": "000Tnqu44J2Ndk"
+          }
+        ],
+        "album": {
+          "name": "The Sounds Of Silence"
+        },
+        "interval": 223,
+        "grp": [
+          {
+            "mid": "004UGnfp4bAg7v",
+            "file": {
+              "media_mid": "004UGnfp4bAg7v"
+            },
+            "title": "The Sounds Of Silence",
+            "singer": [
+              {
+                "name": "Bandari"
+              }
+            ],
+            "album": {
+              "name": ""
+            },
+            "interval": 60
+          }
+        ]
+      },
+      {
+        "mid": "000dlqCF1a2LUk",
+        "file": {
+          "media_mid": "0029SYcv0FMWOU"
+        },
+        "title": "The sound of silence",
+        "singer": [
+          {
+            "name": "群星",
+            "mid": "000FzZ3q3kxTMG"
+          }
+        ],
+        "album": {
+          "name": "美国乡村民谣1"
+        },
+        "interval": 201,
+        "grp": [
+          {
+            "mid": "000teDRA1EDeCT",
+            "file": {
+              "media_mid": "000teDRA1EDeCT"
+            },
+            "title": "The Sound Of Silence",
+            "singer": [
+              {
+                "name": "群星"
+              }
+            ],
+            "album": {
+              "name": ""
+            },
+            "interval": 194
+          }
+        ]
+      },
+      {
+        "mid": "001RPrub0gRzfz",
+        "file": {
+          "media_mid": "001RPrub0gRzfz"
+        },
+        "title": "The Sound of Silence (CYRIL Remix)",
+        "singer": [
+          {
+            "name": "Disturbed",
+            "mid": "0018OQkp02z403"
+          },
+          {
+            "name": "CYRIL",
+            "mid": "003bWwze32KOpA"
+          }
+        ],
+        "album": {
+          "name": "The Sound of Silence (CYRIL Remix)"
+        },
+        "interval": 185
+      },
+      {
+        "mid": "003C8aJU4ftglm",
+        "file": {
+          "media_mid": "003nMtY82HmFgS"
+        },
+        "title": "The Sound of Silence",
+        "singer": [
+          {
+            "name": "Pentatonix",
+            "mid": "000KPvHx0PeWp5"
+          }
+        ],
+        "album": {
+          "name": "The Sound of Silence"
+        },
+        "interval": 212
+      },
+      {
+        "mid": "003RdFDa1bwq3V",
+        "file": {
+          "media_mid": "003gYSG03cTPAu"
+        },
+        "title": "寂静之声",
+        "singer": [
+          {
+            "name": "姚斯婷",
+            "mid": "002JGrhW2uAzco"
+          }
+        ],
+        "album": {
+          "name": "LOVE Ⅱ"
+        },
+        "interval": 215
+      },
+      {
+        "mid": "003mw6Ap0vhbuH",
+        "file": {
+          "media_mid": "003mw6Ap0vhbuH"
+        },
+        "title": "The Sound of Silence",
+        "singer": [
+          {
+            "name": "奶椰西米Lu",
+            "mid": "003LSex1071yoF"
+          }
+        ],
+        "album": {
+          "name": "l'm sorry"
+        },
+        "interval": 291
+      },
+      {
+        "mid": "001Lvyiu3BM46Q",
+        "file": {
+          "media_mid": "002HDBZ048vYS2"
+        },
+        "title": "The Sound of Silence",
+        "singer": [
+          {
+            "name": "贵族乐团",
+            "mid": "004DyFZH25kUcz"
+          }
+        ],
+        "album": {
+          "name": "世纪电影配乐精选"
+        },
+        "interval": 230,
+        "grp": [
+          {
+            "mid": "004VgW2j1z8ish",
+            "file": {
+              "media_mid": "002290m61eNhEK"
+            },
+            "title": "The Sound Of Silence",
+            "singer": [
+              {
+                "name": "贵族乐团",
+                "mid": "004DyFZH25kUcz"
+              }
+            ],
+            "album": {
+              "name": "天使呢喃 (吟唱美声)"
+            },
+            "interval": 232
+          },
+          {
+            "mid": "003RWPvS3RvaJv",
+            "file": {
+              "media_mid": "001CGrcS1CTFlM"
+            },
+            "title": "The Sound Of Silence",
+            "singer": [
+              {
+                "name": "贵族乐团",
+                "mid": "004DyFZH25kUcz"
+              }
+            ],
+            "album": {
+              "name": "吟游月光海"
+            },
+            "interval": 230
+          }
+        ]
+      },
+      {
+        "mid": "003Z6Hom14CKTX",
+        "file": {
+          "media_mid": "003Z6Hom14CKTX"
+        },
+        "title": "The sound ofsilence (氛围版)",
+        "singer": [
+          {
+            "name": "Suxiao",
+            "mid": "000rVMAe0v2mwr"
+          }
+        ],
+        "album": {
+          "name": "TOOCLOSE NOW（氛围版）"
+        },
+        "interval": 237
       }
     ]
   },

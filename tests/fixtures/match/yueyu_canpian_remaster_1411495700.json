@@ -1,9 +1,10 @@
 {
   "name": "yueyu_canpian_remaster_1411495700",
+  "fixtureKind": "direct_replay",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "yueyu_canpian_grp_expansion_recovers_studio_master",
-  "description": "Real recorded NetEase 1411495700 (280264ms) -> QQ 粤语残片; list[0] is 272s (8264ms gap > 5s), while list[0].grp[0] (000SX6cK3Se2WV, 276s, same album) and grp[2] (00299LKs1nNO45, 276s) pass at 4264ms gap.",
+  "description": "Unmodified real NetEase 1411495700 (280264ms) -> QQ 粤语残片; list[0] is 272s (8264ms > 5s), while list[0].grp[0] (000SX6cK3Se2WV, 276s, same album) and grp[2] (00299LKs1nNO45, 276s) pass at 4264ms.",
   "expandGrp": true,
   "target": {
     "id": "1411495700",

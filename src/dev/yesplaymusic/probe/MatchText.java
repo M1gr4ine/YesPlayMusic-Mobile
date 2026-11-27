@@ -138,13 +138,16 @@ final class MatchText {
         static final String LIVE_YEAR_CONFLICT = "<conflict>";
 
         final String mainTitle;
+        final String baseTitleNoBrackets;
         final Set<String> versionTags;
         final String versionKey;
         final String liveYear;
         final boolean hasLiveTag;
 
-        TitleInfo(String mainTitle, Set<String> versionTags, String versionKey, String liveYear) {
+        TitleInfo(String mainTitle, String baseTitleNoBrackets, Set<String> versionTags,
+                  String versionKey, String liveYear) {
             this.mainTitle = mainTitle;
+            this.baseTitleNoBrackets = baseTitleNoBrackets;
             this.versionTags = versionTags;
             this.versionKey = versionKey;
             this.liveYear = liveYear;
@@ -153,8 +156,20 @@ final class MatchText {
     }
 
     static TitleInfo analyzeTitle(String title) {
-        String text = fold(title);
-        Set<String> tags = java.util.Collections.unmodifiableSet(versionTags(title));
+        return analyzeInternal(title, true);
+    }
+
+    /**
+     * Album normalization strips ONLY confirmed interchangeable release markers (benign annotations and
+     * pure Live tags) and NEVER strips arbitrary CJK brackets such as volume/part qualifiers (e.g. 上/下).
+     */
+    static TitleInfo analyzeAlbum(String album) {
+        return analyzeInternal(album, false);
+    }
+
+    private static TitleInfo analyzeInternal(String value, boolean allowCjkTranslationStrip) {
+        String text = fold(value);
+        Set<String> tags = java.util.Collections.unmodifiableSet(versionTags(value));
         StringBuilder keyBuilder = new StringBuilder();
         for (String tag : tags) keyBuilder.append(tag).append('|');
         String vKey = keyBuilder.toString();
@@ -166,7 +181,10 @@ final class MatchText {
             String annotation = brackets.group(1).trim();
             boolean benign = MatchRules.isBenignAnnotation(annotation);
             boolean variant = annotation.endsWith(FOLDED_VARIANT_SUFFIX) && !benign;
-            boolean translation = !variant && CJK.matcher(annotation).find() && versionTags(annotation).isEmpty();
+            boolean translation = allowCjkTranslationStrip && !variant
+                    && CJK.matcher(annotation).find()
+                    && versionTags(annotation).isEmpty()
+                    && !MatchRules.NON_TRANSLATION_BRACKET.matcher(annotation).find();
             if (benign || translation) {
                 brackets.appendReplacement(result, "");
                 continue;
@@ -185,7 +203,8 @@ final class MatchText {
             brackets.appendReplacement(result, Matcher.quoteReplacement(brackets.group()));
         }
         brackets.appendTail(result);
-        return new TitleInfo(normalize(result.toString()), tags, vKey, liveYear);
+        String noBrackets = normalize(MatchRules.BRACKET.matcher(text).replaceAll(" "));
+        return new TitleInfo(normalize(result.toString()), noBrackets, tags, vKey, liveYear);
     }
 
     static boolean isLiveAlbum(String album) {
@@ -193,10 +212,15 @@ final class MatchText {
         return MatchRules.LIVE_ALBUM_MARKER.matcher(fold(album)).find();
     }
 
+    static boolean knownAlbum(String album) {
+        String value = normalize(album);
+        return !value.isEmpty() && !FOLDED_UNKNOWN_ARTIST_TOKENS.contains(value);
+    }
+
     static boolean sameAlbumTitle(String leftAlbum, String rightAlbum) {
-        if (!knownArtist(leftAlbum) || !knownArtist(rightAlbum)) return false;
-        TitleInfo left = analyzeTitle(leftAlbum);
-        TitleInfo right = analyzeTitle(rightAlbum);
+        if (!knownAlbum(leftAlbum) || !knownAlbum(rightAlbum)) return false;
+        TitleInfo left = analyzeAlbum(leftAlbum);
+        TitleInfo right = analyzeAlbum(rightAlbum);
         if (left.mainTitle.isEmpty() || right.mainTitle.isEmpty()) return false;
         if (TitleInfo.LIVE_YEAR_CONFLICT.equals(left.liveYear) || TitleInfo.LIVE_YEAR_CONFLICT.equals(right.liveYear)) {
             return false;
@@ -301,8 +325,8 @@ final class MatchText {
 
     static boolean knownArtist(String credit) {
         String value = normalize(credit);
-        if (!value.isEmpty()) {
-            return !FOLDED_UNKNOWN_ARTIST_TOKENS.contains(value);
+        if (!value.isEmpty() && FOLDED_UNKNOWN_ARTIST_TOKENS.contains(value)) {
+            return false;
         }
         return !artistParts(credit).isEmpty();
     }

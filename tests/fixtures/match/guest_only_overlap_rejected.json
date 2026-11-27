@@ -1,9 +1,10 @@
 {
   "name": "guest_only_overlap_rejected",
+  "fixtureKind": "synthetic_variant",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "rule_a4_guest_only_overlap_rejected",
-  "description": "Candidate credited only to guest member Rihanna on same album cannot match Kanye West / Rihanna (A4 rejects without Rule B fallback).",
+  "description": "Synthetic guest-only credit on real Famous item: Rihanna solo on same album cannot match Kanye West / Rihanna (A4 rejects without Rule B fallback).",
   "expandGrp": false,
   "target": {
     "id": "409736434",
@@ -68,8 +69,13 @@
         },
         "interval": 30
       }
-    ]
+    ],
+    "Famous Kanye West": [],
+    "Famous ye 蕾哈娜": [],
+    "Famous ye": [],
+    "Famous": []
   },
   "expect": "reject",
-  "expectRule": "NONE"
+  "expectRule": "NONE",
+  "expectGate": "ARTIST"
 }

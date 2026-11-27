@@ -1,9 +1,10 @@
 {
   "name": "band_acdc_vs_split_rejected",
+  "fixtureKind": "synthetic_variant",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "grouping_conflict_acdc_vs_split_veto",
-  "description": "Structured single band AC/DC must not match split two-artist AC / DC even on same album (vetoes both A and B).",
+  "description": "Synthetic credit split on real QQ item: single band AC/DC must not match AC / DC even on same album (vetoes A and B).",
   "expandGrp": false,
   "target": {
     "id": "3880691",
@@ -43,8 +44,33 @@
         },
         "interval": 255
       }
-    ]
+    ],
+    "Back In Black AC DC": [
+      {
+        "mid": "001KtqEb0jd0hf",
+        "file": {
+          "media_mid": "002SnUBN20WZok"
+        },
+        "title": "Back In Black",
+        "singer": [
+          {
+            "name": "AC",
+            "mid": "a1"
+          },
+          {
+            "name": "DC",
+            "mid": "a2"
+          }
+        ],
+        "album": {
+          "name": "Back In Black"
+        },
+        "interval": 255
+      }
+    ],
+    "Back In Black": []
   },
   "expect": "reject",
-  "expectRule": "NONE"
+  "expectRule": "NONE",
+  "expectGate": "VETO"
 }

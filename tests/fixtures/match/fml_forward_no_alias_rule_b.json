@@ -1,9 +1,10 @@
 {
   "name": "fml_forward_no_alias_rule_b",
+  "fixtureKind": "direct_replay",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "rule_b_disjoint_same_album_unique",
-  "description": "Real recorded QQ search for FML Kanye West The Weeknd when alias metadata is absent; 0005toRJ3QqtAx is the unique hard-gate passer on same non-compilation album The Life Of Pablo (Rule B under A2 & A6).",
+  "description": "Unmodified real 3-stage QQ search for FML without alias metadata; without grp[] 0005toRJ3QqtAx is unique (Rule B), while with grp[] Explicit+Clean (distinct album IDs & media_mids) strictly fail single-ID Rule B.",
   "expandGrp": false,
   "target": {
     "id": "409736441",
@@ -298,23 +299,6 @@
     ],
     "FML Kanye West": [
       {
-        "mid": "001XQWbl4CZcX9",
-        "file": {
-          "media_mid": "002ETMtG3mm528"
-        },
-        "title": "손오공 (Super) (孙悟空)",
-        "singer": [
-          {
-            "name": "SEVENTEEN",
-            "mid": "00039PXm1tClwo"
-          }
-        ],
-        "album": {
-          "name": "SEVENTEEN 10th Mini Album 'FML'"
-        },
-        "interval": 200
-      },
-      {
         "mid": "0005toRJ3QqtAx",
         "file": {
           "media_mid": "003mHViD1MfUDY"
@@ -351,42 +335,6 @@
         ]
       },
       {
-        "mid": "002E5gdV4dJxNG",
-        "file": {
-          "media_mid": "0048xXgS2lVzwD"
-        },
-        "title": "F*ck My Life",
-        "singer": [
-          {
-            "name": "SEVENTEEN",
-            "mid": "00039PXm1tClwo"
-          }
-        ],
-        "album": {
-          "name": "SEVENTEEN 10th Mini Album 'FML'"
-        },
-        "interval": 202
-      },
-      {
-        "mid": "002hxjzz3pnC6i",
-        "file": {
-          "media_mid": "002hxjzz3pnC6i"
-        },
-        "title": "FML (伴奏)",
-        "singer": [
-          {
-            "name": "Kanye West"
-          },
-          {
-            "name": "The Weeknd"
-          }
-        ],
-        "album": {
-          "name": ""
-        },
-        "interval": 18
-      },
-      {
         "mid": "003HGm5Q1r7gxp",
         "file": {
           "media_mid": "003HGm5Q1r7gxp"
@@ -406,197 +354,389 @@
         "interval": 270
       },
       {
-        "mid": "0000GsCt0AUEN7",
+        "mid": "002w6TZZ1GawAL",
         "file": {
-          "media_mid": "004T4iWt2hvOxo"
+          "media_mid": "00289foJ3mBbzS"
         },
-        "title": "I Don't Understand But I Luv U",
+        "title": "Never See Me Again",
         "singer": [
           {
-            "name": "SEVENTEEN",
-            "mid": "00039PXm1tClwo"
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
           }
         ],
         "album": {
-          "name": "SEVENTEEN 10th Mini Album 'FML'"
+          "name": "Eyes Closed"
         },
-        "interval": 209
-      },
-      {
-        "mid": "003dCWqs1gmMfc",
-        "file": {
-          "media_mid": "000FvZrS4YpBbN"
-        },
-        "title": "April shower",
-        "singer": [
-          {
-            "name": "SEVENTEEN",
-            "mid": "00039PXm1tClwo"
-          }
-        ],
-        "album": {
-          "name": "SEVENTEEN 10th Mini Album 'FML'"
-        },
-        "interval": 212
-      },
-      {
-        "mid": "001Na8350PSsvQ",
-        "file": {
-          "media_mid": "001Na8350PSsvQ"
-        },
-        "title": "태어나 (FML (F**k My Life))",
-        "singer": [
-          {
-            "name": "NO:EL",
-            "mid": "003PDjQF2DxbLp"
-          }
-        ],
-        "album": {
-          "name": "TRIPONOEL"
-        },
-        "interval": 207
-      },
-      {
-        "mid": "002iFll70kx1Hp",
-        "file": {
-          "media_mid": "001iue0245yOZB"
-        },
-        "title": "Fire",
-        "singer": [
-          {
-            "name": "SEVENTEEN",
-            "mid": "00039PXm1tClwo"
-          }
-        ],
-        "album": {
-          "name": "SEVENTEEN 10th Mini Album 'FML'"
-        },
-        "interval": 158
-      },
-      {
-        "mid": "001N7U8Y1TBesh",
-        "file": {
-          "media_mid": "00485I6s4g3Th8"
-        },
-        "title": "FML (Explicit)",
-        "singer": [
-          {
-            "name": "Arizona Zervas",
-            "mid": "000HCKZU0bf2wb"
-          }
-        ],
-        "album": {
-          "name": "Living Facts (Explicit)"
-        },
-        "interval": 223,
+        "interval": 506,
         "grp": [
           {
-            "mid": "000CkVd118azbF",
+            "mid": "0015Mkcn0K4X7y",
             "file": {
-              "media_mid": "000CkVd118azbF"
+              "media_mid": "0015Mkcn0K4X7y"
             },
-            "title": "FML (Explicit)",
+            "title": "Never See Me Again",
             "singer": [
               {
-                "name": "Arizona Zervas",
-                "mid": "000HCKZU0bf2wb"
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
               }
             ],
             "album": {
-              "name": "Beachside Summer Hits (Explicit)"
+              "name": ""
             },
-            "interval": 222
+            "interval": 537
+          }
+        ]
+      },
+      {
+        "mid": "000TXUt30QgnXv",
+        "file": {
+          "media_mid": "002wUHXe0H8toL"
+        },
+        "title": "Pretty Girl Rock",
+        "singer": [
+          {
+            "name": "Keri Hilson",
+            "mid": "002sVref33sO57"
           },
           {
-            "mid": "000GVZpY0HeW4m",
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "No Boys Allowed"
+        },
+        "interval": 256,
+        "grp": [
+          {
+            "mid": "002MQfid0yA5az",
             "file": {
-              "media_mid": "000GVZpY0HeW4m"
+              "media_mid": "000YRAr818sKQC"
             },
-            "title": "FML (Explicit)",
+            "title": "Pretty Girl Rock",
             "singer": [
               {
-                "name": "Arizona Zervas",
-                "mid": "000HCKZU0bf2wb"
+                "name": "Keri Hilson",
+                "mid": "002sVref33sO57"
+              },
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
               }
             ],
             "album": {
-              "name": "Melhores Músicas Internacionais 2022 (Explicit)"
+              "name": "Pretty Girl Rock"
             },
-            "interval": 223
+            "interval": 256
+          }
+        ]
+      },
+      {
+        "mid": "0009Yt6i4ewzgT",
+        "file": {
+          "media_mid": "002VAD3H4AZ5cx"
+        },
+        "title": "Bound 2 (Album Version|Explicit)",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "Yeezus (Explicit)"
+        },
+        "interval": 229
+      },
+      {
+        "mid": "002tDDTz3LLzgs",
+        "file": {
+          "media_mid": "00263ssr4cv3eD"
+        },
+        "title": "Only One",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
           },
           {
-            "mid": "002OHfuF3C0cyU",
-            "file": {
-              "media_mid": "002OHfuF3C0cyU"
-            },
-            "title": "FML (Explicit)",
-            "singer": [
-              {
-                "name": "Arizona Zervas",
-                "mid": "000HCKZU0bf2wb"
-              }
-            ],
-            "album": {
-              "name": "Pop Internacional 2022 (Explicit)"
-            },
-            "interval": 222
+            "name": "Paul McCartney",
+            "mid": "000gBzCP1pH9wn"
+          }
+        ],
+        "album": {
+          "name": "Only One"
+        },
+        "interval": 280
+      },
+      {
+        "mid": "002MiAiE2a3xvT",
+        "file": {
+          "media_mid": "000IKZqw0cB59r"
+        },
+        "title": "Flashing Lights (Explicit)",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
           },
           {
-            "mid": "001V37QL2w4sYJ",
+            "name": "Dwele",
+            "mid": "003NdW8Y4VrJKP"
+          }
+        ],
+        "album": {
+          "name": "Flashing Lights (Explicit)"
+        },
+        "interval": 237,
+        "grp": [
+          {
+            "mid": "000oLmnA1JFHgi",
             "file": {
-              "media_mid": "001V37QL2w4sYJ"
+              "media_mid": "002BfSrr4blNAs"
             },
-            "title": "FML (Explicit)",
+            "title": "Flashing Lights (Explicit)",
             "singer": [
               {
-                "name": "Arizona Zervas",
-                "mid": "000HCKZU0bf2wb"
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              },
+              {
+                "name": "Dwele",
+                "mid": "003NdW8Y4VrJKP"
               }
             ],
             "album": {
-              "name": "Internacionais Mais Tocadas (Explicit)"
+              "name": "Graduation (Explicit)"
             },
-            "interval": 222
+            "interval": 237
           },
           {
-            "mid": "001DQObR3MiSa1",
+            "mid": "001zykSs3mH6ty",
             "file": {
-              "media_mid": "001DQObR3MiSa1"
+              "media_mid": "003KLDXV1YZHXi"
             },
-            "title": "FML",
+            "title": "Flashing Lights (Explicit)",
             "singer": [
               {
-                "name": "Arizona Zervas",
-                "mid": "000HCKZU0bf2wb"
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              },
+              {
+                "name": "Dwele",
+                "mid": "003NdW8Y4VrJKP"
               }
             ],
             "album": {
-              "name": "FML"
+              "name": "Love Lockdown"
             },
-            "interval": 225
+            "interval": 237
+          },
+          {
+            "mid": "0043Ovn50BH4xf",
+            "file": {
+              "media_mid": "0035TSQ00iUJh5"
+            },
+            "title": "Flashing Lights (Explicit)",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              },
+              {
+                "name": "Dwele",
+                "mid": "003NdW8Y4VrJKP"
+              }
+            ],
+            "album": {
+              "name": "Ultimate R&B 2008 (Double Album) [Explicit]"
+            },
+            "interval": 238
+          },
+          {
+            "mid": "002M7Yce3QXGi8",
+            "file": {
+              "media_mid": "002wZjgU4cR8Iw"
+            },
+            "title": "Flashing Lights (Explicit)",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              },
+              {
+                "name": "Dwele",
+                "mid": "003NdW8Y4VrJKP"
+              }
+            ],
+            "album": {
+              "name": "Hip Hop: The Collection 2008 (Explicit)"
+            },
+            "interval": 239
+          },
+          {
+            "mid": "002Uv9kG2uqoRp",
+            "file": {
+              "media_mid": "004L6EDn40mEM9"
+            },
+            "title": "Flashing Lights (Explicit)",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              },
+              {
+                "name": "Dwele",
+                "mid": "003NdW8Y4VrJKP"
+              }
+            ],
+            "album": {
+              "name": "Discover More Hip Hop (Explicit)"
+            },
+            "interval": 237
+          }
+        ]
+      },
+      {
+        "mid": "0028lHKV21AMgm",
+        "file": {
+          "media_mid": "003KPM2o3SzJcI"
+        },
+        "title": "Runaway (Explicit)",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          },
+          {
+            "name": "Pusha T",
+            "mid": "000CRP8P3ZqdRY"
+          }
+        ],
+        "album": {
+          "name": "My Beautiful Dark Twisted Fantasy (Explicit)"
+        },
+        "interval": 547
+      },
+      {
+        "mid": "003aJR0r2DaRcy",
+        "file": {
+          "media_mid": "000K05zl0op0x3"
+        },
+        "title": "True Love",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          },
+          {
+            "name": "XXXTentacion",
+            "mid": "002WkGNh0d2VHn"
+          }
+        ],
+        "album": {
+          "name": "True Love"
+        },
+        "interval": 148,
+        "grp": [
+          {
+            "mid": "000ehcIA0cUHNy",
+            "file": {
+              "media_mid": "003CSiSb3mSow7"
+            },
+            "title": "True Love",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              },
+              {
+                "name": "XXXTentacion",
+                "mid": "002WkGNh0d2VHn"
+              }
+            ],
+            "album": {
+              "name": "LOOK AT ME: THE ALBUM (Explicit)"
+            },
+            "interval": 148
+          }
+        ]
+      },
+      {
+        "mid": "000BCMwt0GlZhk",
+        "file": {
+          "media_mid": "002HluiA0kBXDR"
+        },
+        "title": "POWER",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "Power"
+        },
+        "interval": 292,
+        "grp": [
+          {
+            "mid": "000B3efA10jNoi",
+            "file": {
+              "media_mid": "003hm7MX3J0hqx"
+            },
+            "title": "POWER (Explicit)",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": "My Beautiful Dark Twisted Fantasy (Explicit)"
+            },
+            "interval": 292
+          },
+          {
+            "mid": "000pBdfc3IDHCU",
+            "file": {
+              "media_mid": "002nJsj81Gmaas"
+            },
+            "title": "POWER (Explicit)",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": "The Bling Ring: Original Motion Picture Soundtrack (Explicit)"
+            },
+            "interval": 292
+          },
+          {
+            "mid": "00445DMe49URsf",
+            "file": {
+              "media_mid": "00445DMe49URsf"
+            },
+            "title": "power",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": "Best of Black 2011"
+            },
+            "interval": 292
           }
         ]
       }
     ],
     "FML": [
       {
-        "mid": "001XQWbl4CZcX9",
-        "file": {
-          "media_mid": "002ETMtG3mm528"
-        },
-        "title": "손오공 (Super) (孙悟空)",
-        "singer": [
-          {
-            "name": "SEVENTEEN",
-            "mid": "00039PXm1tClwo"
-          }
-        ],
-        "album": {
-          "name": "SEVENTEEN 10th Mini Album 'FML'"
-        },
-        "interval": 200
-      },
-      {
         "mid": "0005toRJ3QqtAx",
         "file": {
           "media_mid": "003mHViD1MfUDY"
@@ -631,129 +771,6 @@
             "interval": 236
           }
         ]
-      },
-      {
-        "mid": "002E5gdV4dJxNG",
-        "file": {
-          "media_mid": "0048xXgS2lVzwD"
-        },
-        "title": "F*ck My Life",
-        "singer": [
-          {
-            "name": "SEVENTEEN",
-            "mid": "00039PXm1tClwo"
-          }
-        ],
-        "album": {
-          "name": "SEVENTEEN 10th Mini Album 'FML'"
-        },
-        "interval": 202
-      },
-      {
-        "mid": "002hxjzz3pnC6i",
-        "file": {
-          "media_mid": "002hxjzz3pnC6i"
-        },
-        "title": "FML (伴奏)",
-        "singer": [
-          {
-            "name": "Kanye West"
-          },
-          {
-            "name": "The Weeknd"
-          }
-        ],
-        "album": {
-          "name": ""
-        },
-        "interval": 18
-      },
-      {
-        "mid": "003HGm5Q1r7gxp",
-        "file": {
-          "media_mid": "003HGm5Q1r7gxp"
-        },
-        "title": "FML (R.O Flip)",
-        "singer": [
-          {
-            "name": "R.O"
-          },
-          {
-            "name": "Kanye West"
-          }
-        ],
-        "album": {
-          "name": "FML (R.O Flip)"
-        },
-        "interval": 270
-      },
-      {
-        "mid": "0000GsCt0AUEN7",
-        "file": {
-          "media_mid": "004T4iWt2hvOxo"
-        },
-        "title": "I Don't Understand But I Luv U",
-        "singer": [
-          {
-            "name": "SEVENTEEN",
-            "mid": "00039PXm1tClwo"
-          }
-        ],
-        "album": {
-          "name": "SEVENTEEN 10th Mini Album 'FML'"
-        },
-        "interval": 209
-      },
-      {
-        "mid": "003dCWqs1gmMfc",
-        "file": {
-          "media_mid": "000FvZrS4YpBbN"
-        },
-        "title": "April shower",
-        "singer": [
-          {
-            "name": "SEVENTEEN",
-            "mid": "00039PXm1tClwo"
-          }
-        ],
-        "album": {
-          "name": "SEVENTEEN 10th Mini Album 'FML'"
-        },
-        "interval": 212
-      },
-      {
-        "mid": "001Na8350PSsvQ",
-        "file": {
-          "media_mid": "001Na8350PSsvQ"
-        },
-        "title": "태어나 (FML (F**k My Life))",
-        "singer": [
-          {
-            "name": "NO:EL",
-            "mid": "003PDjQF2DxbLp"
-          }
-        ],
-        "album": {
-          "name": "TRIPONOEL"
-        },
-        "interval": 207
-      },
-      {
-        "mid": "002iFll70kx1Hp",
-        "file": {
-          "media_mid": "001iue0245yOZB"
-        },
-        "title": "Fire",
-        "singer": [
-          {
-            "name": "SEVENTEEN",
-            "mid": "00039PXm1tClwo"
-          }
-        ],
-        "album": {
-          "name": "SEVENTEEN 10th Mini Album 'FML'"
-        },
-        "interval": 158
       },
       {
         "mid": "001N7U8Y1TBesh",
@@ -856,6 +873,201 @@
               "name": "FML"
             },
             "interval": 225
+          }
+        ]
+      },
+      {
+        "mid": "003J9gSu2VwIU2",
+        "file": {
+          "media_mid": "003J9gSu2VwIU2"
+        },
+        "title": "FML (Explicit)",
+        "singer": [
+          {
+            "name": "toddmorrismusic",
+            "mid": "001xlyfl3BONgD"
+          }
+        ],
+        "album": {
+          "name": "The Grunge Album (Explicit)"
+        },
+        "interval": 197
+      },
+      {
+        "mid": "001Na8350PSsvQ",
+        "file": {
+          "media_mid": "001Na8350PSsvQ"
+        },
+        "title": "태어나 (FML (F**k My Life))",
+        "singer": [
+          {
+            "name": "NO:EL",
+            "mid": "003PDjQF2DxbLp"
+          }
+        ],
+        "album": {
+          "name": "TRIPONOEL"
+        },
+        "interval": 207
+      },
+      {
+        "mid": "002zDeeB10pepk",
+        "file": {
+          "media_mid": "0045KY2p1w8Fpn"
+        },
+        "title": "Fuck My Life (feat. Vlaster) (Explicit)",
+        "singer": [
+          {
+            "name": "Jyeeee"
+          },
+          {
+            "name": "Vlaster",
+            "mid": "003ZDBKC0k8Y98"
+          }
+        ],
+        "album": {
+          "name": "Before Fame (Explicit)"
+        },
+        "interval": 150
+      },
+      {
+        "mid": "001HEpUy3C3WQ4",
+        "file": {
+          "media_mid": "001owP3P22PfrB"
+        },
+        "title": "FML (Demo)",
+        "singer": [
+          {
+            "name": "Z.Csen",
+            "mid": "000on0hf2rI544"
+          }
+        ],
+        "album": {
+          "name": "FML (Super Remix ver.)"
+        },
+        "interval": 121
+      },
+      {
+        "mid": "001QONRQ3FsXsF",
+        "file": {
+          "media_mid": "000hmwHZ2aWF0m"
+        },
+        "title": "FML (Explicit)",
+        "singer": [
+          {
+            "name": "爆G",
+            "mid": "003ea0di13NEQ1"
+          },
+          {
+            "name": "灵山村帮",
+            "mid": "001UWfac4VCTDi"
+          },
+          {
+            "name": "露西露露",
+            "mid": "002zNUQN3kIXg2"
+          }
+        ],
+        "album": {
+          "name": "FML (Explicit)"
+        },
+        "interval": 195
+      },
+      {
+        "mid": "0006pnzx3mMAlS",
+        "file": {
+          "media_mid": "0006pnzx3mMAlS"
+        },
+        "title": "fml . (Explicit)",
+        "singer": [
+          {
+            "name": "fakemink",
+            "mid": "0031v4Vt0F6Rly"
+          }
+        ],
+        "album": {
+          "name": "The Boy who cried Terrified . (Explicit)"
+        },
+        "interval": 160
+      },
+      {
+        "mid": "003SUjVr1nZ0Qc",
+        "file": {
+          "media_mid": "003SUjVr1nZ0Qc"
+        },
+        "title": "FML (Explicit)",
+        "singer": [
+          {
+            "name": "Wasted Penguinz",
+            "mid": "002ZvGXb30LW5m"
+          }
+        ],
+        "album": {
+          "name": "FML"
+        },
+        "interval": 294
+      },
+      {
+        "mid": "0039ue5e3KIOmv",
+        "file": {
+          "media_mid": "004Sv2Yq4Gpaxf"
+        },
+        "title": "FML (Explicit)",
+        "singer": [
+          {
+            "name": "August Alsina",
+            "mid": "001ogSiU2pdmkR"
+          },
+          {
+            "name": "Pusha T",
+            "mid": "000CRP8P3ZqdRY"
+          }
+        ],
+        "album": {
+          "name": "Testimony (Deluxe) [Explicit]"
+        },
+        "interval": 217,
+        "grp": [
+          {
+            "mid": "004H5utj2vLrNA",
+            "file": {
+              "media_mid": "0025vw1m3mgACB"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "August Alsina",
+                "mid": "001ogSiU2pdmkR"
+              },
+              {
+                "name": "Pusha T",
+                "mid": "000CRP8P3ZqdRY"
+              }
+            ],
+            "album": {
+              "name": "Testimony (Explicit)"
+            },
+            "interval": 217
+          },
+          {
+            "mid": "003QDPNo038CKI",
+            "file": {
+              "media_mid": "0001QnwY4KmAcV"
+            },
+            "title": "FML (Explicit)",
+            "singer": [
+              {
+                "name": "August Alsina",
+                "mid": "001ogSiU2pdmkR"
+              },
+              {
+                "name": "Pusha T",
+                "mid": "000CRP8P3ZqdRY"
+              }
+            ],
+            "album": {
+              "name": "R&B Fresh Hits (Explicit)"
+            },
+            "interval": 217
           }
         ]
       }

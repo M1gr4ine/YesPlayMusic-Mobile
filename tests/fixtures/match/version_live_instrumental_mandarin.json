@@ -1,9 +1,10 @@
 {
   "name": "version_live_instrumental_mandarin",
+  "fixtureKind": "synthetic_variant",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "hard_gate_version_blocks_live_instrumental_language",
-  "description": "Real QQ Live/伴奏/钢琴版/DJ hits for 富士山下 陈奕迅 plus same-duration 国语版 variant; studio target rejects all.",
+  "description": "Real QQ Live/伴奏/钢琴版/DJ hits for 富士山下 陈奕迅 merged with a synthetic same-duration 国语版 variant; studio target rejects all.",
   "expandGrp": true,
   "target": {
     "id": "65766",
@@ -420,8 +421,11 @@
         },
         "interval": 259
       }
-    ]
+    ],
+    "富士山下 Eason Chan": [],
+    "富士山下": []
   },
   "expect": "reject",
-  "expectRule": "NONE"
+  "expectRule": "NONE",
+  "expectGate": "VERSION"
 }

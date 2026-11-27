@@ -1,9 +1,10 @@
 {
   "name": "famous_forward_playback",
+  "fixtureKind": "direct_replay",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "famous_forward_rule_a_album_priority",
-  "description": "Real recorded QQ search for Famous Kanye West Rihanna; both Ye (侃爷) [The Life Of Pablo, 40ms gap] and Ye (侃爷)/Rihanna [Famous, 1040ms gap] pass Rule A, with same-album ranked #1; 30s snippet and tributes rejected.",
+  "description": "Unmodified real QQ search for Famous Kanye West Rihanna; same-album Explicit & Clean (40ms gap) rank ahead of single edition (1040ms gap), 30s snippet and tributes rejected.",
   "expandGrp": true,
   "target": {
     "id": "409736434",
@@ -575,6 +576,260 @@
           "name": "Famous - Tribute to Kanye West and Rihanna and Swizz Beatz (Explicit)"
         },
         "interval": 200
+      }
+    ],
+    "Famous": [
+      {
+        "mid": "001UZxoK4XLYlg",
+        "file": {
+          "media_mid": "001UZxoK4XLYlg"
+        },
+        "title": "FAMOUS",
+        "singer": [
+          {
+            "name": "ALLDAY PROJECT",
+            "mid": "004BtMuq2HOoKQ"
+          }
+        ],
+        "album": {
+          "name": "FAMOUS"
+        },
+        "interval": 180
+      },
+      {
+        "mid": "0017wuQH0MYRWe",
+        "file": {
+          "media_mid": "000UVou54AscoY"
+        },
+        "title": "Famous",
+        "singer": [
+          {
+            "name": "Ivy Adara",
+            "mid": "0047T7v41u5td6"
+          },
+          {
+            "name": "Jon Hume",
+            "mid": "001jvtpa32InYo"
+          },
+          {
+            "name": "Lindsey Raymond Jackson",
+            "mid": "002mVx9I01OzpJ"
+          },
+          {
+            "name": "Jean Sebastian",
+            "mid": "000rWcrg4IQkTG"
+          }
+        ],
+        "album": {
+          "name": "Famous"
+        },
+        "interval": 223,
+        "grp": [
+          {
+            "mid": "0046QXhM2rkfH5",
+            "file": {
+              "media_mid": "002YZotA0dAx3e"
+            },
+            "title": "Famous",
+            "singer": [
+              {
+                "name": "Ivy Adara",
+                "mid": "0047T7v41u5td6"
+              },
+              {
+                "name": "Jon Hume",
+                "mid": "001jvtpa32InYo"
+              },
+              {
+                "name": "Lindsey Raymond Jackson",
+                "mid": "002mVx9I01OzpJ"
+              },
+              {
+                "name": "Jean Sebastian",
+                "mid": "000rWcrg4IQkTG"
+              }
+            ],
+            "album": {
+              "name": "Intraduction"
+            },
+            "interval": 223
+          }
+        ]
+      },
+      {
+        "mid": "002XelTe31rBEE",
+        "file": {
+          "media_mid": "003jtglT1Tyh8x"
+        },
+        "title": "Famous (Explicit)",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          }
+        ],
+        "album": {
+          "name": "The Life Of Pablo (Explicit)"
+        },
+        "interval": 196,
+        "grp": [
+          {
+            "mid": "000GOFgD48q1Sm",
+            "file": {
+              "media_mid": "0016vfYF0b9BVD"
+            },
+            "title": "Famous",
+            "singer": [
+              {
+                "name": "Ye (侃爷)",
+                "mid": "0023MslA1UR6YR"
+              }
+            ],
+            "album": {
+              "name": "The Life Of Pablo"
+            },
+            "interval": 196
+          }
+        ]
+      },
+      {
+        "mid": "0008PRQl11qoPR",
+        "file": {
+          "media_mid": "0008PRQl11qoPR"
+        },
+        "title": "FOCUS",
+        "singer": [
+          {
+            "name": "Hearts2Hearts",
+            "mid": "000p3zNi1qu1Eu"
+          }
+        ],
+        "album": {
+          "name": "FOCUS - The 1st Mini Album"
+        },
+        "interval": 177
+      },
+      {
+        "mid": "001jtazC0mpE2m",
+        "file": {
+          "media_mid": "001jtazC0mpE2m"
+        },
+        "title": "Famous (I'm The One) (Explicit)",
+        "singer": [
+          {
+            "name": "Mozzy",
+            "mid": "001jRXaD07KhbH"
+          },
+          {
+            "name": "Iamsu!",
+            "mid": "000q6Jab4RJNHZ"
+          },
+          {
+            "name": "Yo Gotti",
+            "mid": "002lXtSc3TwE9R"
+          },
+          {
+            "name": "Dej Loaf",
+            "mid": "000jM4KQ41RsXn"
+          }
+        ],
+        "album": {
+          "name": "Gangland Landlord (Explicit)"
+        },
+        "interval": 205
+      },
+      {
+        "mid": "003Z0JlC3c9Jwx",
+        "file": {
+          "media_mid": "003t2vmR3o4RZp"
+        },
+        "title": "Famous",
+        "singer": [
+          {
+            "name": "Ye (侃爷)",
+            "mid": "0023MslA1UR6YR"
+          },
+          {
+            "name": "Rihanna",
+            "mid": "002MiBdR19HQWx"
+          }
+        ],
+        "album": {
+          "name": "Famous"
+        },
+        "interval": 195
+      },
+      {
+        "mid": "001pQjKA4abd15",
+        "file": {
+          "media_mid": "002rWayb4FawTj"
+        },
+        "title": "红 Famous",
+        "singer": [
+          {
+            "name": "王艺瑾",
+            "mid": "003LNLn82GqJeT"
+          },
+          {
+            "name": "Carta",
+            "mid": "0014rrE84QymGG"
+          }
+        ],
+        "album": {
+          "name": "红 Famous"
+        },
+        "interval": 194
+      },
+      {
+        "mid": "001wHoED2rqhvs",
+        "file": {
+          "media_mid": "001wHoED2rqhvs"
+        },
+        "title": "Famous (Korean Ver.)",
+        "singer": [
+          {
+            "name": "泰民",
+            "mid": "003YQgHW3Hw05h"
+          }
+        ],
+        "album": {
+          "name": "Never Gonna Dance Again : Act 1 - The 3rd Album"
+        },
+        "interval": 179
+      },
+      {
+        "mid": "004L7PFM3Hv0xF",
+        "file": {
+          "media_mid": "000w44TP2jgQmS"
+        },
+        "title": "Famous (Album Version)",
+        "singer": [
+          {
+            "name": "Kelleigh Bannen",
+            "mid": "000twvNE1iOzDF"
+          }
+        ],
+        "album": {
+          "name": "Famous"
+        },
+        "interval": 192
+      },
+      {
+        "mid": "0025b20a0Fgmg6",
+        "file": {
+          "media_mid": "000SYK0z4JGCPR"
+        },
+        "title": "Famous",
+        "singer": [
+          {
+            "name": "何欣穗",
+            "mid": "001uegHO29MzQh"
+          }
+        ],
+        "album": {
+          "name": "她的。发光摇摆"
+        },
+        "interval": 203
       }
     ]
   },

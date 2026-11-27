@@ -1,272 +1,103 @@
 {
   "name": "cover_rejected",
+  "fixtureKind": "curated_real_excerpt",
   "direction": "netease_to_qq",
   "policy": "PLAYBACK",
   "rule": "artist_and_album_block_cover",
-  "description": "Real QQ cover search results for 晴天 with original 周杰伦 entry absent; covers fail both Rule A and Rule B.",
+  "description": "Real QQ cover entries for 粤语残片 (including 狸昭昭Kumo 275s, 1.3s gap from original 276.3s) passing title/version/duration gates and rejected at ARTIST.",
   "expandGrp": true,
   "target": {
-    "id": "186016",
-    "title": "晴天",
-    "artist": "周杰伦",
-    "album": "叶惠美",
-    "duration": 269000,
+    "id": "65778",
+    "title": "粤语残片",
+    "artist": "陈奕迅",
+    "album": "What's Going On…?",
+    "duration": 276306,
     "provider": "netease",
     "artistMembers": [
       {
-        "name": "周杰伦",
-        "providerId": "6452",
+        "name": "陈奕迅",
+        "providerId": "2116",
         "aliases": [
-          "Jay Chou"
+          "Eason Chan"
         ]
       }
     ]
   },
   "responses": {
-    "晴天 周杰伦": [
+    "粤语残片 陈奕迅": [
       {
-        "mid": "000pgbEQ1C4Hsv",
+        "mid": "000dSwZh0izxIu",
         "file": {
-          "media_mid": "001lkR2X1ZQg8b"
+          "media_mid": "000dSwZh0izxIu"
         },
-        "title": "晴天",
+        "title": "粤语残片 (女生氛围版)",
         "singer": [
           {
-            "name": "刘瑞琦",
-            "mid": "003bQEFA3KrvLI"
+            "name": "信知夏",
+            "mid": "000Gar9C1hq7al"
           }
         ],
         "album": {
-          "name": "再次寻找周杰伦"
+          "name": "粤语残片(女生氛围版)"
         },
-        "interval": 286
+        "interval": 136
       },
       {
-        "mid": "003YS1Tz2KP6aq",
+        "mid": "001XMyfL3yXL65",
         "file": {
-          "media_mid": "003TtLEa1F5EHc"
+          "media_mid": "001XMyfL3yXL65"
         },
-        "title": "晴天 (Live)",
+        "title": "粤语残片 (港风女声版)",
         "singer": [
           {
-            "name": "关诗敏",
-            "mid": "00030gjT0fIBPI"
+            "name": "嘉欣",
+            "mid": "0015LMbI4WQdwT"
           }
         ],
         "album": {
-          "name": "中国好声音第四季 第4期"
+          "name": "粤语残片（港风女声版）"
         },
-        "interval": 231,
-        "grp": [
-          {
-            "mid": "003qRPeW4Pzxrh",
-            "file": {
-              "media_mid": "000q3Zq223bbHO"
-            },
-            "title": "晴天 (Live)",
-            "singer": [
-              {
-                "name": "关诗敏",
-                "mid": "00030gjT0fIBPI"
-              }
-            ],
-            "album": {
-              "name": "中国好声音第四季 第12期"
-            },
-            "interval": 232
-          },
-          {
-            "mid": "001vQ7od005PVf",
-            "file": {
-              "media_mid": "001vQ7od005PVf"
-            },
-            "title": "晴天 (CCTV音乐频道) (Live)",
-            "singer": [
-              {
-                "name": "关诗敏"
-              }
-            ],
-            "album": {
-              "name": "CCTV音乐频道全球中文音乐榜上榜合辑"
-            },
-            "interval": 224
-          },
-          {
-            "mid": "003FcO6k23wECW",
-            "file": {
-              "media_mid": "002pSWC20q7k2h"
-            },
-            "title": "晴天 (Live)",
-            "singer": [
-              {
-                "name": "关诗敏",
-                "mid": "00030gjT0fIBPI"
-              }
-            ],
-            "album": {
-              "name": "全球中文音乐榜上榜"
-            },
-            "interval": 224
-          },
-          {
-            "mid": "001gYWyc3lA2UC",
-            "file": {
-              "media_mid": "002qH8ld1ABy6d"
-            },
-            "title": "晴天 (Live)",
-            "singer": [
-              {
-                "name": "关诗敏",
-                "mid": "00030gjT0fIBPI"
-              }
-            ],
-            "album": {
-              "name": "F·PLUS乐范迷你音乐会（第四场）"
-            },
-            "interval": 223
-          }
-        ]
+        "interval": 284
       },
       {
-        "mid": "001bhxop0fZRbU",
+        "mid": "001YzPkf18A8U4",
         "file": {
-          "media_mid": "003quzsd34diJi"
+          "media_mid": "001YzPkf18A8U4"
         },
-        "title": "晴天",
+        "title": "粤语残片",
         "singer": [
           {
-            "name": "刘大壮",
-            "mid": "002moRNc1l02Dr"
+            "name": "叫我阿顶",
+            "mid": "000miVmW351ktb"
           }
         ],
         "album": {
-          "name": "刘大壮的电台"
+          "name": "顶级黑粉翻唱集"
         },
-        "interval": 14,
-        "grp": [
-          {
-            "mid": "001lZMv93S3ld8",
-            "file": {
-              "media_mid": "003O2fe30ZGO2E"
-            },
-            "title": "晴天",
-            "singer": [
-              {
-                "name": "刘大壮",
-                "mid": "002moRNc1l02Dr"
-              }
-            ],
-            "album": {
-              "name": ""
-            },
-            "interval": 21
-          }
-        ]
+        "interval": 271
       },
       {
-        "mid": "001LcPEv1TEenh",
+        "mid": "000VNlcM0udCXc",
         "file": {
-          "media_mid": "001LcPEv1TEenh"
+          "media_mid": "000VNlcM0udCXc"
         },
-        "title": "晴天 (女声独唱版)",
+        "title": "粤语残片",
         "singer": [
           {
-            "name": "梅菜扣肉肉",
-            "mid": "002hLUw333ynOa"
+            "name": "狸昭昭Kumo",
+            "mid": "0011ndtR10IHcP"
           }
         ],
         "album": {
-          "name": "晴天 (独唱版)"
+          "name": "粵語殘片"
         },
-        "interval": 268
-      },
-      {
-        "mid": "003f8NCb36xulx",
-        "file": {
-          "media_mid": "003f8NCb36xulx"
-        },
-        "title": "晴天 (温柔男声版)",
-        "singer": [
-          {
-            "name": "六同学",
-            "mid": "001rjZwK2WYrNB"
-          }
-        ],
-        "album": {
-          "name": "晴天搁浅一路向北"
-        },
-        "interval": 266
-      },
-      {
-        "mid": "0043Z3CS1Ws0yX",
-        "file": {
-          "media_mid": "001re5Jj3XuVfv"
-        },
-        "title": "晴天",
-        "singer": [
-          {
-            "name": "小柔Channel",
-            "mid": "003qu3153amDDi"
-          }
-        ],
-        "album": {
-          "name": "小柔日翻周杰伦计划"
-        },
-        "interval": 286
-      },
-      {
-        "mid": "002xdlAl2VPcfM",
-        "file": {
-          "media_mid": "002xdlAl2VPcfM"
-        },
-        "title": "晴天",
-        "singer": [
-          {
-            "name": "一块吐司",
-            "mid": "004JAR984JaAkH"
-          }
-        ],
-        "album": {
-          "name": "翻唱"
-        },
-        "interval": 154
-      },
-      {
-        "mid": "0023NlEt0ymjRT",
-        "file": {
-          "media_mid": "0023NlEt0ymjRT"
-        },
-        "title": "晴天",
-        "singer": [
-          {
-            "name": "小鸡腿",
-            "mid": "002F11Xt2Wf3QG"
-          }
-        ],
-        "album": {
-          "name": "小鸡腿的晚安电台"
-        },
-        "interval": 30
-      },
-      {
-        "mid": "003oexNv1WCRL0",
-        "file": {
-          "media_mid": "003oexNv1WCRL0"
-        },
-        "title": "晴天",
-        "singer": [
-          {
-            "name": "蓝心羽",
-            "mid": "003Rc7tU01TXKL"
-          }
-        ],
-        "album": {
-          "name": ""
-        },
-        "interval": 176
+        "interval": 275
       }
-    ]
+    ],
+    "粤语残片 Eason Chan": [],
+    "粤语残片": []
   },
   "expect": "reject",
-  "expectRule": "NONE"
+  "expectRule": "NONE",
+  "expectGate": "ARTIST"
 }
