@@ -1222,6 +1222,7 @@ public final class MusicApi {
         JSONObject args = new JSONObject()
                 .put("title", track.title)
                 .put("artist", track.artist)
+                .put("album", track.album)
                 .put("artistAliases", ArtistAliases.toJsonArray(track.artistAliases))
                 .put("artistMembers", ArtistAliases.membersToJson(track.artistMembers))
                 .put("duration", track.duration);
@@ -1251,6 +1252,7 @@ public final class MusicApi {
         QQMatch.Song target = new QQMatch.Song(
                 title,
                 artist,
+                args.optString("album", "").trim(),
                 ArtistAliases.fromAliasArray(args.optJSONArray("artistAliases"), artist),
                 ArtistAliases.membersFromJson(args.optJSONArray("artistMembers")),
                 duration);
@@ -1296,9 +1298,11 @@ public final class MusicApi {
 
     private static QQMatch.Song neteaseSong(JSONObject song) {
         JSONArray artists = song.optJSONArray("ar");
+        JSONObject al = song.optJSONObject("al");
         return new QQMatch.Song(
                 song.optString("name", ""),
                 artistNames(artists),
+                al == null ? "" : al.optString("name", ""),
                 Collections.emptyList(),
                 ArtistAliases.membersFromArtists(artists),
                 song.optLong("dt", 0L));

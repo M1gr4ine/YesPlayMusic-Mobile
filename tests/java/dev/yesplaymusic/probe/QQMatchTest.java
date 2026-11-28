@@ -5,6 +5,7 @@ import static dev.yesplaymusic.probe.Check.that;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 
 final class QQMatchTest {
     private QQMatchTest() {}
@@ -64,6 +65,34 @@ final class QQMatchTest {
         that(!QQMatch.sameRecordingTitle("Psycho, Pt. 2", "Psycho, Pt. 2 (片段版)"), "片段版 is still rejected");
         that(!QQMatch.sameRecordingTitle("Psycho, Pt. 2", "Psycho (Pt. 2) (Live)"), "Live is still rejected");
         that(!QQMatch.sameRecordingTitle("Song", "Song (Live|Explicit)"), "a version tag inside a pipe group is kept");
+
+        // CJK adjacent to Latin version tags must still be recognized (including under Unicode/ICU \b semantics).
+        that(!QQMatch.sameRecordingTitle("K歌之王", "K歌之王 (陈君豪Remix)"),
+                "CJK glued to Remix is rejected");
+        that(!QQMatch.sameRecordingTitle("Song", "Song (周杰伦live)"),
+                "CJK glued to live is rejected");
+        that(!QQMatch.sameRecordingTitle("Song", "Song (DJ阿若mix)"),
+                "CJK glued to DJ/mix is rejected");
+        that(Pattern.compile(QQMatch.LATIN_TAG.pattern(), Pattern.UNICODE_CHARACTER_CLASS)
+                        .matcher("陈君豪remix").find(),
+                "LATIN_TAG matches remix next to Han chars even under UNICODE_CHARACTER_CLASS");
+
+        // Attribution and soundtrack annotations are ignored unless they carry a version tag.
+        that(QQMatch.sameRecordingTitle("A Rusty Dream (from Cyberpunk: Edgerunners 2)", "A Rusty Dream"),
+                "(from ...) attribution is ignored");
+        that(QQMatch.sameRecordingTitle("Song (feat. B)", "Song"),
+                "(feat. ...) collaboration annotation is ignored");
+        that(QQMatch.sameRecordingTitle("Song (prod. Metro)", "Song"),
+                "(prod. ...) annotation is ignored");
+        that(QQMatch.sameRecordingTitle("Song (Original Soundtrack)", "Song")
+                        && QQMatch.sameRecordingTitle("Song (OST)", "Song"),
+                "soundtrack/OST annotations are ignored");
+        that(!QQMatch.sameRecordingTitle("Song (feat. B) (Remix)", "Song"),
+                "(feat. B) (Remix) is still rejected");
+        that(!QQMatch.sameRecordingTitle("Song (from X Live)", "Song"),
+                "(from X Live) is still rejected");
+        that(!QQMatch.sameRecordingTitle("Song (feat. B Remix)", "Song"),
+                "(feat. B Remix) is still rejected");
     }
 
     private static void keywords() {
@@ -162,17 +191,40 @@ final class QQMatchTest {
                         .equals(Arrays.asList(original, cover)),
                 "overlapping artist moves ahead of non-overlapping candidate in the same duration tier");
 
-        QQMatch.Song sakanaction = new QQMatch.Song("新宝岛", "サカナクション",
+        QQMatch.Song sakanaction = new QQMatch.Song("新宝岛", "サカナクション", "",
                 Arrays.asList("Sakanaction", "鱼韵"), Collections.emptyList(), 305_000);
         QQMatch.Song otherCover = song("新宝岛", "Cover", 305_000);
         QQMatch.Song aliasHit = song("新宝岛", "sakanaction", 305_000);
         that(QQMatch.select(sakanaction, Arrays.asList(otherCover, aliasHit), s -> s, false).get(0) == aliasHit,
                 "track-carried artistAliases prioritize the matching candidate");
 
+        // Album-backed asymmetric language annotation and intra-tier ranking (sameAlbum > exactTitle > artistOverlap).
+        QQMatch.Song kTarget = song("K歌之王", "陈奕迅", "打得火热", 222_400);
+        QQMatch.Song kPiano = song("K歌之王", "陈奕迅", "英皇钢琴热恋系列 陈奕迅", 221_000);
+        QQMatch.Song kCantonese = song("K歌之王 (粤语)", "陈奕迅", "打得火热", 222_000);
+        QQMatch.Song kMandarin = song("K歌之王 (国语)", "陈奕迅", "反正是我", 218_000);
+        QQMatch.Song kRemix = song("K歌之王 (陈君豪Remix)", "陈奕迅", "打得火热", 212_000);
+        that(QQMatch.select(kTarget, Arrays.asList(kPiano, kMandarin, kRemix, kCantonese), s -> s, false)
+                        .equals(Arrays.asList(kCantonese, kPiano)),
+                "same-album Cantonese original beats exact-title piano compilation while rejecting Mandarin and Remix");
+        that(QQMatch.select(kTarget, Collections.singletonList(kPiano), s -> s, false)
+                        .equals(Collections.singletonList(kPiano)),
+                "without a same-album match, exact-title candidate remains available as fallback");
+        that(QQMatch.select(kTarget, Collections.singletonList(kMandarin), s -> s, false).isEmpty(),
+                "asymmetric language tag on a different album is rejected");
+        that(QQMatch.select(song("富士山下", "陈奕迅", "What's Going On...?", 259_000),
+                        Collections.singletonList(song("富士山下 (国语)", "陈奕迅", "认了吧", 259_000)),
+                        s -> s, false).isEmpty(),
+                "富士山下 (国语) on a different album is still rejected");
+        that(QQMatch.select(song("K歌之王 (粤语)", "陈奕迅", "精选", 222_000),
+                        Collections.singletonList(song("K歌之王 (国语)", "陈奕迅", "精选", 222_000)),
+                        s -> s, false).isEmpty(),
+                "conflicting language tags on both sides are rejected even on the same album");
+
         // Reverse matching (requireArtistOverlap=true) rejects non-overlapping artists and unknown placeholders.
         that(QQMatch.select(fmlTarget, Collections.singletonList(fmlQq), s -> s, true).isEmpty(),
                 "reverse selection rejects non-overlapping artist credit");
-        QQMatch.Song withMemberAlias = new QQMatch.Song("FML", "Kanye West", Collections.emptyList(),
+        QQMatch.Song withMemberAlias = new QQMatch.Song("FML", "Kanye West", "", Collections.emptyList(),
                 Collections.singletonList(new ArtistAliases.Member("Kanye West", "37520", Arrays.asList("ye"))),
                 236_000);
         that(QQMatch.select(withMemberAlias, Collections.singletonList(fmlQq), s -> s, true)
@@ -187,6 +239,10 @@ final class QQMatchTest {
     }
 
     private static QQMatch.Song song(String title, String artist, long duration) {
-        return new QQMatch.Song(title, artist, Collections.emptyList(), Collections.emptyList(), duration);
+        return song(title, artist, "", duration);
+    }
+
+    private static QQMatch.Song song(String title, String artist, String album, long duration) {
+        return new QQMatch.Song(title, artist, album, Collections.emptyList(), Collections.emptyList(), duration);
     }
 }

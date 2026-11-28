@@ -2,6 +2,7 @@ package dev.yesplaymusic.probe;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -24,8 +25,10 @@ public final class QQMatch {
             "粵臺閩場風颯飄師戀愛夢東樂楽聲時間語見會來説說傳伝長開門話電國學體氣気歲歳鳥書紅綠緑藍黃雲戰戦櫻桜憶獨歡戲劇線經経結給終繪絵續続練編聽聴誰讀読變変淚涙輝達遠運過還進邊辺邉鐘銀鏡陽陰隣鄰際難願顔顏題飛館魚鳴麗黒實実對対歸帰廣広應応惡悪搖揺晩樣様歩滿満燒焼發発髪髮竜龍緣縁藥薬覺覚觀観譯訳讓譲贈輕軽轉転鐵鉄錄録黙島嶋橋濱浜澤沢齋斎髙優宮葉華慶賀謝從従鬥闘舊壽圓円團団圍爾彌禮顯顕頭頂順須領頼賴騎驗験驚鬱鷹鶴黨齒歯龜亀蟲螢蛍衛裝複覇親觸計記許詩試詞認誕調談請論諾謎講識議護讃讚豐豊貝負貨貴買賣売費資賞質趙跡車軌軍輪辭農這連週遊遙適選遺鄉郷酔釋釈針鈴鋼錯鍵鎖閃閉閑關関陣陸險険隱隠雖雙雞離靈霊靜響頁飯飲養餘馬駆驅騒騷驛駅鳳鴉鶯鷲齢齡罵羅義習聖聞聯職脳腦臉興舉挙艦莊荘萬葉蓮蔵處処號補製規視覽覧約紙級純細紡統絆絡縛織繋繫纏罰網綺総總緒緊綿縦縱績樹權権歷歴殘殺淨浄涼淺減測湯溫漢潔澀渋灣濃灑為爲無煙熱燈營営爭牽狀獄獅現環產産畫當疊畳療癒盜盡監盤眞砕確禍禪稱種穩穏積窓竊競筆節範築簡籠糧紀納紋紛組絃絕絶絲継繼縮後裡裏個們嗎麼與劍剣帶帯獸獣";
     private static final String FOLD_TO =
             "粤台闽场风飒飘师恋爱梦东乐乐声时间语见会来说说传传长开门话电国学体气气岁岁鸟书红绿绿蓝黄云战战樱樱忆独欢戏剧线经经结给终绘绘续续练编听听谁读读变变泪泪辉达远运过还进边边边钟银镜阳阴邻邻际难愿颜颜题飞馆鱼鸣丽黑实实对对归归广广应应恶恶摇摇晚样样步满满烧烧发发发发龙龙缘缘药药觉觉观观译译让让赠轻轻转转铁铁录录默岛岛桥滨滨泽泽斋斋高优宫叶华庆贺谢从从斗斗旧寿圆圆团团围尔弥礼显显头顶顺须领赖赖骑验验惊郁鹰鹤党齿齿龟龟虫萤萤卫装复霸亲触计记许诗试词认诞调谈请论诺谜讲识议护赞赞丰丰贝负货贵买卖卖费资赏质赵迹车轨军轮辞农这连周游遥适选遗乡乡醉释释针铃钢错键锁闪闭闲关关阵陆险险隐隐虽双鸡离灵灵静响页饭饮养余马驱驱骚骚驿驿凤鸦莺鹫龄龄骂罗义习圣闻联职脑脑脸兴举举舰庄庄万叶莲藏处处号补制规视览览约纸级纯细纺统绊络缚织系系缠罚网绮总总绪紧绵纵纵绩树权权历历残杀净净凉浅减测汤温汉洁涩涩湾浓洒为为无烟热灯营营争牵状狱狮现环产产画当叠叠疗愈盗尽监盘真碎确祸禅称种稳稳积窗窃竞笔节范筑简笼粮纪纳纹纷组弦绝绝丝继继缩后里里个们吗么与剑剑带带兽兽";
-    private static final Pattern LATIN_TAG = Pattern.compile(
-            "\\b(live|remix|instrumental|acoustic|sped[ -]up|cover|flip|mix|edit|demo|dj|slowed|nightcore|bootleg|mashup|karaoke|unplugged|acapella|a[ -]cappella|cantonese|mandarin|japanese|korean|english)\\b");
+    // ASCII boundaries rather than \b: Android's ICU regex treats Han characters as word chars,
+    // which would hide tags glued to CJK names like "陈君豪Remix".
+    static final Pattern LATIN_TAG = Pattern.compile(
+            "(?<![a-z0-9])(live|remix|instrumental|acoustic|sped[ -]up|cover|flip|mix|edit|demo|dj|slowed|nightcore|bootleg|mashup|karaoke|unplugged|acapella|a[ -]cappella|cantonese|mandarin|japanese|korean|english)(?![a-z0-9])");
     private static final String[] CJK_TAGS = {
             "伴奏", "翻唱", "纯音乐", "现场", "演唱会", "清唱", "小样", "混音", "加速", "降调", "电音",
             "粤语", "广东话", "白话", "国语", "普通话", "闽南语", "台语", "日语", "日文", "英语", "英文", "韩语", "韩文",
@@ -40,27 +43,36 @@ public final class QQMatch {
     private static final Pattern BRACKET = Pattern.compile("[（(\\[【]([^）)\\]】]+)[）)\\]】]");
     private static final Pattern BENIGN = Pattern.compile(
             "(?i)^(?:explicit|clean|album version|single version|remaster(?:ed)?(?: (?:\\d{4}|version))?|\\d{4} remaster(?:ed)?|原版|完整版|专辑版|正式版)$");
+    private static final Pattern ATTRIBUTION = Pattern.compile(
+            "(?i)^(?:(?:from|feat|ft|featuring|with|theme\\s+from|prod\\s+by)\\s+|(?:feat|ft|prod)\\.\\s*\\S|(?:original\\s+soundtrack|ost)(?![a-z0-9]))");
+    private static final Pattern LANGUAGE_SEGMENT = Pattern.compile(
+            "^(?:cantonese|mandarin|japanese|korean|english|粤语|广东话|白话|国语|普通话|闽南语|台语|日语|日文|英语|英文|韩语|韩文)$");
+    private static final Set<String> LANGUAGE_TAGS = Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(
+            "cantonese", "mandarin", "japanese", "korean", "english", "白话", "闽南语", "台语")));
     private static final Pattern CJK = Pattern.compile("[\\p{IsHan}\\p{IsHiragana}\\p{IsKatakana}]");
 
     /** Minimal recording metadata used by cross-source selection. */
     static final class Song {
         final String title;
         final String artist;
+        final String album;
         final List<String> artistAliases;
         final List<ArtistAliases.Member> artistMembers;
         final long duration;
 
-        Song(String title, String artist, List<String> artistAliases,
+        Song(String title, String artist, String album, List<String> artistAliases,
              List<ArtistAliases.Member> artistMembers, long duration) {
             this.title = title;
             this.artist = artist;
+            this.album = album == null ? "" : album;
             this.artistAliases = artistAliases;
             this.artistMembers = artistMembers;
             this.duration = duration;
         }
 
         static Song of(Track track) {
-            return new Song(track.title, track.artist, track.artistAliases, track.artistMembers, track.duration);
+            return new Song(track.title, track.artist, track.album,
+                    track.artistAliases, track.artistMembers, track.duration);
         }
     }
 
@@ -112,7 +124,7 @@ public final class QQMatch {
         return cleaned.isEmpty() ? raw : cleaned;
     }
 
-    private static String version(String value) {
+    private static TreeSet<String> versionTags(String value) {
         String text = fold(value);
         Matcher latin = LATIN_TAG.matcher(text);
         TreeSet<String> tags = new TreeSet<>();
@@ -135,13 +147,15 @@ public final class QQMatch {
                 if (!normalized.isEmpty()) tags.add("ver:" + normalized);
             }
         }
-        StringBuilder result = new StringBuilder();
-        for (String tag : tags) result.append(tag).append('|');
-        return result.toString();
+        return tags;
     }
 
     /** Main title with ignorable bracket segments removed; QQ joins subtitles as "(Pt. 2|Explicit)". */
     private static String mainTitle(String title) {
+        return mainTitle(title, false);
+    }
+
+    private static String mainTitle(String title, boolean stripLanguage) {
         String text = fold(title);
         Matcher brackets = BRACKET.matcher(text);
         StringBuilder result = new StringBuilder();
@@ -152,7 +166,7 @@ public final class QQMatch {
             List<String> kept = new ArrayList<>();
             for (String segment : brackets.group(1).split("\\|")) {
                 String trimmed = segment.trim();
-                if (!trimmed.isEmpty() && !ignorableSegment(trimmed, result)) kept.add(trimmed);
+                if (!trimmed.isEmpty() && !ignorableSegment(trimmed, result, stripLanguage)) kept.add(trimmed);
             }
             if (!kept.isEmpty()) result.append('(').append(String.join("|", kept)).append(')');
         }
@@ -160,10 +174,12 @@ public final class QQMatch {
         return normalize(result.toString());
     }
 
-    /** Edition markers, CJK translations and a repeat of the title's own ending carry no recording identity. */
-    private static boolean ignorableSegment(String segment, CharSequence titleSoFar) {
+    /** Edition markers, attributions, CJK translations and a repeat of the title's own ending carry no recording identity. */
+    private static boolean ignorableSegment(String segment, CharSequence titleSoFar, boolean stripLanguage) {
         if (BENIGN.matcher(segment).matches()) return true;
-        if (!version(segment).isEmpty()) return false;
+        if (stripLanguage && LANGUAGE_SEGMENT.matcher(segment).matches()) return true;
+        if (!versionTags(segment).isEmpty()) return false;
+        if (ATTRIBUTION.matcher(segment).lookingAt()) return true;
         if (CJK.matcher(segment).find() && !segment.endsWith("版")) return true;
         String head = normalize(titleSoFar.toString()), tail = normalize(segment);
         return !tail.isEmpty() && head.length() > tail.length() && head.endsWith(tail);
@@ -171,7 +187,29 @@ public final class QQMatch {
 
     static boolean sameRecordingTitle(String left, String right) {
         String a = mainTitle(left), b = mainTitle(right);
-        return !a.isEmpty() && a.equals(b) && version(left).equals(version(right));
+        return !a.isEmpty() && a.equals(b) && versionTags(left).equals(versionTags(right));
+    }
+
+    static boolean sameAlbum(String left, String right) {
+        String a = mainTitle(left), b = mainTitle(right);
+        return !a.isEmpty() && a.equals(b);
+    }
+
+    /** Accepts asymmetric language annotations (e.g. "K歌之王" vs "K歌之王 (粤语)") when callers verify sameAlbum. */
+    private static boolean sameTitleExceptLanguage(String left, String right) {
+        String a = mainTitle(left, true), b = mainTitle(right, true);
+        if (a.isEmpty() || !a.equals(b)) return false;
+        boolean leftHasLang = false, rightHasLang = false;
+        Set<String> leftOther = new TreeSet<>(), rightOther = new TreeSet<>();
+        for (String tag : versionTags(left)) {
+            if (LANGUAGE_TAGS.contains(tag)) leftHasLang = true;
+            else leftOther.add(tag);
+        }
+        for (String tag : versionTags(right)) {
+            if (LANGUAGE_TAGS.contains(tag)) rightHasLang = true;
+            else rightOther.add(tag);
+        }
+        return leftHasLang != rightHasLang && leftOther.equals(rightOther);
     }
 
     /** UNM search keyword: "title - artist1 / artist2". */
@@ -194,33 +232,52 @@ public final class QQMatch {
         return keyword(cleanedTitle, lead);
     }
 
+    private static final class Ranked<T> {
+        final T item;
+        final int tier;
+        final int priority;
+
+        Ranked(T item, int tier, int priority) {
+            this.item = item;
+            this.tier = tier;
+            this.priority = priority;
+        }
+    }
+
     /**
      * Selects matching recordings in provider order:
-     * 1. Requires sameRecordingTitle (same main title and version tags).
+     * 1. Requires sameRecordingTitle, or an asymmetric language-only annotation when sameAlbum holds.
      * 2. Duration tiers: within 5s; then same-master drift (both at least 60s, gap at most 15s and 10%);
      *    then unknown duration. A known duration outside these is never chosen, so previews stay out.
-     * 3. Within each tier, candidates whose credited artists overlap the target (including track-carried
-     *    aliases/members) come first. Reverse matching sets requireArtistOverlap=true.
+     * 3. Within each tier, ranks by sameAlbum > exactTitle > artistOverlap > original provider order.
+     *    Reverse matching sets requireArtistOverlap=true.
      */
     static <T> List<T> select(Song target, List<T> candidates, Function<T, Song> toSong, boolean requireArtistOverlap) {
         if (candidates.isEmpty() || mainTitle(target.title).isEmpty()) return Collections.emptyList();
         Set<String> targetArtists = artistTokens(target);
         if (requireArtistOverlap && targetArtists.isEmpty()) return Collections.emptyList();
 
-        List<List<T>> buckets = new ArrayList<>();
-        for (int i = 0; i < 6; i++) buckets.add(new ArrayList<>());
+        List<Ranked<T>> accepted = new ArrayList<>();
         for (T item : candidates) {
             Song candidate = toSong.apply(item);
-            if (!sameRecordingTitle(target.title, candidate.title)) continue;
+            int tier = durationTier(target.duration, candidate.duration);
+            if (tier < 0) continue;
+            boolean albumMatch = sameAlbum(target.album, candidate.album);
+            boolean exactTitle = sameRecordingTitle(target.title, candidate.title);
+            if (!exactTitle && !(albumMatch && sameTitleExceptLanguage(target.title, candidate.title))) continue;
             boolean artistMatch = !targetArtists.isEmpty()
                     && !Collections.disjoint(targetArtists, artistTokens(candidate));
             if (requireArtistOverlap && !artistMatch) continue;
-            int tier = durationTier(target.duration, candidate.duration);
-            if (tier >= 0) buckets.get(tier * 2 + (artistMatch ? 0 : 1)).add(item);
+            int priority = (albumMatch ? 4 : 0) + (exactTitle ? 2 : 0) + (artistMatch ? 1 : 0);
+            accepted.add(new Ranked<>(item, tier, priority));
         }
 
-        List<T> ordered = new ArrayList<>();
-        for (List<T> bucket : buckets) ordered.addAll(bucket);
+        accepted.sort((left, right) -> {
+            int byTier = Integer.compare(left.tier, right.tier);
+            return byTier != 0 ? byTier : Integer.compare(right.priority, left.priority);
+        });
+        List<T> ordered = new ArrayList<>(accepted.size());
+        for (Ranked<T> ranked : accepted) ordered.add(ranked.item);
         return ordered;
     }
 

@@ -240,6 +240,42 @@ final class QQSourceTest {
         that("000WdUWo1p4MAt".equals(QQSource.lookupAttempts(psycho, psychoApi, "0").get(0).getString("qqMid"))
                         && psychoApi.requests.size() == 1,
                 "Psycho, Pt. 2 resolves to the QQ original titled \"Psycho,Pt. 2 (Pt. 2|Explicit)\"");
+
+        // Recorded QQ results for K歌之王: same-album Cantonese original beats piano version and rejects Remix/Mandarin.
+        Track kSong = Track.fromJson(new JSONObject().put("id", "67467").put("title", "K歌之王")
+                .put("artist", "陈奕迅").put("album", "打得火热").put("duration", 222400));
+        Fake kSongApi = new Fake();
+        kSongApi.results.put("K歌之王 - 陈奕迅", new JSONArray()
+                .put(song("001vBLzI374yHI", "fPiano", "K歌之王", "陈奕迅", "英皇钢琴热恋系列 陈奕迅", 221))
+                .put(song("003fW8xX0ROTNn", "fCover1", "K歌之王-陈奕迅 (国)", "PEIBULIAO", "", 218))
+                .put(song("003hjhJP0C1Gxh", "fOrig", "K歌之王 (粤语)", "陈奕迅", "打得火热", 222))
+                .put(song("002gtS881BvYkc", "fCover2", "K歌之王 - 陈奕迅", "胖 哥", "", 261))
+                .put(song("0049bTOJ3yvgUt", "fMandarin", "K歌之王 (国语)", "陈奕迅", "反正是我", 218)));
+        that("003hjhJP0C1Gxh".equals(QQSource.lookupAttempts(kSong, kSongApi, "0").get(0).getString("qqMid"))
+                        && kSongApi.requests.size() == 1,
+                "K歌之王 selects same-album Cantonese original over piano compilation");
+
+        Fake kSongWithRemix = new Fake();
+        kSongWithRemix.results.put("K歌之王 - 陈奕迅", new JSONArray()
+                .put(song("003S7ZJ327W0ym", "fRemix", "K歌之王 (陈君豪Remix)", "陈奕迅", "打得火热", 212))
+                .put(song("001vBLzI374yHI", "fPiano", "K歌之王", "陈奕迅", "英皇钢琴热恋系列 陈奕迅", 221))
+                .put(song("003hjhJP0C1Gxh", "fOrig", "K歌之王 (粤语)", "陈奕迅", "打得火热", 222)));
+        that("003hjhJP0C1Gxh".equals(QQSource.lookupAttempts(kSong, kSongWithRemix, "0").get(0).getString("qqMid"))
+                        && kSongWithRemix.requests.size() == 1,
+                "K歌之王 rejects 陈君豪Remix even on the same album and picks original");
+
+        // Recorded QQ results for A Rusty Dream: attribution "(from ...)" in NetEase title matches bare QQ title.
+        Track rusty = Track.fromJson(new JSONObject().put("id", "3422762511")
+                .put("title", "A Rusty Dream (from Cyberpunk: Edgerunners 2)")
+                .put("artist", "DOUDOU").put("album", "A Rusty Dream (from Cyberpunk: Edgerunners 2)")
+                .put("duration", 301500));
+        Fake rustyApi = new Fake();
+        rustyApi.results.put("A Rusty Dream (from Cyberpunk: Edgerunners 2) - DOUDOU", new JSONArray()
+                .put(song("002lAtXr0JYgEn", "fRusty", "A Rusty Dream", "DOUDOU",
+                        "A Rusty Dream (from Cyberpunk: Edgerunners 2)", 301)));
+        that("002lAtXr0JYgEn".equals(QQSource.lookupAttempts(rusty, rustyApi, "0").get(0).getString("qqMid"))
+                        && rustyApi.requests.size() == 1,
+                "A Rusty Dream (from ...) resolves to bare QQ title in one vkey request");
     }
 
     private static void cachedAndNative() throws Exception {

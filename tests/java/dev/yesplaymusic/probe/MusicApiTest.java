@@ -148,6 +148,21 @@ final class MusicApiTest {
         JSONObject missingArtist = new JSONObject().put("title", "Famous").put("artist", "").put("duration", 196000);
         that(!MusicApi.matchTrack(missingArtist, query -> new JSONArray().put(famous)).getBoolean("matched"),
                 "missing artist returns matched:false for reverse match");
+
+        // Reverse match forwards album so same-album NetEase recording beats compilation and supports language tags.
+        JSONObject eason = new JSONObject().put("id", 2116).put("name", "陈奕迅");
+        JSONObject pianoTrack = new JSONObject().put("id", 9001).put("name", "K歌之王").put("dt", 221000)
+                .put("al", new JSONObject().put("id", 1).put("name", "英皇钢琴热恋系列 陈奕迅"))
+                .put("ar", new JSONArray().put(eason));
+        JSONObject originalTrack = new JSONObject().put("id", 67467).put("name", "K歌之王").put("dt", 222400)
+                .put("al", new JSONObject().put("id", 2).put("name", "打得火热"))
+                .put("ar", new JSONArray().put(eason));
+        JSONObject qqKSong = new JSONObject().put("title", "K歌之王 (粤语)").put("artist", "陈奕迅")
+                .put("album", "打得火热").put("duration", 222000);
+        JSONObject reverseAlbum = MusicApi.matchTrack(qqKSong,
+                query -> new JSONArray().put(pianoTrack).put(originalTrack));
+        that(reverseAlbum.getBoolean("matched") && "67467".equals(reverseAlbum.getString("id")),
+                "reverse match prefers same-album NetEase original over earlier compilation");
     }
 
     private static void testStreamHosts() {
